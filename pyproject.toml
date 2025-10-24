@@ -1,7 +1,25 @@
 [project]
 name = "api-backend"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.0.1"
+description = "FastAPI backend for The Foundry Project"
 readme = "README.md"
-requires-python = ">=3.13"
-dependencies = []
+requires-python = ">=3.14"
+dependencies = [
+    "dotenv>=0.9.9",
+    "fastapi[standard]>=0.119.0",
+    "gunicorn>=23.0.0",
+    "httpx>=0.28.1",
+    "loguru>=0.7.3",
+    "pydantic>=2.12.3",
+    "pymongo>=4.15.3",
+    "python-multipart>=0.0.20",
+]
+
+[dependency-groups]
+dev = [
+    "bandit>=1.8.6",
+    "mypy>=1.18.2",
+    "pre-commit>=4.3.0",
+    "ruff>=0.14.1",
+]
+
