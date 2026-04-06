@@ -177,14 +177,11 @@ async def ingest_chat(
         if is_broadcast:
             await _handle_broadcast(payload, clan, db, valkey)
         else:
-            doc = {**_base(payload, clan), "player_name": payload.sender}
-            await db["chat_events"].insert_one(doc)
             dispatch_data = {
-                k: v
-                for k, v in doc.items()
-                if k != "_id" and not isinstance(v, datetime)
+                **_base(payload, clan),
+                "player_name": payload.sender,
+                "timestamp": _now().isoformat(),
             }
-            dispatch_data["timestamp"] = doc["timestamp"].isoformat()
             await publish(valkey, "chat", dispatch_data)
 
     return {"ok": True, "processed": len(payloads)}

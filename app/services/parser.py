@@ -9,6 +9,13 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Literal
 
+_IMG_TAG_RE = re.compile(r"<img=\d+>\s*")
+
+
+def _strip(message: str) -> str:
+    """Remove OSRS image tags (e.g. ``<img=43>``) before pattern matching."""
+    return _IMG_TAG_RE.sub("", message).strip()
+
 
 class BroadcastType(str, Enum):
     LOOT = "loot"
@@ -115,6 +122,7 @@ _NEW_MEMBER_PATTERN = re.compile(
 
 def classify(message: str) -> BroadcastType:
     """Return the broadcast type for a clan MESSAGE (not a player chat line)."""
+    message = _strip(message)
     if _LOOT_PATTERN.match(message) or _RAID_LOOT_PATTERN.match(message):
         return BroadcastType.LOOT
     if _LEVEL_PATTERN.match(message) or _MAX_LEVEL_PATTERN.match(message):
@@ -133,6 +141,7 @@ def classify(message: str) -> BroadcastType:
 
 
 def parse_loot(message: str) -> ParsedLoot | None:
+    message = _strip(message)
     if m := _LOOT_PATTERN.match(message):
         return ParsedLoot(
             player_name=m.group("player"),
@@ -151,6 +160,7 @@ def parse_loot(message: str) -> ParsedLoot | None:
 
 
 def parse_level_up(message: str) -> ParsedLevelUp | None:
+    message = _strip(message)
     if m := _LEVEL_PATTERN.match(message):
         return ParsedLevelUp(
             player_name=m.group("player"),
@@ -167,6 +177,7 @@ def parse_level_up(message: str) -> ParsedLevelUp | None:
 
 
 def parse_achievement(message: str) -> ParsedAchievement | None:
+    message = _strip(message)
     if m := _QUEST_PATTERN.match(message):
         return ParsedAchievement(player_name=m.group("player"), kind="quest", name=m.group("name"))
     if m := _DIARY_PATTERN.match(message):
@@ -177,6 +188,7 @@ def parse_achievement(message: str) -> ParsedAchievement | None:
 
 
 def parse_pet(message: str) -> ParsedPet | None:
+    message = _strip(message)
     for pattern in _PET_PATTERNS:
         if m := pattern.match(message):
             return ParsedPet(player_name=m.group("player"))
@@ -184,6 +196,7 @@ def parse_pet(message: str) -> ParsedPet | None:
 
 
 def parse_new_member(message: str) -> ParsedNewMember | None:
+    message = _strip(message)
     if m := _NEW_MEMBER_PATTERN.match(message):
         return ParsedNewMember(player_name=m.group("player"), invited_by=m.group("inviter"))
     return None
