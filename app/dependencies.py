@@ -24,4 +24,4 @@ async def verify_clan(
     doc = await db["user_keys"].find_one({"key": verification_code, "is_active": True})
     if not doc:
         raise HTTPException(status_code=401, detail="Invalid or revoked API key")
-    return {"name": doc["guild_name"], "discord_user_id": doc["discord_user_id"]}
+    return {"name": doc["guild_name"], "discord_user_id": doc["discord_user_id"], "key": verification_code}

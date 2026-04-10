@@ -8,7 +8,7 @@ from valkey.asyncio import Valkey
 from app.dependencies import get_db, get_valkey, verify_clan
 from app.models.clan_chat import ClanChatPayload
 from app.services import parser
-from app.services.dispatcher import publish
+from app.services.dispatcher import is_duplicate, publish
 from app.services.parser import BroadcastType
 
 router = APIRouter(tags=["clan"])
@@ -173,6 +173,11 @@ async def ingest_chat(
     point at this endpoint (the root path of the chat subdomain).
     """
     for payload in payloads:
+        if await is_duplicate(valkey, clan["key"], payload.sender, payload.message):
+            logger.debug(
+                "[{}] Duplicate payload from {}, skipping", clan["name"], payload.sender
+            )
+            continue
         is_broadcast = payload.sender == payload.clan_name
         if is_broadcast:
             await _handle_broadcast(payload, clan, db, valkey)
