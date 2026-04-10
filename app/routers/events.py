@@ -160,7 +160,7 @@ async def _handle_broadcast(
         logger.debug("[{}] Unknown broadcast: {}", clan["name"], payload.message)
 
 
-@router.post("/")
+@router.post("/ccingest")
 async def ingest_chat(
     payloads: list[ClanChatPayload],
     clan: dict = Depends(verify_clan),
