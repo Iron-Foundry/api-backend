@@ -29,6 +29,13 @@ def _base(payload: ClanChatPayload, clan: dict) -> dict:
     }
 
 
+def _dispatch_doc(doc: dict) -> dict:
+    """Strip MongoDB-internal fields and serialise datetime for stream dispatch."""
+    result = {k: v for k, v in doc.items() if k != "_id" and not isinstance(v, datetime)}
+    result["timestamp"] = doc["timestamp"].isoformat()
+    return result
+
+
 async def _handle_broadcast(
     payload: ClanChatPayload,
     clan: dict,
@@ -56,13 +63,7 @@ async def _handle_broadcast(
                 parsed.item_name,
                 parsed.coin_value,
             )
-            dispatch_data = {
-                k: v
-                for k, v in doc.items()
-                if k != "_id" and not isinstance(v, datetime)
-            }
-            dispatch_data["timestamp"] = doc["timestamp"].isoformat()
-            await publish(valkey, "loot", dispatch_data)
+            await publish(valkey, "loot", _dispatch_doc(doc))
 
     elif kind == BroadcastType.LEVEL_UP:
         parsed = parser.parse_level_up(payload.message)
@@ -81,13 +82,26 @@ async def _handle_broadcast(
                 parsed.skill,
                 parsed.new_level,
             )
-            dispatch_data = {
-                k: v
-                for k, v in doc.items()
-                if k != "_id" and not isinstance(v, datetime)
+            await publish(valkey, "levelup", _dispatch_doc(doc))
+
+    elif kind == BroadcastType.XP_MILESTONE:
+        parsed = parser.parse_xp_milestone(payload.message)
+        if parsed:
+            doc = {
+                **_base(payload, clan),
+                "player_name": parsed.player_name,
+                "skill": parsed.skill,
+                "xp": parsed.xp,
             }
-            dispatch_data["timestamp"] = doc["timestamp"].isoformat()
-            await publish(valkey, "levelup", dispatch_data)
+            await db["xp_events"].insert_one(doc)
+            logger.info(
+                "[{}] XP milestone: {} reached {:,} XP in {}",
+                clan["name"],
+                parsed.player_name,
+                parsed.xp,
+                parsed.skill,
+            )
+            await publish(valkey, "xpmilestone", _dispatch_doc(doc))
 
     elif kind in (
         BroadcastType.QUEST,
@@ -109,13 +123,7 @@ async def _handle_broadcast(
                 parsed.player_name,
                 parsed.name,
             )
-            dispatch_data = {
-                k: v
-                for k, v in doc.items()
-                if k != "_id" and not isinstance(v, datetime)
-            }
-            dispatch_data["timestamp"] = doc["timestamp"].isoformat()
-            await publish(valkey, "achievement", dispatch_data)
+            await publish(valkey, "achievement", _dispatch_doc(doc))
 
     elif kind == BroadcastType.PET:
         parsed = parser.parse_pet(payload.message)
@@ -123,13 +131,7 @@ async def _handle_broadcast(
             doc = {**_base(payload, clan), "player_name": parsed.player_name}
             await db["pet_events"].insert_one(doc)
             logger.info("[{}] Pet drop: {}", clan["name"], parsed.player_name)
-            dispatch_data = {
-                k: v
-                for k, v in doc.items()
-                if k != "_id" and not isinstance(v, datetime)
-            }
-            dispatch_data["timestamp"] = doc["timestamp"].isoformat()
-            await publish(valkey, "pet", dispatch_data)
+            await publish(valkey, "pet", _dispatch_doc(doc))
 
     elif kind == BroadcastType.NEW_MEMBER:
         parsed = parser.parse_new_member(payload.message)
@@ -146,13 +148,141 @@ async def _handle_broadcast(
                 parsed.player_name,
                 parsed.invited_by,
             )
-            dispatch_data = {
-                k: v
-                for k, v in doc.items()
-                if k != "_id" and not isinstance(v, datetime)
+            await publish(valkey, "new_member", _dispatch_doc(doc))
+
+    elif kind == BroadcastType.COLLECTION_LOG:
+        parsed = parser.parse_collection_log(payload.message)
+        if parsed:
+            doc = {
+                **_base(payload, clan),
+                "player_name": parsed.player_name,
+                "item_name": parsed.item_name,
+                "log_slots": parsed.log_slots,
             }
-            dispatch_data["timestamp"] = doc["timestamp"].isoformat()
-            await publish(valkey, "new_member", dispatch_data)
+            await db["collection_log_events"].insert_one(doc)
+            logger.info(
+                "[{}] Collection log: {} - {} (slot {})",
+                clan["name"],
+                parsed.player_name,
+                parsed.item_name,
+                parsed.log_slots,
+            )
+            await publish(valkey, "collection_log", _dispatch_doc(doc))
+
+    elif kind == BroadcastType.LOOT_KEY:
+        parsed = parser.parse_loot_key(payload.message)
+        if parsed:
+            doc = {
+                **_base(payload, clan),
+                "player_name": parsed.player_name,
+                "coin_value": parsed.coin_value,
+            }
+            await db["loot_key_events"].insert_one(doc)
+            logger.info(
+                "[{}] Loot key: {} opened key worth {:,}gp",
+                clan["name"],
+                parsed.player_name,
+                parsed.coin_value,
+            )
+            await publish(valkey, "loot_key", _dispatch_doc(doc))
+
+    elif kind == BroadcastType.CLUE_ITEM:
+        parsed = parser.parse_clue_item(payload.message)
+        if parsed:
+            doc = {
+                **_base(payload, clan),
+                "player_name": parsed.player_name,
+                "item_name": parsed.item_name,
+                "coin_value": parsed.coin_value,
+            }
+            await db["clue_events"].insert_one(doc)
+            logger.info(
+                "[{}] Clue item: {} got {}",
+                clan["name"],
+                parsed.player_name,
+                parsed.item_name,
+            )
+            await publish(valkey, "clue_item", _dispatch_doc(doc))
+
+    elif kind == BroadcastType.PK:
+        parsed = parser.parse_pk(payload.message)
+        if parsed:
+            doc = {
+                **_base(payload, clan),
+                "winner": parsed.winner,
+                "loser": parsed.loser,
+                "gp_exchanged": parsed.gp_exchanged,
+            }
+            await db["pk_events"].insert_one(doc)
+            logger.info(
+                "[{}] PK: {} defeated {} ({} gp)",
+                clan["name"],
+                parsed.winner,
+                parsed.loser,
+                parsed.gp_exchanged,
+            )
+            await publish(valkey, "pk", _dispatch_doc(doc))
+
+    elif kind == BroadcastType.PERSONAL_BEST:
+        parsed = parser.parse_personal_best(payload.message)
+        if parsed:
+            doc = {
+                **_base(payload, clan),
+                "player_name": parsed.player_name,
+                "activity": parsed.activity,
+                "time_seconds": parsed.time_seconds,
+                "variant": parsed.variant,
+            }
+            await db["personal_best_events"].insert_one(doc)
+            logger.info(
+                "[{}] PB: {} - {} in {}s",
+                clan["name"],
+                parsed.player_name,
+                parsed.activity,
+                parsed.time_seconds,
+            )
+            await publish(valkey, "personal_best", _dispatch_doc(doc))
+
+    elif kind in (BroadcastType.LEFT_CLAN, BroadcastType.EXPELLED):
+        parsed = parser.parse_clan_leave(payload.message)
+        if parsed:
+            doc = {
+                **_base(payload, clan),
+                "player_name": parsed.player_name,
+                "expelled_by": parsed.expelled_by,
+            }
+            await db["membership_events"].insert_one(doc)
+            if parsed.expelled_by:
+                logger.info(
+                    "[{}] Expelled: {} by {}",
+                    clan["name"],
+                    parsed.player_name,
+                    parsed.expelled_by,
+                )
+                await publish(valkey, "expelled", _dispatch_doc(doc))
+            else:
+                logger.info("[{}] Left clan: {}", clan["name"], parsed.player_name)
+                await publish(valkey, "left_clan", _dispatch_doc(doc))
+
+    elif kind in (BroadcastType.COFFER_DONATION, BroadcastType.COFFER_WITHDRAWAL):
+        parsed = parser.parse_coffer_transaction(payload.message)
+        if parsed:
+            doc = {
+                **_base(payload, clan),
+                "player_name": parsed.player_name,
+                "amount": parsed.amount,
+                "is_donation": parsed.is_donation,
+            }
+            await db["coffer_events"].insert_one(doc)
+            logger.info(
+                "[{}] Coffer {}: {} {:,}gp",
+                clan["name"],
+                "deposit" if parsed.is_donation else "withdrawal",
+                parsed.player_name,
+                parsed.amount,
+            )
+            event_type = "coffer_donation" if parsed.is_donation else "coffer_withdrawal"
+            await publish(valkey, event_type, _dispatch_doc(doc))
 
     else:
         # Store unknown broadcasts so no data is silently lost
