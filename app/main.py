@@ -6,7 +6,7 @@ from loguru import logger
 from pymongo import AsyncMongoClient
 from valkey.asyncio import Valkey
 
-from app.routers import events
+from app.routers import ccdispatch, events
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 MONGO_DB = os.getenv("MONGO_DB", "foundry")
@@ -30,6 +30,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="The Foundry API", lifespan=lifespan)
 
 app.include_router(events.router)
+app.include_router(ccdispatch.router)
 
 
 @app.get("/health")
