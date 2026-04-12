@@ -42,6 +42,9 @@ class ConnectionManager:
         for conn_id in dead:
             self.disconnect(conn_id, guild_name)
 
+    def connection_count(self, guild_name: str) -> int:
+        return len(self._connections.get(guild_name, {}))
+
     async def send_to(self, conn_id: UUID, guild_name: str, message: str) -> bool:
         client = self._connections.get(guild_name, {}).get(conn_id)
         if client is None:
