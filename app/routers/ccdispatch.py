@@ -3,9 +3,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
-from pymongo.asynchronous.database import AsyncDatabase
 
-from app.dependencies import get_db, verify_clan
+from app.dependencies import verify_clan
 from app.services.connection_manager import connection_manager
 
 router = APIRouter(tags=["clan"])
@@ -26,10 +25,8 @@ def _wrap(sender: str, message: str) -> str:
 
 
 @router.websocket("/ccdispatch")
-async def clan_chat_dispatch(
-    websocket: WebSocket,
-    db: AsyncDatabase = Depends(get_db),
-) -> None:
+async def clan_chat_dispatch(websocket: WebSocket) -> None:
+    db = websocket.app.state.db
     verification_code = websocket.headers.get("verification-code")
     doc = await db["user_keys"].find_one({"key": verification_code, "is_active": True}) if verification_code else None
     if not doc:
@@ -37,7 +34,10 @@ async def clan_chat_dispatch(
         return
     guild_name: str = doc["guild_name"]
     conn_id = await connection_manager.connect(websocket, guild_name, verification_code)
-    await websocket.send_text(json.dumps({"conn_id": str(conn_id)}))
+    await websocket.send_text(json.dumps({
+        "message_type": "Connected",
+        "message": {"conn_id": str(conn_id), "guild": guild_name},
+    }))
     try:
         while True:
             await websocket.receive_text()
