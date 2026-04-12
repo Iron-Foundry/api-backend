@@ -158,6 +158,7 @@ async def _handle_broadcast(
                 "player_name": parsed.player_name,
                 "item_name": parsed.item_name,
                 "log_slots": parsed.log_slots,
+                "log_slots_max": parsed.log_slots_max,
             }
             await db["collection_log_events"].insert_one(doc)
             logger.info(

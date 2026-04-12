@@ -87,6 +87,7 @@ class ParsedCollectionLog:
     player_name: str
     item_name: str
     log_slots: int
+    log_slots_max: int
 
 
 @dataclass
@@ -205,7 +206,7 @@ _NEW_MEMBER_PATTERN = re.compile(
 
 # "PlayerX received a new collection log item: Twisted bow (1/585)"
 _COLLECTION_LOG_PATTERN = re.compile(
-    r"^(?P<player>.+?) received a new collection log item: (?P<item>.+?) \((?P<slots>\d+)/\d+\)"
+    r"^(?P<player>.+?) received a new collection log item: (?P<item>.+?) \((?P<slots>\d+)/(?P<max>\d+)\)"
 )
 
 # "PlayerX has opened a loot key worth 1,148,040 coins!"
@@ -401,6 +402,7 @@ def parse_collection_log(message: str) -> ParsedCollectionLog | None:
             player_name=m.group("player"),
             item_name=m.group("item"),
             log_slots=int(m.group("slots")),
+            log_slots_max=int(m.group("max")),
         )
     return None
 
