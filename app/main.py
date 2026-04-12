@@ -19,7 +19,7 @@ VALKEY_URI = os.getenv("VALKEY_URI", "redis://localhost:6379")
 async def _discord_chat_subscriber(valkey_uri: str) -> None:
     """Subscribe to Discord clan chat messages and broadcast them to RuneLite clients."""
     while True:
-        sub = Valkey.from_url(valkey_uri, health_check_interval=4)
+        sub = Valkey.from_url(valkey_uri, socket_timeout=None)
         try:
             async with sub.pubsub() as ps:
                 await ps.subscribe("foundry:discord_chat")

@@ -35,14 +35,16 @@ async def clan_chat_dispatch(websocket: WebSocket) -> None:
         return
     guild_name: str = doc["guild_name"]
     conn_id = connection_manager.connect(websocket, guild_name, verification_code)
-    await websocket.send_json({
-        "message_type": "ToClanChat",
-        "message": {"sender": "System", "message": f"Connected to {guild_name} Chat"},
-    })
     try:
+        await websocket.send_json({
+            "message_type": "ToClanChat",
+            "message": {"sender": "System", "message": f"Connected to {guild_name} Chat"},
+        })
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
+        pass
+    finally:
         connection_manager.disconnect(conn_id, guild_name)
 
 
