@@ -14,13 +14,14 @@ router = APIRouter(tags=["clan"])
 class DiscordMessage(BaseModel):
     sender: str
     message: str
+    rank: str | None = None
 
 
-def _wrap(sender: str, message: str) -> str:
+def _wrap(sender: str, message: str, rank: str | None = None) -> str:
     return json.dumps(
         {
             "message_type": "ToClanChat",
-            "message": {"sender": sender, "message": message},
+            "message": {"sender": sender, "rank": rank, "message": message},
         }
     )
 
@@ -69,7 +70,7 @@ async def dispatch_to_clan(
     conn_id: UUID | None = Query(default=None),
     clan: dict = Depends(verify_clan),
 ) -> dict:
-    msg = _wrap(payload.sender, payload.message)
+    msg = _wrap(payload.sender, payload.message, payload.rank)
     if conn_id is not None:
         delivered = await connection_manager.send_to(conn_id, clan["name"], msg)
         if not delivered:

@@ -49,6 +49,18 @@ def _broadcast_player_names(kind: BroadcastType, message: str) -> list[str]:
     return []
 
 
+async def _update_player_rank(db: AsyncDatabase, player_name: str, rank: str) -> None:
+    """Persist a rank change detected from an ingest message.
+
+    Only writes when the stored rank differs — if a player's rank changed
+    in-game this keeps the users collection in sync.
+    """
+    await db["users"].update_one(
+        {"rsn": player_name, "clan_rank": {"$ne": rank}},
+        {"$set": {"clan_rank": rank, "updated_at": datetime.now(timezone.utc)}},
+    )
+
+
 async def _any_opted_out(db: AsyncDatabase, player_names: list[str]) -> bool:
     """Return True if any of the given RSNs has opted out of stat storage."""
     if not player_names:
@@ -399,6 +411,7 @@ async def ingest_chat(
         if is_broadcast:
             await _handle_broadcast(payload, clan, db, valkey)
         else:
+            await _update_player_rank(db, payload.sender, payload.rank)
             dispatch_data = {
                 **_base(payload, clan),
                 "player_name": payload.sender,

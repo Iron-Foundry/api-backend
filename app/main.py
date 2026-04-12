@@ -41,6 +41,7 @@ async def _discord_chat_subscriber(valkey_uri: str) -> None:
                             "message_type": "ToClanChat",
                             "message": {
                                 "sender": data["sender"],
+                                "rank": data.get("rank"),
                                 "message": data["message"],
                             },
                         })
