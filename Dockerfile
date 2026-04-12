@@ -11,6 +11,6 @@ RUN uv sync --frozen --no-dev
 EXPOSE 8000
 
 CMD ["uv", "run", "gunicorn", "app.main:app", \
-     "--workers", "2", \
+     "--workers", "1", \
      "--worker-class", "uvicorn.workers.UvicornWorker", \
      "--bind", "0.0.0.0:8000"]
