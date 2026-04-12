@@ -8,6 +8,7 @@ from loguru import logger
 from pymongo import AsyncMongoClient
 from valkey.asyncio import Valkey
 
+from app.models.users import ensure_users_indexes
 from app.routers import ccdispatch, events
 from app.services.connection_manager import connection_manager
 
@@ -61,6 +62,7 @@ async def lifespan(app: FastAPI):
     logger.info("Connecting to MongoDB at {}...", MONGO_URI)
     app.state.mongo = AsyncMongoClient(MONGO_URI)
     app.state.db = app.state.mongo[MONGO_DB]
+    await ensure_users_indexes(app.state.db)
     logger.info("Connecting to Valkey at {}...", VALKEY_URI)
     app.state.valkey = Valkey.from_url(VALKEY_URI)
     subscriber_task = asyncio.create_task(

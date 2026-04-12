@@ -1,4 +1,6 @@
+from collections.abc import Callable
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import APIRouter, Depends
 from loguru import logger
@@ -12,6 +14,49 @@ from app.services.dispatcher import is_duplicate, publish
 from app.services.parser import BroadcastType
 
 router = APIRouter(tags=["clan"])
+
+# Maps broadcast types that carry a single player_name to their parser.
+_PLAYER_NAME_PARSERS: dict[BroadcastType, Callable[[str], Any]] = {
+    BroadcastType.LOOT: parser.parse_loot,
+    BroadcastType.LEVEL_UP: parser.parse_level_up,
+    BroadcastType.XP_MILESTONE: parser.parse_xp_milestone,
+    BroadcastType.QUEST: parser.parse_achievement,
+    BroadcastType.DIARY: parser.parse_achievement,
+    BroadcastType.COMBAT_ACHIEVEMENT: parser.parse_achievement,
+    BroadcastType.PET: parser.parse_pet,
+    BroadcastType.NEW_MEMBER: parser.parse_new_member,
+    BroadcastType.COLLECTION_LOG: parser.parse_collection_log,
+    BroadcastType.LOOT_KEY: parser.parse_loot_key,
+    BroadcastType.CLUE_ITEM: parser.parse_clue_item,
+    BroadcastType.PERSONAL_BEST: parser.parse_personal_best,
+    BroadcastType.LEFT_CLAN: parser.parse_clan_leave,
+    BroadcastType.EXPELLED: parser.parse_clan_leave,
+    BroadcastType.COFFER_DONATION: parser.parse_coffer_transaction,
+    BroadcastType.COFFER_WITHDRAWAL: parser.parse_coffer_transaction,
+    BroadcastType.HCIM_DEATH: parser.parse_hcim_death,
+}
+
+
+def _broadcast_player_names(kind: BroadcastType, message: str) -> list[str]:
+    """Return the RSN(s) involved in a broadcast, used for opt-out checking."""
+    if kind == BroadcastType.PK:
+        parsed = parser.parse_pk(message)
+        return [parsed.winner, parsed.loser] if parsed else []
+    parse_fn = _PLAYER_NAME_PARSERS.get(kind)
+    if parse_fn:
+        parsed = parse_fn(message)
+        return [parsed.player_name] if parsed else []
+    return []
+
+
+async def _any_opted_out(db: AsyncDatabase, player_names: list[str]) -> bool:
+    """Return True if any of the given RSNs has opted out of stat storage."""
+    if not player_names:
+        return False
+    doc = await db["users"].find_one(
+        {"rsn": {"$in": player_names}, "stats_opt_out": True}, {"_id": 1}
+    )
+    return doc is not None
 
 
 def _now() -> datetime:
@@ -44,6 +89,9 @@ async def _handle_broadcast(
 ) -> None:
     """Classify and store a clan broadcast message (sender == clan name)."""
     kind = parser.classify(payload.message)
+
+    if await _any_opted_out(db, _broadcast_player_names(kind, payload.message)):
+        return
 
     if kind == BroadcastType.LOOT:
         parsed = parser.parse_loot(payload.message)
@@ -161,6 +209,18 @@ async def _handle_broadcast(
                 "log_slots_max": parsed.log_slots_max,
             }
             await db["collection_log_events"].insert_one(doc)
+            await db["collection_log_counts"].update_one(
+                {"clan_name": clan["name"], "player_name": parsed.player_name},
+                {
+                    "$max": {"log_slots": parsed.log_slots},
+                    "$set": {
+                        "clan_name": clan["name"],
+                        "player_name": parsed.player_name,
+                        "log_slots_max": parsed.log_slots_max,
+                    },
+                },
+                upsert=True,
+            )
             logger.info(
                 "[{}] Collection log: {} - {} (slot {})",
                 clan["name"],
@@ -235,6 +295,24 @@ async def _handle_broadcast(
                 "variant": parsed.variant,
             }
             await db["personal_best_events"].insert_one(doc)
+            await db["personal_bests"].update_one(
+                {
+                    "clan_name": clan["name"],
+                    "player_name": parsed.player_name,
+                    "activity": parsed.activity,
+                    "variant": parsed.variant,
+                },
+                {
+                    "$min": {"time_seconds": parsed.time_seconds},
+                    "$set": {
+                        "clan_name": clan["name"],
+                        "player_name": parsed.player_name,
+                        "activity": parsed.activity,
+                        "variant": parsed.variant,
+                    },
+                },
+                upsert=True,
+            )
             logger.info(
                 "[{}] PB: {} - {} in {}s",
                 clan["name"],
