@@ -284,6 +284,14 @@ async def _handle_broadcast(
             event_type = "coffer_donation" if parsed.is_donation else "coffer_withdrawal"
             await publish(valkey, event_type, _dispatch_doc(doc))
 
+    elif kind == BroadcastType.HCIM_DEATH:
+        parsed = parser.parse_hcim_death(payload.message)
+        if parsed:
+            doc = {**_base(payload, clan), "player_name": parsed.player_name}
+            await db["hcim_death_events"].insert_one(doc)
+            logger.info("[{}] HCIM death: {}", clan["name"], parsed.player_name)
+            await publish(valkey, "hcim_death", _dispatch_doc(doc))
+
     else:
         # Store unknown broadcasts so no data is silently lost
         await db["unknown_broadcasts"].insert_one(_base(payload, clan))

@@ -1,3 +1,5 @@
+import asyncio
+import json
 import os
 from contextlib import asynccontextmanager
 
@@ -7,10 +9,36 @@ from pymongo import AsyncMongoClient
 from valkey.asyncio import Valkey
 
 from app.routers import ccdispatch, events
+from app.services.connection_manager import connection_manager
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 MONGO_DB = os.getenv("MONGO_DB", "foundry")
 VALKEY_URI = os.getenv("VALKEY_URI", "redis://localhost:6379")
+
+
+async def _discord_chat_subscriber(valkey_uri: str) -> None:
+    """Subscribe to Discord clan chat messages and broadcast them to RuneLite clients."""
+    sub = Valkey.from_url(valkey_uri)
+    try:
+        async with sub.pubsub() as ps:
+            await ps.subscribe("foundry:discord_chat")
+            async for raw in ps.listen():
+                if raw["type"] != "message":
+                    continue
+                try:
+                    data = json.loads(raw["data"])
+                    msg = json.dumps({
+                        "message_type": "ToClanChat",
+                        "message": {
+                            "sender": data["sender"],
+                            "message": data["message"],
+                        },
+                    })
+                    await connection_manager.broadcast(data["guild_name"], msg)
+                except Exception as exc:
+                    logger.warning("discord_chat_subscriber error: {}", exc)
+    finally:
+        await sub.aclose()
 
 
 @asynccontextmanager
@@ -20,7 +48,16 @@ async def lifespan(app: FastAPI):
     app.state.db = app.state.mongo[MONGO_DB]
     logger.info("Connecting to Valkey at {}...", VALKEY_URI)
     app.state.valkey = Valkey.from_url(VALKEY_URI)
+    subscriber_task = asyncio.create_task(
+        _discord_chat_subscriber(VALKEY_URI),
+        name="discord-chat-subscriber",
+    )
     yield
+    subscriber_task.cancel()
+    try:
+        await subscriber_task
+    except asyncio.CancelledError:
+        pass
     logger.info("Closing MongoDB connection...")
     await app.state.mongo.aclose()
     logger.info("Closing Valkey connection...")

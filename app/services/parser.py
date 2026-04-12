@@ -10,11 +10,13 @@ from enum import Enum
 from typing import Literal
 
 _IMG_TAG_RE = re.compile(r"<img=\d+>\s*")
+_CA_ID_RE = re.compile(r"CA_ID:\d+\|")
 
 
 def _strip(message: str) -> str:
-    """Remove OSRS image tags (e.g. ``<img=43>``) before pattern matching."""
-    return _IMG_TAG_RE.sub("", message).strip()
+    """Remove OSRS image tags and CA_ID prefixes before pattern matching."""
+    message = _IMG_TAG_RE.sub("", message).strip()
+    return _CA_ID_RE.sub("", message).strip()
 
 
 class BroadcastType(str, Enum):
@@ -35,6 +37,7 @@ class BroadcastType(str, Enum):
     EXPELLED = "expelled"
     COFFER_DONATION = "coffer_donation"
     COFFER_WITHDRAWAL = "coffer_withdrawal"
+    HCIM_DEATH = "hcim_death"
     CHAT = "chat"
     UNKNOWN = "unknown"
 
@@ -127,6 +130,11 @@ class ParsedCofferTransaction:
     is_donation: bool  # False = withdrawal
 
 
+@dataclass
+class ParsedHcimDeath:
+    player_name: str
+
+
 # ---------------------------------------------------------------------------
 # Patterns
 # ---------------------------------------------------------------------------
@@ -177,8 +185,9 @@ _DIARY_PATTERN = re.compile(
 )
 
 # "PlayerX has completed the combat achievement: Ghommal's Hilt 6."
+# "PlayerX has completed a medium combat task: Shellbane Veteran."
 _COMBAT_ACH_PATTERN = re.compile(
-    r"^(?P<player>.+?) has completed the combat achievement: (?P<name>.+?)\.?$"
+    r"^(?P<player>.+?) has completed (?:the combat achievement|a (?:easy|medium|hard|elite|master|grandmaster) combat task): (?P<name>.+?)\.?$"
 )
 
 # "PlayerX has a funny feeling like they're being followed."
@@ -244,6 +253,12 @@ _COFFER_PATTERN = re.compile(
 )
 
 
+# "PlayerX has died and lost their Hardcore Ironman status."
+_HCIM_DEATH_PATTERN = re.compile(
+    r"^(?P<player>.+?) has died and lost their Hardcore Ironman status\.$"
+)
+
+
 # ---------------------------------------------------------------------------
 # Helper
 # ---------------------------------------------------------------------------
@@ -299,6 +314,8 @@ def classify(message: str) -> BroadcastType:
         return BroadcastType.EXPELLED
     if m := _COFFER_PATTERN.match(message):
         return BroadcastType.COFFER_DONATION if m.group("action") == "deposited" else BroadcastType.COFFER_WITHDRAWAL
+    if _HCIM_DEATH_PATTERN.match(message):
+        return BroadcastType.HCIM_DEATH
     return BroadcastType.UNKNOWN
 
 
@@ -457,4 +474,11 @@ def parse_coffer_transaction(message: str) -> ParsedCofferTransaction | None:
             amount=int(m.group("gp").replace(",", "")),
             is_donation=m.group("action") == "deposited",
         )
+    return None
+
+
+def parse_hcim_death(message: str) -> ParsedHcimDeath | None:
+    message = _strip(message)
+    if m := _HCIM_DEATH_PATTERN.match(message):
+        return ParsedHcimDeath(player_name=m.group("player"))
     return None
