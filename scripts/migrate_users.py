@@ -68,7 +68,7 @@ async def backfill_tickets(db) -> None:  # type: ignore[no-untyped-def]
         {"$group": {"_id": "$creator.id", "ticket_ids": {"$push": "$ticket_id"}}},
     ]
     count = 0
-    async for row in db["tickets"].aggregate(pipeline):
+    async for row in await db["tickets"].aggregate(pipeline):
         discord_user_id = row["_id"]
         ticket_ids = row["ticket_ids"]
         result = await db["users"].update_one(
