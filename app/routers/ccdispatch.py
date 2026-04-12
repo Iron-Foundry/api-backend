@@ -26,6 +26,7 @@ def _wrap(sender: str, message: str) -> str:
 
 @router.websocket("/ccdispatch")
 async def clan_chat_dispatch(websocket: WebSocket) -> None:
+    await websocket.accept()
     db = websocket.app.state.db
     verification_code = websocket.headers.get("verification-code")
     doc = await db["user_keys"].find_one({"key": verification_code, "is_active": True}) if verification_code else None
@@ -33,11 +34,11 @@ async def clan_chat_dispatch(websocket: WebSocket) -> None:
         await websocket.close(code=1008)
         return
     guild_name: str = doc["guild_name"]
-    conn_id = await connection_manager.connect(websocket, guild_name, verification_code)
-    await websocket.send_text(json.dumps({
-        "message_type": "Connected",
-        "message": {"conn_id": str(conn_id), "guild": guild_name},
-    }))
+    conn_id = connection_manager.connect(websocket, guild_name, verification_code)
+    await websocket.send_json({
+        "message_type": "ToClanChat",
+        "message": {"sender": "System", "message": f"Connected to {guild_name} Chat"},
+    })
     try:
         while True:
             await websocket.receive_text()

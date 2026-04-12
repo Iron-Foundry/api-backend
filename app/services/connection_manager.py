@@ -15,8 +15,7 @@ class ConnectionManager:
         # guild_name -> {conn_id: ClientConnection}
         self._connections: dict[str, dict[UUID, ClientConnection]] = {}
 
-    async def connect(self, ws: WebSocket, guild_name: str, verification_code: str) -> UUID:
-        await ws.accept()
+    def connect(self, ws: WebSocket, guild_name: str, verification_code: str) -> UUID:
         conn_id = uuid4()
         self._connections.setdefault(guild_name, {})[conn_id] = ClientConnection(
             ws=ws, verification_code=verification_code
