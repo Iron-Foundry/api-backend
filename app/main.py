@@ -18,35 +18,42 @@ VALKEY_URI = os.getenv("VALKEY_URI", "redis://localhost:6379")
 
 async def _discord_chat_subscriber(valkey_uri: str) -> None:
     """Subscribe to Discord clan chat messages and broadcast them to RuneLite clients."""
-    sub = Valkey.from_url(valkey_uri)
-    try:
-        async with sub.pubsub() as ps:
-            await ps.subscribe("foundry:discord_chat")
-            logger.info("discord_chat_subscriber: subscribed to foundry:discord_chat")
-            async for raw in ps.listen():
-                if raw["type"] != "message":
-                    continue
-                logger.debug("discord_chat_subscriber: received raw message: {}", raw["data"])
-                try:
-                    data = json.loads(raw["data"])
-                    logger.info(
-                        "discord_chat_subscriber: forwarding [{}/{}] → {} client(s)",
-                        data.get("guild_name", "?"),
-                        data.get("sender", "?"),
-                        connection_manager.connection_count(data.get("guild_name", "")),
-                    )
-                    msg = json.dumps({
-                        "message_type": "ToClanChat",
-                        "message": {
-                            "sender": data["sender"],
-                            "message": data["message"],
-                        },
-                    })
-                    await connection_manager.broadcast(data["guild_name"], msg)
-                except Exception as exc:
-                    logger.warning("discord_chat_subscriber error: {}", exc)
-    finally:
-        await sub.aclose()
+    while True:
+        sub = Valkey.from_url(valkey_uri)
+        try:
+            async with sub.pubsub() as ps:
+                await ps.subscribe("foundry:discord_chat")
+                logger.info("discord_chat_subscriber: subscribed to foundry:discord_chat")
+                async for raw in ps.listen():
+                    if raw["type"] != "message":
+                        continue
+                    logger.debug("discord_chat_subscriber: received raw message: {}", raw["data"])
+                    try:
+                        data = json.loads(raw["data"])
+                        logger.info(
+                            "discord_chat_subscriber: forwarding [{}/{}] → {} client(s)",
+                            data.get("guild_name", "?"),
+                            data.get("sender", "?"),
+                            connection_manager.connection_count(data.get("guild_name", "")),
+                        )
+                        msg = json.dumps({
+                            "message_type": "ToClanChat",
+                            "message": {
+                                "sender": data["sender"],
+                                "message": data["message"],
+                            },
+                        })
+                        await connection_manager.broadcast(data["guild_name"], msg)
+                    except Exception as exc:
+                        logger.warning("discord_chat_subscriber error: {}", exc)
+        except asyncio.CancelledError:
+            logger.info("discord_chat_subscriber: shutting down")
+            await sub.aclose()
+            return
+        except Exception as exc:
+            logger.warning("discord_chat_subscriber: connection lost ({}), reconnecting in 5s", exc)
+            await sub.aclose()
+            await asyncio.sleep(5)
 
 
 @asynccontextmanager
