@@ -5,12 +5,13 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from pymongo import AsyncMongoClient
 from valkey.asyncio import Valkey
 
 from app.models.users import ensure_users_indexes
-from app.routers import ccdispatch, events
+from app.routers import auth, ccdispatch, events
 from app.routers.ccdispatch import split_message
 from app.services.connection_manager import connection_manager
 from app.services.name_change import WomNameChangeService
@@ -21,6 +22,7 @@ VALKEY_URI = os.getenv("VALKEY_URI", "redis://localhost:6379")
 WOM_GROUP_ID = os.getenv("WOM_GROUP_ID")
 WOM_GROUP_KEY = os.getenv("WOM_GROUP_KEY")
 WOM_CLAN_NAME = os.getenv("WOM_CLAN_NAME", "Iron Foundry")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 
 async def _discord_chat_subscriber(valkey_uri: str, db) -> None:  # type: ignore[no-untyped-def]
@@ -31,11 +33,15 @@ async def _discord_chat_subscriber(valkey_uri: str, db) -> None:  # type: ignore
         try:
             async with sub.pubsub() as ps:
                 await ps.subscribe("foundry:discord_chat")
-                logger.info("discord_chat_subscriber: subscribed to foundry:discord_chat")
+                logger.info(
+                    "discord_chat_subscriber: subscribed to foundry:discord_chat"
+                )
                 async for raw in ps.listen():
                     if raw["type"] != "message":
                         continue
-                    logger.debug("discord_chat_subscriber: received raw message: {}", raw["data"])
+                    logger.debug(
+                        "discord_chat_subscriber: received raw message: {}", raw["data"]
+                    )
                     try:
                         data = json.loads(raw["data"])
                         guild: str = data["guild_name"]
@@ -47,14 +53,16 @@ async def _discord_chat_subscriber(valkey_uri: str, db) -> None:  # type: ignore
                             connection_manager.connection_count(guild),
                         )
                         for part in split_message(text):
-                            msg = json.dumps({
-                                "message_type": "ToClanChat",
-                                "message": {
-                                    "sender": data["sender"],
-                                    "rank": data.get("rank"),
-                                    "message": part,
-                                },
-                            })
+                            msg = json.dumps(
+                                {
+                                    "message_type": "ToClanChat",
+                                    "message": {
+                                        "sender": data["sender"],
+                                        "rank": data.get("rank"),
+                                        "message": part,
+                                    },
+                                }
+                            )
                             await connection_manager.broadcast(guild, msg)
                         if not text.strip():
                             spacebar_counts[guild] = spacebar_counts.get(guild, 0) + 1
@@ -66,27 +74,55 @@ async def _discord_chat_subscriber(valkey_uri: str, db) -> None:  # type: ignore
                             else:
                                 sys_text = None
                             if sys_text:
-                                await connection_manager.broadcast(guild, json.dumps({
-                                    "message_type": "ToClanChat",
-                                    "message": {"sender": "System", "rank": None, "message": sys_text},
-                                }))
+                                await connection_manager.broadcast(
+                                    guild,
+                                    json.dumps(
+                                        {
+                                            "message_type": "ToClanChat",
+                                            "message": {
+                                                "sender": "System",
+                                                "rank": None,
+                                                "message": sys_text,
+                                            },
+                                        }
+                                    ),
+                                )
                             if count >= 2:
                                 record_id = f"longest_spacebar_check_{guild}"
-                                rec = await db["fun_metrics"].find_one({"_id": record_id})
+                                rec = await db["fun_metrics"].find_one(
+                                    {"_id": record_id}
+                                )
                                 if not rec or count > rec["count"]:
                                     await db["fun_metrics"].update_one(
                                         {"_id": record_id},
-                                        {"$set": {"count": count, "guild_name": guild, "achieved_at": datetime.now(timezone.utc)}},
+                                        {
+                                            "$set": {
+                                                "count": count,
+                                                "guild_name": guild,
+                                                "achieved_at": datetime.now(
+                                                    timezone.utc
+                                                ),
+                                            }
+                                        },
                                         upsert=True,
                                     )
                         else:
                             prev = spacebar_counts.get(guild, 0)
                             spacebar_counts[guild] = 0
                             if prev >= 2:
-                                await connection_manager.broadcast(guild, json.dumps({
-                                    "message_type": "ToClanChat",
-                                    "message": {"sender": "System", "rank": None, "message": f"Spacebar check failed at {prev}!"},
-                                }))
+                                await connection_manager.broadcast(
+                                    guild,
+                                    json.dumps(
+                                        {
+                                            "message_type": "ToClanChat",
+                                            "message": {
+                                                "sender": "System",
+                                                "rank": None,
+                                                "message": f"Spacebar check failed at {prev}!",
+                                            },
+                                        }
+                                    ),
+                                )
                     except Exception as exc:
                         logger.warning("discord_chat_subscriber error: {}", exc)
         except asyncio.CancelledError:
@@ -94,7 +130,9 @@ async def _discord_chat_subscriber(valkey_uri: str, db) -> None:  # type: ignore
             await sub.aclose()
             return
         except Exception as exc:
-            logger.warning("discord_chat_subscriber: connection lost ({}), reconnecting in 5s", exc)
+            logger.warning(
+                "discord_chat_subscriber: connection lost ({}), reconnecting in 5s", exc
+            )
             await sub.aclose()
             await asyncio.sleep(5)
 
@@ -135,6 +173,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="The Foundry API", lifespan=lifespan)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[FRONTEND_URL],
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Authorization", "Content-Type"],
+)
+
+app.include_router(auth.router)
 app.include_router(events.router)
 app.include_router(ccdispatch.router)
 
