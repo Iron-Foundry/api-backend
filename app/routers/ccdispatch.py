@@ -27,6 +27,7 @@ def _wrap(sender: str, message: str, rank: str | None = None) -> str:
 
 
 def split_message(text: str, max_len: int = 78) -> list[str]:
+    text = text.replace("`", "")
     if len(text) <= max_len:
         return [text]
     chunks: list[str] = []
