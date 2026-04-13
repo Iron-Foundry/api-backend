@@ -15,6 +15,7 @@ class UserProfile(BaseModel):
     guild_name: str
     rsn: str | None = None
     clan_rank: str | None = None
+    discord_roles: list[str] = Field(default_factory=list)
     ticket_ids: list[int] = Field(default_factory=list)
     stats_opt_out: bool = False
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

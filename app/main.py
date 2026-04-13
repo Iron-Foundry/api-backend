@@ -11,7 +11,7 @@ from pymongo import AsyncMongoClient
 from valkey.asyncio import Valkey
 
 from app.models.users import ensure_users_indexes
-from app.routers import auth, ccdispatch, events
+from app.routers import auth, ccdispatch, events, members
 from app.routers.ccdispatch import split_message
 from app.services.connection_manager import connection_manager
 from app.services.name_change import WomNameChangeService
@@ -178,13 +178,14 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PATCH"],
     allow_headers=["Authorization", "Content-Type"],
 )
 
 app.include_router(auth.router)
 app.include_router(events.router)
 app.include_router(ccdispatch.router)
+app.include_router(members.router)
 
 
 @app.get("/health")

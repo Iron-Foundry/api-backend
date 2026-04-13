@@ -21,6 +21,7 @@ DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", "")
 DISCORD_REDIRECT_URI = os.getenv(
     "DISCORD_REDIRECT_URI", "http://localhost:8000/auth/callback"
 )
+DISCORD_BOT_TOKEN = os.getenv("DISCORD_SERVER_TOKEN", "")
 GUILD_ID = os.getenv("GUILD_ID", "")
 JWT_SECRET = os.getenv("JWT_SECRET", "change-me")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").split(",")[0].strip()
@@ -38,28 +39,68 @@ def _issue_jwt(
     discord_user_id: str,
     username: str,
     avatar: str | None,
-    rsn: str | None,
-    clan_rank: str | None,
 ) -> str:
+    """Issue a JWT containing only stable identity fields.
+
+    Mutable profile data (rsn, clan_rank, discord_roles, stats_opt_out) is
+    read fresh from the database on every /auth/me call instead of being
+    embedded in the token.
+    """
     payload = {
         "sub": discord_user_id,
         "username": username,
         "avatar": avatar,
-        "rsn": rsn,
-        "clan_rank": clan_rank,
         "exp": datetime.now(timezone.utc) + timedelta(days=7),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=_ALGORITHM)
 
 
-async def _lookup_user(db: AsyncDatabase, discord_user_id: int) -> dict:
-    """Return rsn and clan_rank from the users collection, or empty strings."""
-    doc = await db["users"].find_one(
-        {"discord_user_id": discord_user_id}, {"rsn": 1, "clan_rank": 1}
-    )
-    if doc:
-        return {"rsn": doc.get("rsn"), "clan_rank": doc.get("clan_rank")}
-    return {"rsn": None, "clan_rank": None}
+async def _fetch_discord_roles(discord_user_id: int) -> list[str]:
+    """Return the member's Discord role names using the bot token.
+
+    Returns an empty list if DISCORD_BOT_TOKEN or GUILD_ID is not configured,
+    or if the Discord API call fails for any reason.
+    """
+    if not DISCORD_BOT_TOKEN or not GUILD_ID:
+        logger.warning(
+            "discord_roles: DISCORD_BOT_TOKEN or GUILD_ID not set — skipping role fetch"
+        )
+        return []
+
+    bot_headers = {"Authorization": f"Bot {DISCORD_BOT_TOKEN}"}
+    try:
+        async with httpx.AsyncClient() as client:
+            roles_resp = await client.get(
+                f"{_DISCORD_API}/guilds/{GUILD_ID}/roles",
+                headers=bot_headers,
+            )
+            if roles_resp.status_code != 200:
+                logger.warning(
+                    "discord_roles: guild roles fetch failed ({}): {}",
+                    roles_resp.status_code,
+                    roles_resp.text,
+                )
+                return []
+            role_map: dict[str, str] = {r["id"]: r["name"] for r in roles_resp.json()}
+
+            member_resp = await client.get(
+                f"{_DISCORD_API}/guilds/{GUILD_ID}/members/{discord_user_id}",
+                headers=bot_headers,
+            )
+            if member_resp.status_code != 200:
+                logger.warning(
+                    "discord_roles: member fetch failed for {} ({}): {}",
+                    discord_user_id,
+                    member_resp.status_code,
+                    member_resp.text,
+                )
+                return []
+
+            member_role_ids: list[str] = member_resp.json().get("roles", [])
+            return [role_map[rid] for rid in member_role_ids if rid in role_map]
+    except Exception as exc:
+        logger.warning("discord_roles: unexpected error: {}", exc)
+        return []
 
 
 # ── OAuth2 endpoints ───────────────────────────────────────────────────────
@@ -135,13 +176,35 @@ async def callback(
         return RedirectResponse(f"{FRONTEND_URL}?error=not_member")
 
     discord_user_id = int(me["id"])
-    profile = await _lookup_user(db, discord_user_id)
+    discord_roles = await _fetch_discord_roles(discord_user_id)
+    now = datetime.now(timezone.utc)
+
+    # Upsert user — create minimal doc on first login, update identity + roles always.
+    await db["users"].update_one(
+        {"discord_user_id": discord_user_id},
+        {
+            "$set": {
+                "discord_username": me.get("username", ""),
+                "discord_roles": discord_roles,
+                "updated_at": now,
+            },
+            "$setOnInsert": {
+                "guild_id": int(GUILD_ID) if GUILD_ID else 0,
+                "guild_name": "",
+                "rsn": None,
+                "clan_rank": None,
+                "stats_opt_out": False,
+                "ticket_ids": [],
+                "created_at": now,
+            },
+        },
+        upsert=True,
+    )
+
     token = _issue_jwt(
         discord_user_id=str(discord_user_id),
         username=me.get("username", ""),
         avatar=me.get("avatar"),
-        rsn=profile["rsn"],
-        clan_rank=profile["clan_rank"],
     )
     logger.info("auth/callback: issued JWT for user {}", discord_user_id)
     return RedirectResponse(f"{FRONTEND_URL}/auth/callback?token={token}")
@@ -165,13 +228,10 @@ async def token(
         raise HTTPException(status_code=401, detail="Invalid key")
 
     discord_user_id = int(doc["discord_user_id"])
-    profile = await _lookup_user(db, discord_user_id)
     issued = _issue_jwt(
         discord_user_id=str(discord_user_id),
         username=doc.get("discord_username", ""),
         avatar=doc.get("avatar_hash"),
-        rsn=profile["rsn"],
-        clan_rank=profile["clan_rank"],
     )
     logger.info("auth/token: issued JWT for user {}", discord_user_id)
     return {"token": issued}
@@ -181,12 +241,26 @@ async def token(
 
 
 @router.get("/me")
-async def me(current_user: dict = Depends(get_current_user)) -> dict:
-    """Return the authenticated user's profile."""
+async def me(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncDatabase = Depends(get_db),
+) -> dict:
+    """Return the authenticated user's profile, read fresh from the database.
+
+    Mutable fields (rsn, clan_rank, discord_roles, stats_opt_out) are always
+    fetched from MongoDB so changes are visible without re-login.
+    """
+    discord_user_id = int(current_user["sub"])
+    doc = await db["users"].find_one(
+        {"discord_user_id": discord_user_id},
+        {"rsn": 1, "clan_rank": 1, "discord_roles": 1, "stats_opt_out": 1},
+    )
     return {
         "discord_user_id": current_user["sub"],
         "username": current_user.get("username"),
         "avatar": current_user.get("avatar"),
-        "rsn": current_user.get("rsn"),
-        "clan_rank": current_user.get("clan_rank"),
+        "rsn": doc.get("rsn") if doc else None,
+        "clan_rank": doc.get("clan_rank") if doc else None,
+        "discord_roles": doc.get("discord_roles", []) if doc else [],
+        "stats_opt_out": doc.get("stats_opt_out", False) if doc else False,
     }
