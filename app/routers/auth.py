@@ -23,7 +23,7 @@ DISCORD_REDIRECT_URI = os.getenv(
 )
 GUILD_ID = os.getenv("GUILD_ID", "")
 JWT_SECRET = os.getenv("JWT_SECRET", "change-me")
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").split(",")[0].strip()
 
 _ALGORITHM = "HS256"
 _DISCORD_API = "https://discord.com/api"
