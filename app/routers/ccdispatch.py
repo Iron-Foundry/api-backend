@@ -17,17 +17,24 @@ class DiscordMessage(BaseModel):
     rank: str | None = None
 
 
+def _sanitize(text: str) -> str:
+    return text.replace("`", "")
+
+
 def _wrap(sender: str, message: str, rank: str | None = None) -> str:
     return json.dumps(
         {
             "message_type": "ToClanChat",
-            "message": {"sender": sender, "rank": rank, "message": message},
+            "message": {
+                "sender": _sanitize(sender),
+                "rank": _sanitize(rank) if rank else rank,
+                "message": _sanitize(message),
+            },
         }
     )
 
 
 def split_message(text: str, max_len: int = 78) -> list[str]:
-    text = text.replace("`", "")
     if len(text) <= max_len:
         return [text]
     chunks: list[str] = []
