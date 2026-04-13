@@ -23,6 +23,7 @@ WOM_GROUP_ID = os.getenv("WOM_GROUP_ID")
 WOM_GROUP_KEY = os.getenv("WOM_GROUP_KEY")
 WOM_CLAN_NAME = os.getenv("WOM_CLAN_NAME", "Iron Foundry")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+_ALLOWED_ORIGINS = [o.strip() for o in FRONTEND_URL.split(",") if o.strip()]
 
 
 async def _discord_chat_subscriber(valkey_uri: str, db) -> None:  # type: ignore[no-untyped-def]
@@ -175,7 +176,7 @@ app = FastAPI(title="The Foundry API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_URL],
+    allow_origins=_ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST"],
     allow_headers=["Authorization", "Content-Type"],
