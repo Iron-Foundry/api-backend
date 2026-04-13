@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 _PLAYER_NAME_COLLECTIONS = [
     "personal_bests",
     "collection_log_counts",
+    "loot_totals",
 ]
 
 

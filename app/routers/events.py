@@ -75,6 +75,21 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+async def _increment_loot_value(db: AsyncDatabase, clan_name: str, player_name: str, value: int) -> None:
+    """Increment per-player and clan-wide loot value totals."""
+    now = _now()
+    await db["loot_totals"].update_one(
+        {"clan_name": clan_name, "player_name": player_name},
+        {"$inc": {"total_value": value}, "$set": {"last_updated": now}},
+        upsert=True,
+    )
+    await db["fun_metrics"].update_one(
+        {"_id": f"clan_loot_total_{clan_name}"},
+        {"$inc": {"total_value": value}, "$set": {"clan_name": clan_name, "last_updated": now}},
+        upsert=True,
+    )
+
+
 def _base(payload: ClanChatPayload, clan: dict) -> dict:
     return {
         "clan_name": clan["name"],
@@ -116,6 +131,7 @@ async def _handle_broadcast(
                 "source": parsed.source,
             }
             await db["loot_events"].insert_one(doc)
+            await _increment_loot_value(db, clan["name"], parsed.player_name, parsed.coin_value)
             logger.info(
                 "[{}] Loot: {} got {} ({}gp)",
                 clan["name"],
@@ -251,6 +267,7 @@ async def _handle_broadcast(
                 "coin_value": parsed.coin_value,
             }
             await db["loot_key_events"].insert_one(doc)
+            await _increment_loot_value(db, clan["name"], parsed.player_name, parsed.coin_value)
             logger.info(
                 "[{}] Loot key: {} opened key worth {:,}gp",
                 clan["name"],
@@ -269,6 +286,7 @@ async def _handle_broadcast(
                 "coin_value": parsed.coin_value,
             }
             await db["clue_events"].insert_one(doc)
+            await _increment_loot_value(db, clan["name"], parsed.player_name, parsed.coin_value)
             logger.info(
                 "[{}] Clue item: {} got {}",
                 clan["name"],
