@@ -26,6 +26,24 @@ def _wrap(sender: str, message: str, rank: str | None = None) -> str:
     )
 
 
+def split_message(text: str, max_len: int = 78) -> list[str]:
+    if len(text) <= max_len:
+        return [text]
+    chunks: list[str] = []
+    remaining = text
+    content_max = max_len - 2  # reserve 2 chars for "->"
+    while len(remaining) > max_len:
+        split_at = content_max
+        if split_at < len(remaining) and remaining[split_at] not in (" ", "\t"):
+            boundary = remaining.rfind(" ", 0, split_at)
+            if boundary > 0:
+                split_at = boundary
+        chunks.append(remaining[:split_at].rstrip() + "->")
+        remaining = remaining[split_at:].lstrip(" \t")
+    chunks.append(remaining)
+    return chunks
+
+
 @router.websocket("/ccdispatch")
 async def clan_chat_dispatch(websocket: WebSocket) -> None:
     await websocket.accept()
@@ -41,9 +59,12 @@ async def clan_chat_dispatch(websocket: WebSocket) -> None:
     conn_id = connection_manager.connect(websocket, guild_name, verification_code)
 
     async def _publish_presence(event: str) -> None:
-        payload = json.dumps(
-            {"event": event, "discord_user_id": discord_user_id, "guild_name": guild_name}
-        )
+        payload = json.dumps({
+            "event": event,
+            "discord_user_id": discord_user_id,
+            "guild_name": guild_name,
+            "connection_count": connection_manager.connection_count(guild_name),
+        })
         try:
             await valkey.publish("foundry:ws_presence", payload)
         except Exception as exc:
@@ -70,11 +91,12 @@ async def dispatch_to_clan(
     conn_id: UUID | None = Query(default=None),
     clan: dict = Depends(verify_clan),
 ) -> dict:
-    msg = _wrap(payload.sender, payload.message, payload.rank)
-    if conn_id is not None:
-        delivered = await connection_manager.send_to(conn_id, clan["name"], msg)
-        if not delivered:
-            raise HTTPException(status_code=404, detail="Client not connected")
-    else:
-        await connection_manager.broadcast(clan["name"], msg)
+    for part in split_message(payload.message):
+        msg = _wrap(payload.sender, part, payload.rank)
+        if conn_id is not None:
+            delivered = await connection_manager.send_to(conn_id, clan["name"], msg)
+            if not delivered:
+                raise HTTPException(status_code=404, detail="Client not connected")
+        else:
+            await connection_manager.broadcast(clan["name"], msg)
     return {"ok": True}
