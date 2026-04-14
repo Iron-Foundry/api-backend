@@ -61,10 +61,11 @@ async def _fetch_discord_roles(discord_user_id: int) -> list[str]:
     Returns an empty list if DISCORD_BOT_TOKEN or GUILD_ID is not configured,
     or if the Discord API call fails for any reason.
     """
-    if not DISCORD_BOT_TOKEN or not GUILD_ID:
-        logger.warning(
-            "discord_roles: DISCORD_BOT_TOKEN or GUILD_ID not set — skipping role fetch"
-        )
+    if not DISCORD_BOT_TOKEN:
+        logger.warning("discord_roles: DISCORD_SERVER_TOKEN not set — skipping role fetch")
+        return []
+    if not GUILD_ID:
+        logger.warning("discord_roles: GUILD_ID not set — skipping role fetch")
         return []
 
     bot_headers = {"Authorization": f"Bot {DISCORD_BOT_TOKEN}"}
@@ -76,12 +77,14 @@ async def _fetch_discord_roles(discord_user_id: int) -> list[str]:
             )
             if roles_resp.status_code != 200:
                 logger.warning(
-                    "discord_roles: guild roles fetch failed ({}): {}",
+                    "discord_roles: GET /guilds/{}/roles failed ({}) — body: {}",
+                    GUILD_ID,
                     roles_resp.status_code,
                     roles_resp.text,
                 )
                 return []
             role_map: dict[str, str] = {r["id"]: r["name"] for r in roles_resp.json()}
+            logger.debug("discord_roles: guild has {} roles", len(role_map))
 
             member_resp = await client.get(
                 f"{_DISCORD_API}/guilds/{GUILD_ID}/members/{discord_user_id}",
@@ -89,26 +92,38 @@ async def _fetch_discord_roles(discord_user_id: int) -> list[str]:
             )
             if member_resp.status_code != 200:
                 logger.warning(
-                    "discord_roles: member fetch failed for {} ({}): {}",
+                    "discord_roles: GET /guilds/{}/members/{} failed ({}) — body: {}",
+                    GUILD_ID,
                     discord_user_id,
                     member_resp.status_code,
                     member_resp.text,
                 )
                 return []
 
-            member_role_ids: list[str] = member_resp.json().get("roles", [])
+            member_data = member_resp.json()
+            member_role_ids: list[str] = member_data.get("roles", [])
             role_names = [role_map[rid] for rid in member_role_ids if rid in role_map]
+            logger.info(
+                "discord_roles: user {} has role IDs {} → names {}",
+                discord_user_id,
+                member_role_ids,
+                role_names,
+            )
 
             # Guild owner has no explicit role — inject Co-owner.
             guild_resp = await client.get(
                 f"{_DISCORD_API}/guilds/{GUILD_ID}", headers=bot_headers
             )
-            if (
-                guild_resp.status_code == 200
-                and guild_resp.json().get("owner_id") == str(discord_user_id)
-                and "Co-owner" not in role_names
-            ):
-                role_names.append("Co-owner")
+            if guild_resp.status_code != 200:
+                logger.warning(
+                    "discord_roles: GET /guilds/{} failed ({}) — owner check skipped",
+                    GUILD_ID,
+                    guild_resp.status_code,
+                )
+            elif guild_resp.json().get("owner_id") == str(discord_user_id):
+                logger.info("discord_roles: user {} is guild owner — injecting Co-owner", discord_user_id)
+                if "Co-owner" not in role_names:
+                    role_names.append("Co-owner")
 
             return role_names
     except Exception as exc:
