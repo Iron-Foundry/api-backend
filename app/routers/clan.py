@@ -11,6 +11,7 @@ router = APIRouter(prefix="/clan", tags=["clan"])
 
 _DROP_MIN_VALUE = 2_000_000      # 2M gp
 _XP_MIN_MILESTONE = 15_000_000   # 15M xp
+_XP_STEP = 5_000_000             # every 5M xp
 
 
 @router.get("/recent-achievements")
@@ -69,7 +70,7 @@ async def recent_achievements(
     async for doc in (
         db["xp_events"]
         .find(
-            {"xp": {"$gte": _XP_MIN_MILESTONE}},
+            {"xp": {"$gte": _XP_MIN_MILESTONE, "$mod": [_XP_STEP, 0]}},
             {"player_name": 1, "skill": 1, "xp": 1, "timestamp": 1, "_id": 0},
         )
         .sort("timestamp", -1)
