@@ -271,6 +271,10 @@ async def member_feed(
             items.append({"type": "loot_key", "timestamp": ts,
                           "label": "Loot key opened", "detail": None,
                           "value": d.get("coin_value", 0)})
+        else:
+            items.append({"type": t, "timestamp": ts,
+                          "label": d.get("name") or d.get("item_name") or t,
+                          "detail": None, "value": None})
 
     items.sort(key=lambda x: x["timestamp"], reverse=True)
     return items[:limit]
