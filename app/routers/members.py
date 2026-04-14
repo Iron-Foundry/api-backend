@@ -151,23 +151,30 @@ async def update_rsn(
 
 @router.get("/me/feed")
 async def member_feed(
-    limit: int = Query(default=50, ge=1, le=200),
+    limit: int = Query(default=100, ge=1, le=500),
     current_user: dict = Depends(get_current_user),
     db: AsyncDatabase = Depends(get_db),
 ) -> list[dict]:
-    """Return a personal activity feed for the authenticated user, keyed by their linked RSN."""
+    """Return a personal activity feed for the authenticated user, keyed by their linked RSN.
+
+    All event types are included with no value filters. The `limit` most recent
+    events across all collections are returned, sorted by timestamp descending.
+    """
     discord_user_id = int(current_user["sub"])
     user_doc = await db["users"].find_one({"discord_user_id": discord_user_id}, {"rsn": 1})
     rsn = user_doc.get("rsn") if user_doc else None
     if not rsn:
         return []
 
+    # Per-collection fetch limit — generous so the global merge isn't skewed
+    # toward event types the player happens to have many of.
+    per_col = min(limit * 2, 500)
     items: list[dict] = []
 
     async for doc in (
         db["loot_events"]
         .find({"player_name": rsn}, {"item_name": 1, "coin_value": 1, "source": 1, "timestamp": 1, "_id": 0})
-        .sort("timestamp", -1).limit(limit)
+        .sort("timestamp", -1).limit(per_col)
     ):
         items.append({"type": "drop", "timestamp": doc["timestamp"].isoformat(),
                        "label": doc["item_name"], "detail": doc.get("source"), "value": doc.get("coin_value", 0)})
@@ -175,7 +182,7 @@ async def member_feed(
     async for doc in (
         db["level_events"]
         .find({"player_name": rsn}, {"skill": 1, "new_level": 1, "timestamp": 1, "_id": 0})
-        .sort("timestamp", -1).limit(limit)
+        .sort("timestamp", -1).limit(per_col)
     ):
         skill = doc["skill"]
         items.append({"type": "level", "timestamp": doc["timestamp"].isoformat(),
@@ -185,7 +192,7 @@ async def member_feed(
     async for doc in (
         db["xp_events"]
         .find({"player_name": rsn}, {"skill": 1, "xp": 1, "timestamp": 1, "_id": 0})
-        .sort("timestamp", -1).limit(limit)
+        .sort("timestamp", -1).limit(per_col)
     ):
         items.append({"type": "xp_milestone", "timestamp": doc["timestamp"].isoformat(),
                        "label": doc["skill"], "detail": None, "value": doc.get("xp", 0)})
@@ -193,7 +200,7 @@ async def member_feed(
     async for doc in (
         db["achievement_events"]
         .find({"player_name": rsn}, {"achievement_type": 1, "name": 1, "timestamp": 1, "_id": 0})
-        .sort("timestamp", -1).limit(limit)
+        .sort("timestamp", -1).limit(per_col)
     ):
         items.append({"type": doc.get("achievement_type", "quest"), "timestamp": doc["timestamp"].isoformat(),
                        "label": doc["name"], "detail": None, "value": None})
@@ -201,7 +208,7 @@ async def member_feed(
     async for doc in (
         db["pet_events"]
         .find({"player_name": rsn}, {"raw_message": 1, "timestamp": 1, "_id": 0})
-        .sort("timestamp", -1).limit(limit)
+        .sort("timestamp", -1).limit(per_col)
     ):
         items.append({"type": "pet", "timestamp": doc["timestamp"].isoformat(),
                        "label": "Pet drop!", "detail": None, "value": None})
@@ -209,7 +216,7 @@ async def member_feed(
     async for doc in (
         db["collection_log_events"]
         .find({"player_name": rsn}, {"item_name": 1, "log_slots": 1, "log_slots_max": 1, "timestamp": 1, "_id": 0})
-        .sort("timestamp", -1).limit(limit)
+        .sort("timestamp", -1).limit(per_col)
     ):
         items.append({"type": "collection_log", "timestamp": doc["timestamp"].isoformat(),
                        "label": doc["item_name"],
@@ -219,7 +226,7 @@ async def member_feed(
     async for doc in (
         db["clue_events"]
         .find({"player_name": rsn}, {"item_name": 1, "coin_value": 1, "timestamp": 1, "_id": 0})
-        .sort("timestamp", -1).limit(limit)
+        .sort("timestamp", -1).limit(per_col)
     ):
         items.append({"type": "clue", "timestamp": doc["timestamp"].isoformat(),
                        "label": doc["item_name"], "detail": "Clue scroll", "value": doc.get("coin_value", 0)})
@@ -228,7 +235,7 @@ async def member_feed(
         db["pk_events"]
         .find({"$or": [{"winner": rsn}, {"loser": rsn}]},
               {"winner": 1, "loser": 1, "gp_exchanged": 1, "timestamp": 1, "_id": 0})
-        .sort("timestamp", -1).limit(limit)
+        .sort("timestamp", -1).limit(per_col)
     ):
         won = doc.get("winner") == rsn
         items.append({"type": "pk", "timestamp": doc["timestamp"].isoformat(),
@@ -238,7 +245,7 @@ async def member_feed(
     async for doc in (
         db["personal_best_events"]
         .find({"player_name": rsn}, {"activity": 1, "time_seconds": 1, "variant": 1, "timestamp": 1, "_id": 0})
-        .sort("timestamp", -1).limit(limit)
+        .sort("timestamp", -1).limit(per_col)
     ):
         items.append({"type": "personal_best", "timestamp": doc["timestamp"].isoformat(),
                        "label": doc["activity"], "detail": doc.get("variant"), "value": doc.get("time_seconds")})
@@ -246,10 +253,91 @@ async def member_feed(
     async for doc in (
         db["hcim_death_events"]
         .find({"player_name": rsn}, {"timestamp": 1, "_id": 0})
-        .sort("timestamp", -1).limit(limit)
+        .sort("timestamp", -1).limit(per_col)
     ):
         items.append({"type": "hcim_death", "timestamp": doc["timestamp"].isoformat(),
                        "label": "Died as HCIM", "detail": None, "value": None})
 
+    async for doc in (
+        db["loot_key_events"]
+        .find({"player_name": rsn}, {"coin_value": 1, "timestamp": 1, "_id": 0})
+        .sort("timestamp", -1).limit(per_col)
+    ):
+        items.append({"type": "loot_key", "timestamp": doc["timestamp"].isoformat(),
+                       "label": "Loot key opened", "detail": None, "value": doc.get("coin_value", 0)})
+
+    async for doc in (
+        db["coffer_events"]
+        .find({"player_name": rsn}, {"amount": 1, "is_donation": 1, "timestamp": 1, "_id": 0})
+        .sort("timestamp", -1).limit(per_col)
+    ):
+        is_donation = doc.get("is_donation", True)
+        items.append({"type": "coffer", "timestamp": doc["timestamp"].isoformat(),
+                       "label": "Coffer donation" if is_donation else "Coffer withdrawal",
+                       "detail": None, "value": doc.get("amount", 0)})
+
     items.sort(key=lambda x: x["timestamp"], reverse=True)
     return items[:limit]
+
+
+@router.get("/me/tickets")
+async def member_tickets(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncDatabase = Depends(get_db),
+) -> list[dict]:
+    """Return all tickets created by the authenticated user."""
+    discord_user_id = int(current_user["sub"])
+    tickets: list[dict] = []
+    async for doc in (
+        db["tickets"]
+        .find(
+            {"creator.id": discord_user_id},
+            {"_id": 0, "staff_note": 0, "channel_id": 0, "guild_id": 0,
+             "panel_message_id": 0, "participants": 0, "assigned_staff": 0},
+        )
+        .sort("ticket_id", -1)
+    ):
+        # Convert datetime fields to ISO strings for JSON serialisation.
+        for field in ("created_at", "closed_at", "last_message_at"):
+            if doc.get(field) is not None and hasattr(doc[field], "isoformat"):
+                doc[field] = doc[field].isoformat()
+        tickets.append(doc)
+    return tickets
+
+
+@router.get("/me/tickets/{ticket_id}/transcript")
+async def member_ticket_transcript(
+    ticket_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncDatabase = Depends(get_db),
+) -> dict:
+    """Return the transcript for one of the authenticated user's tickets.
+
+    The staff_note field is never returned. Returns 404 if the ticket doesn't
+    belong to this user or has no transcript (e.g. sensitive ticket types).
+    """
+    discord_user_id = int(current_user["sub"])
+
+    ticket = await db["tickets"].find_one(
+        {"ticket_id": ticket_id, "creator.id": discord_user_id}, {"_id": 0}
+    )
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found.")
+
+    doc = await db["transcripts"].find_one(
+        {"ticket_id": ticket_id}, {"_id": 0, "staff_note": 0}
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Transcript not available for this ticket.")
+
+    # Recursively convert datetime objects to ISO strings.
+    def _iso(obj: object) -> object:
+        if hasattr(obj, "isoformat"):
+            return obj.isoformat()  # type: ignore[union-attr]
+        if isinstance(obj, dict):
+            return {k: _iso(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [_iso(i) for i in obj]
+        return obj
+
+    return _iso(doc)  # type: ignore[return-value]
