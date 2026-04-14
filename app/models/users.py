@@ -17,6 +17,8 @@ class UserProfile(BaseModel):
     clan_rank: str | None = None
     discord_roles: list[str] = Field(default_factory=list)
     ticket_ids: list[int] = Field(default_factory=list)
+    total_loot_value: int = 0
+    collection_log_slots: int = 0
     stats_opt_out: bool = False
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

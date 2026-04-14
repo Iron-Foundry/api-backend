@@ -82,16 +82,70 @@ async def update_rsn(
     if existing and existing["discord_user_id"] != discord_user_id:
         raise HTTPException(status_code=409, detail="That RSN is linked to another account.")
 
+    now = datetime.now(timezone.utc)
     await db["users"].update_one(
         {"discord_user_id": discord_user_id},
-        {
-            "$set": {
-                "rsn": rsn,
-                "updated_at": datetime.now(timezone.utc),
-            }
-        },
+        {"$set": {"rsn": rsn, "updated_at": now}},
     )
     logger.info("members/rsn: user {} linked RSN {!r}", discord_user_id, rsn)
+
+    # ── Backfill from spread collections ───────────────────────────────────
+    user_doc = await db["users"].find_one(
+        {"discord_user_id": discord_user_id}, {"clan_rank": 1}
+    )
+    backfill: dict = {}
+
+    # clan_rank — from most recent event if not already set
+    if not user_doc or not user_doc.get("clan_rank"):
+        for col in ("loot_events", "level_events", "xp_events", "achievement_events"):
+            event = await db[col].find_one(
+                {"player_name": rsn, "rank": {"$exists": True, "$ne": None}},
+                {"rank": 1},
+                sort=[("timestamp", -1)],
+            )
+            if event and event.get("rank"):
+                backfill["clan_rank"] = event["rank"]
+                logger.info(
+                    "members/rsn: backfilled clan_rank={!r} for user {} from {}",
+                    event["rank"], discord_user_id, col,
+                )
+                break
+
+    # loot total — from loot_totals aggregate per player
+    loot_doc = await db["loot_totals"].find_one(
+        {"player_name": rsn}, {"total_value": 1, "_id": 0}
+    )
+    if loot_doc:
+        backfill["total_loot_value"] = loot_doc["total_value"]
+
+    # collection log slots — player's current max from collection_log_counts
+    cl_doc = await db["collection_log_counts"].find_one(
+        {"player_name": rsn}, {"log_slots": 1, "_id": 0}
+    )
+    if cl_doc:
+        backfill["collection_log_slots"] = cl_doc["log_slots"]
+
+    # ticket_ids — re-sync from tickets collection (keyed by Discord user ID)
+    ticket_ids: list[int] = []
+    async for doc in db["tickets"].find(
+        {"creator.id": discord_user_id}, {"ticket_id": 1, "_id": 0}
+    ):
+        if isinstance(doc.get("ticket_id"), int):
+            ticket_ids.append(doc["ticket_id"])
+    if ticket_ids:
+        backfill["ticket_ids"] = sorted(ticket_ids)
+
+    if backfill:
+        backfill["updated_at"] = now
+        await db["users"].update_one(
+            {"discord_user_id": discord_user_id},
+            {"$set": backfill},
+        )
+        logger.info(
+            "members/rsn: backfilled fields {} for user {}",
+            list(backfill.keys()), discord_user_id,
+        )
+
     return {"rsn": rsn}
 
 

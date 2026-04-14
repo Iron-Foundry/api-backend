@@ -201,6 +201,22 @@ async def callback(
         upsert=True,
     )
 
+    # Sync ticket_ids from the tickets collection (keyed by Discord user ID).
+    ticket_ids: list[int] = []
+    async for doc in db["tickets"].find(
+        {"creator.id": discord_user_id}, {"ticket_id": 1, "_id": 0}
+    ):
+        if isinstance(doc.get("ticket_id"), int):
+            ticket_ids.append(doc["ticket_id"])
+    if ticket_ids:
+        await db["users"].update_one(
+            {"discord_user_id": discord_user_id},
+            {"$set": {"ticket_ids": sorted(ticket_ids)}},
+        )
+        logger.debug(
+            "auth/callback: synced {} ticket(s) for user {}", len(ticket_ids), discord_user_id
+        )
+
     token = _issue_jwt(
         discord_user_id=str(discord_user_id),
         username=me.get("username", ""),
