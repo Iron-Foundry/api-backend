@@ -75,16 +75,17 @@ async def recent_achievements(
     async for doc in (
         db["level_events"]
         .find(
-            {"$or": [{"new_level": 99}, {"skill": "Total Level"}]},
+            {"$or": [{"new_level": 99}, {"skill": "total"}]},
             {"player_name": 1, "skill": 1, "new_level": 1, "timestamp": 1, "_id": 0},
         )
         .sort("timestamp", -1)
         .limit(limit)
     ):
+        skill = doc["skill"]
         results.append({
             "type": "level",
             "player": doc["player_name"],
-            "label": doc["skill"],
+            "label": "Total Level" if skill == "total" else skill,
             "detail": None,
             "value": doc.get("new_level", 0),
             "timestamp": doc["timestamp"].isoformat(),

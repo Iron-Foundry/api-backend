@@ -123,8 +123,10 @@ async def member_feed(
         .find({"player_name": rsn}, {"skill": 1, "new_level": 1, "timestamp": 1, "_id": 0})
         .sort("timestamp", -1).limit(limit)
     ):
+        skill = doc["skill"]
         items.append({"type": "level", "timestamp": doc["timestamp"].isoformat(),
-                       "label": doc["skill"], "detail": None, "value": doc.get("new_level", 0)})
+                       "label": "Total Level" if skill == "total" else skill,
+                       "detail": None, "value": doc.get("new_level", 0)})
 
     async for doc in (
         db["xp_events"]
