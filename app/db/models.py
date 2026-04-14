@@ -155,7 +155,7 @@ class Ticket(Base):
     timeout_frozen: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="false"
     )
-    metadata: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    extra_metadata: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}", name="metadata")
 
 
 class Transcript(Base):
