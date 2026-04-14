@@ -569,6 +569,10 @@ async def ingest_chat(
     point at this endpoint (the root path of the chat subdomain).
     """
     for payload in payloads:
+        is_broadcast = payload.sender == payload.clan_name
+        if not is_broadcast:
+            await _update_player_rank(session, payload.sender, payload.rank)
+
         if await is_duplicate(valkey, clan["key"], payload.sender, payload.message):
             logger.debug(
                 "[{}] Duplicate payload from {}, skipping",
@@ -576,11 +580,10 @@ async def ingest_chat(
                 payload.sender,
             )
             continue
-        is_broadcast = payload.sender == payload.clan_name
+
         if is_broadcast:
             await _handle_broadcast(payload, clan, session, valkey)
         else:
-            await _update_player_rank(session, payload.sender, payload.rank)
             dispatch_data = {
                 "player_name": payload.sender,
                 "rank": payload.rank,
