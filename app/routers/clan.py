@@ -25,7 +25,12 @@ async def clan_stats(db: AsyncDatabase = Depends(get_db)) -> dict:
         gp_result = doc
         break
 
-    collection_log_items = await db["collection_log_events"].count_documents({})
+    cl_pipeline = [{"$group": {"_id": None, "total": {"$sum": "$log_slots"}}}]
+    cl_result = None
+    async for doc in await db["collection_log_counts"].aggregate(cl_pipeline):
+        cl_result = doc
+        break
+    collection_log_items = cl_result["total"] if cl_result else 0
 
     return {
         "total_gp": gp_result["total_gp"] if gp_result else 0,
