@@ -61,7 +61,7 @@ class WomNameChangeService:
         async with httpx.AsyncClient() as client:
             resp = await client.get(
                 f"{WOM_BASE}/groups/{self._group_id}/name-changes",
-                params={"limit": 100},
+                params={"limit": 50},
                 headers=headers,
                 timeout=30,
             )

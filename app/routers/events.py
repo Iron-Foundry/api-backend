@@ -584,6 +584,7 @@ async def ingest_chat(
             dispatch_data = {
                 "player_name": payload.sender,
                 "rank": payload.rank,
+                "raw_message": payload.message,
                 "timestamp": _now().isoformat(),
             }
             await publish(valkey, "chat", dispatch_data)
