@@ -21,7 +21,7 @@ async def clan_stats(db: AsyncDatabase = Depends(get_db)) -> dict:
         {"$group": {"_id": None, "total_gp": {"$sum": "$coin_value"}, "total_drops": {"$sum": 1}}},
     ]
     result = None
-    async for doc in db["loot_events"].aggregate(pipeline):
+    async for doc in await db["loot_events"].aggregate(pipeline):
         result = doc
         break
     return {
