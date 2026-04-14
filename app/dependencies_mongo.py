@@ -1,14 +1,10 @@
+# DEPRECATED — MongoDB implementation. Kept for reference. Not imported in production.
 import os
-from collections.abc import AsyncGenerator
 
 from fastapi import Depends, Header, HTTPException, Request
 from jose import JWTError, jwt
 from pymongo.asynchronous.database import AsyncDatabase
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from valkey.asyncio import Valkey
-
-from app.db.models import User
 
 JWT_SECRET = os.getenv("JWT_SECRET", "change-me")
 _ALGORITHM = "HS256"
@@ -20,12 +16,6 @@ def get_db(request: Request) -> AsyncDatabase:
 
 def get_valkey(request: Request) -> Valkey:
     return request.app.state.valkey
-
-
-async def get_session(request: Request) -> AsyncGenerator[AsyncSession, None]:
-    """Yield an AsyncSession scoped to the request."""
-    async with request.app.state.session_factory() as session:
-        yield session
 
 
 async def get_current_user(authorization: str = Header(...)) -> dict:
@@ -44,23 +34,19 @@ async def get_current_user(authorization: str = Header(...)) -> dict:
 
 async def verify_clan(
     verification_code: str = Header(...),
-    session: AsyncSession = Depends(get_session),
+    db: AsyncDatabase = Depends(get_db),
 ) -> dict:
-    """Resolve a verification-code header to the matching user row in PostgreSQL.
+    """Resolve a verification-code header to the matching user key document.
 
-    Returns a dict with ``guild_id`` and ``discord_user_id``.
+    Returns a dict containing at least ``name`` (the Discord guild name, used
+    as the clan identifier in stored events) and ``discord_user_id``.
     Raises 401 if the key does not exist or has been revoked.
     """
-    result = await session.execute(
-        select(User).where(
-            User.api_key == verification_code, User.key_is_active == True  # noqa: E712
-        )
-    )
-    user = result.scalar_one_or_none()
-    if not user:
+    doc = await db["user_keys"].find_one({"key": verification_code, "is_active": True})
+    if not doc:
         raise HTTPException(status_code=401, detail="Invalid or revoked API key")
     return {
-        "guild_id": user.guild_id,
-        "discord_user_id": user.discord_user_id,
+        "name": doc["guild_name"],
+        "discord_user_id": doc["discord_user_id"],
         "key": verification_code,
     }

@@ -1,3 +1,4 @@
+# DEPRECATED — MongoDB implementation. Kept for reference. Not imported in production.
 from __future__ import annotations
 
 import asyncio
@@ -13,20 +14,12 @@ POLL_INTERVAL = 1800  # 30 minutes
 
 
 class WomNameChangeService:
-    def __init__(
-        self,
-        session_factory,  # type: ignore[no-untyped-def]
-        group_id: int,
-        group_key: str | None,
-        clan_name: str,
-    ) -> None:
-        self._session_factory = session_factory
+    def __init__(self, db, group_id: int, group_key: str | None, clan_name: str) -> None:  # type: ignore[no-untyped-def]
+        self._db = db
         self._group_id = group_id
         self._group_key = group_key
         self._clan_name = clan_name
         self._task: asyncio.Task | None = None
-        # In-memory cursor — survives only the process lifetime (acceptable)
-        self._last_id: int = 0
 
     async def start(self) -> None:
         self._task = asyncio.create_task(self._poll_loop(), name="wom-name-change")
@@ -50,9 +43,8 @@ class WomNameChangeService:
             await asyncio.sleep(POLL_INTERVAL)
 
     async def _process(self) -> None:
-        if self._session_factory is None:
-            logger.warning("WomNameChangeService: no session_factory — skipping")
-            return
+        cursor_doc = await self._db["service_cursors"].find_one({"_id": "wom_name_change_cursor"})
+        last_id: int = cursor_doc["last_id"] if cursor_doc else 0
 
         headers: dict[str, str] = {}
         if self._group_key:
@@ -68,16 +60,9 @@ class WomNameChangeService:
             resp.raise_for_status()
             changes: list[dict] = resp.json()
 
-        approved = [
-            c
-            for c in changes
-            if c.get("status") == "approved" and c["id"] > self._last_id
-        ]
+        approved = [c for c in changes if c.get("status") == "approved" and c["id"] > last_id]
         if not approved:
-            logger.debug(
-                "WomNameChangeService: no new approved changes (last_id={})",
-                self._last_id,
-            )
+            logger.debug("WomNameChangeService: no new approved changes (last_id={})", last_id)
             return
 
         approved.sort(key=lambda c: c["id"])
@@ -87,27 +72,25 @@ class WomNameChangeService:
             old = change["oldName"]
             new = change["newName"]
 
-            # Check if any user has this RSN
-            from sqlalchemy import func, select
-
-            from app.db.models import User
-
-            async with self._session_factory() as session:
-                result = await session.execute(
-                    select(User.discord_user_id).where(
-                        func.lower(User.rsn) == old.lower()
-                    )
-                )
-                match = result.scalar_one_or_none()
-
+            match = await self._db["users"].find_one(
+                {"rsn": {"$regex": f"^{re.escape(old)}$", "$options": "i"}}
+            )
             if not match:
-                self._last_id = change["id"]
+                await self._db["service_cursors"].update_one(
+                    {"_id": "wom_name_change_cursor"},
+                    {"$set": {"last_id": change["id"]}},
+                    upsert=True,
+                )
+                last_id = change["id"]
                 continue
 
-            async with self._session_factory() as session:
-                await cascade_rsn_change(session, old, new)
-
-            self._last_id = change["id"]
+            await cascade_rsn_change(self._db, old, new, self._clan_name)
+            await self._db["service_cursors"].update_one(
+                {"_id": "wom_name_change_cursor"},
+                {"$set": {"last_id": change["id"]}},
+                upsert=True,
+            )
+            last_id = change["id"]
             processed += 1
             logger.info("WomNameChangeService: cascaded {} → {}", old, new)
 

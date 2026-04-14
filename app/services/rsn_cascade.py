@@ -2,31 +2,68 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-_PLAYER_NAME_COLLECTIONS = [
-    "personal_bests",
-    "collection_log_counts",
-    "loot_totals",
-]
+from sqlalchemy import func, text, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.models import CofferEvent, Event, Leaderboard, MembershipEvent, User
 
 
-async def cascade_rsn_change(db, old_rsn: str, new_rsn: str, clan_name: str) -> None:  # type: ignore[no-untyped-def]
-    """Rename player_name across stat collections when a user changes their RSN.
+async def cascade_rsn_change(
+    session: AsyncSession, old_rsn: str, new_rsn: str
+) -> None:
+    """Rename player_name across all PG tables when a user changes their RSN.
 
-    Scoped to clan_name to avoid cross-guild collisions.
-    Called by the future name-change tracking service.
-    Event collections are excluded for now.
+    Commits the transaction internally.
     """
-    for col in _PLAYER_NAME_COLLECTIONS:
-        await db[col].update_many(
-            {"player_name": old_rsn, "clan_name": clan_name},
-            {"$set": {"player_name": new_rsn}},
-        )
-    for field in ("winner", "loser"):
-        await db["pk_events"].update_many(
-            {field: old_rsn, "clan_name": clan_name},
-            {"$set": {field: new_rsn}},
-        )
-    await db["users"].update_one(
-        {"rsn": old_rsn},
-        {"$set": {"rsn": new_rsn, "updated_at": datetime.now(timezone.utc)}},
+    now = datetime.now(timezone.utc)
+
+    # users table
+    await session.execute(
+        update(User).where(User.rsn == old_rsn).values(rsn=new_rsn, updated_at=now)
     )
+
+    # events table — player_name column
+    await session.execute(
+        update(Event)
+        .where(func.lower(Event.player_name) == old_rsn.lower())
+        .values(player_name=new_rsn)
+    )
+
+    # events table — pk winner/loser inside data JSONB
+    await session.execute(
+        text(
+            "UPDATE events SET data = jsonb_set(data, '{winner}', to_jsonb(:new::text))"
+            " WHERE type = 'pk' AND lower(data->>'winner') = lower(:old)"
+        ),
+        {"old": old_rsn, "new": new_rsn},
+    )
+    await session.execute(
+        text(
+            "UPDATE events SET data = jsonb_set(data, '{loser}', to_jsonb(:new::text))"
+            " WHERE type = 'pk' AND lower(data->>'loser') = lower(:old)"
+        ),
+        {"old": old_rsn, "new": new_rsn},
+    )
+
+    # coffer_events
+    await session.execute(
+        update(CofferEvent)
+        .where(func.lower(CofferEvent.player_name) == old_rsn.lower())
+        .values(player_name=new_rsn)
+    )
+
+    # membership_events
+    await session.execute(
+        update(MembershipEvent)
+        .where(func.lower(MembershipEvent.player_name) == old_rsn.lower())
+        .values(player_name=new_rsn)
+    )
+
+    # leaderboards
+    await session.execute(
+        update(Leaderboard)
+        .where(func.lower(Leaderboard.player_name) == old_rsn.lower())
+        .values(player_name=new_rsn)
+    )
+
+    await session.commit()

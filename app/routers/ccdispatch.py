@@ -4,7 +4,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
 from loguru import logger
 from pydantic import BaseModel
+from sqlalchemy import select
 
+from app.db.models import User
 from app.dependencies import verify_clan
 from app.services.connection_manager import connection_manager
 
@@ -55,23 +57,38 @@ def split_message(text: str, max_len: int = 78) -> list[str]:
 @router.websocket("/ccdispatch")
 async def clan_chat_dispatch(websocket: WebSocket) -> None:
     await websocket.accept()
-    db = websocket.app.state.db
+    session_factory = websocket.app.state.session_factory
     verification_code = websocket.headers.get("verification-code")
-    doc = await db["user_keys"].find_one({"key": verification_code, "is_active": True}) if verification_code else None
-    if not doc:
+
+    guild_id: int | None = None
+    discord_user_id: int | None = None
+
+    if verification_code and session_factory:
+        async with session_factory() as session:
+            result = await session.execute(
+                select(User.guild_id, User.discord_user_id).where(
+                    User.api_key == verification_code,
+                    User.key_is_active == True,  # noqa: E712
+                )
+            )
+            row = result.one_or_none()
+            if row:
+                guild_id = row.guild_id
+                discord_user_id = row.discord_user_id
+
+    if guild_id is None or discord_user_id is None:
         await websocket.close(code=1008)
         return
-    guild_name: str = doc["guild_name"]
-    discord_user_id: int = doc["discord_user_id"]
+
     valkey = websocket.app.state.valkey
-    conn_id = connection_manager.connect(websocket, guild_name, verification_code)
+    conn_id = connection_manager.connect(websocket, guild_id, verification_code or "")
 
     async def _publish_presence(event: str) -> None:
         payload = json.dumps({
             "event": event,
             "discord_user_id": discord_user_id,
-            "guild_name": guild_name,
-            "connection_count": connection_manager.connection_count(guild_name),
+            "guild_id": guild_id,
+            "connection_count": connection_manager.connection_count(guild_id),
         })
         try:
             await valkey.publish("foundry:ws_presence", payload)
@@ -81,7 +98,7 @@ async def clan_chat_dispatch(websocket: WebSocket) -> None:
     try:
         await websocket.send_json({
             "message_type": "ToClanChat",
-            "message": {"sender": "System", "message": f"Connected to {guild_name} Chat"},
+            "message": {"sender": "System", "message": f"Connected to clan Chat"},
         })
         await _publish_presence("connect")
         while True:
@@ -89,7 +106,7 @@ async def clan_chat_dispatch(websocket: WebSocket) -> None:
     except WebSocketDisconnect:
         pass
     finally:
-        connection_manager.disconnect(conn_id, guild_name)
+        connection_manager.disconnect(conn_id, guild_id)
         await _publish_presence("disconnect")
 
 
@@ -99,12 +116,13 @@ async def dispatch_to_clan(
     conn_id: UUID | None = Query(default=None),
     clan: dict = Depends(verify_clan),
 ) -> dict:
+    guild_id: int = clan["guild_id"]
     for part in split_message(payload.message):
         msg = _wrap(payload.sender, part, payload.rank)
         if conn_id is not None:
-            delivered = await connection_manager.send_to(conn_id, clan["name"], msg)
+            delivered = await connection_manager.send_to(conn_id, guild_id, msg)
             if not delivered:
                 raise HTTPException(status_code=404, detail="Client not connected")
         else:
-            await connection_manager.broadcast(clan["name"], msg)
+            await connection_manager.broadcast(guild_id, msg)
     return {"ok": True}

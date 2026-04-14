@@ -1,3 +1,4 @@
+# DEPRECATED — MongoDB implementation. Kept for reference. Not imported in production.
 """Authentication router — Discord OAuth2 and API-key login."""
 
 from __future__ import annotations
@@ -12,12 +13,9 @@ from fastapi.responses import RedirectResponse
 from jose import JWTError, jwt
 from loguru import logger
 from pydantic import BaseModel
-from sqlalchemy import select, update
-from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.ext.asyncio import AsyncSession
+from pymongo.asynchronous.database import AsyncDatabase
 
-from app.dependencies import get_current_user, get_session
-from app.db.models import Ticket, User
+from app.dependencies import get_current_user, get_db
 
 DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "")
 DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", "")
@@ -124,10 +122,7 @@ async def _fetch_discord_roles(discord_user_id: int) -> list[str]:
                     guild_resp.status_code,
                 )
             elif guild_resp.json().get("owner_id") == str(discord_user_id):
-                logger.info(
-                    "discord_roles: user {} is guild owner — injecting Co-owner",
-                    discord_user_id,
-                )
+                logger.info("discord_roles: user {} is guild owner — injecting Co-owner", discord_user_id)
                 if "Co-owner" not in role_names:
                     role_names.append("Co-owner")
 
@@ -166,7 +161,7 @@ async def callback(
     code: str | None = None,
     state: str | None = None,
     error: str | None = None,
-    session: AsyncSession = Depends(get_session),
+    db: AsyncDatabase = Depends(get_db),
 ) -> RedirectResponse:
     """Handle the OAuth2 redirect from Discord."""
     if error or not code or not state:
@@ -213,46 +208,43 @@ async def callback(
     discord_roles = await _fetch_discord_roles(discord_user_id)
     now = datetime.now(timezone.utc)
 
-    # Upsert user — create minimal row on first login, update identity + roles always.
-    stmt = (
-        pg_insert(User)
-        .values(
-            discord_user_id=discord_user_id,
-            discord_username=me.get("username", ""),
-            discord_roles=discord_roles,
-            guild_id=int(GUILD_ID) if GUILD_ID else 0,
-            created_at=now,
-            updated_at=now,
-        )
-        .on_conflict_do_update(
-            index_elements=["discord_user_id"],
-            set_={
+    # Upsert user — create minimal doc on first login, update identity + roles always.
+    await db["users"].update_one(
+        {"discord_user_id": discord_user_id},
+        {
+            "$set": {
                 "discord_username": me.get("username", ""),
                 "discord_roles": discord_roles,
                 "updated_at": now,
             },
-        )
+            "$setOnInsert": {
+                "guild_id": int(GUILD_ID) if GUILD_ID else 0,
+                "guild_name": "",
+                "rsn": None,
+                "clan_rank": None,
+                "stats_opt_out": False,
+                "ticket_ids": [],
+                "created_at": now,
+            },
+        },
+        upsert=True,
     )
-    await session.execute(stmt)
 
-    # Sync ticket_ids from the tickets table.
-    ticket_result = await session.execute(
-        select(Ticket.ticket_id).where(Ticket.creator_id == discord_user_id)
-    )
-    ticket_ids = sorted([row[0] for row in ticket_result])
+    # Sync ticket_ids from the tickets collection (keyed by Discord user ID).
+    ticket_ids: list[int] = []
+    async for doc in db["tickets"].find(
+        {"creator.id": discord_user_id}, {"ticket_id": 1, "_id": 0}
+    ):
+        if isinstance(doc.get("ticket_id"), int):
+            ticket_ids.append(doc["ticket_id"])
     if ticket_ids:
-        await session.execute(
-            update(User)
-            .where(User.discord_user_id == discord_user_id)
-            .values(ticket_ids=ticket_ids)
+        await db["users"].update_one(
+            {"discord_user_id": discord_user_id},
+            {"$set": {"ticket_ids": sorted(ticket_ids)}},
         )
         logger.debug(
-            "auth/callback: synced {} ticket(s) for user {}",
-            len(ticket_ids),
-            discord_user_id,
+            "auth/callback: synced {} ticket(s) for user {}", len(ticket_ids), discord_user_id
         )
-
-    await session.commit()
 
     token = _issue_jwt(
         discord_user_id=str(discord_user_id),
@@ -273,24 +265,20 @@ class ApiKeyRequest(BaseModel):
 @router.post("/token")
 async def token(
     body: ApiKeyRequest,
-    session: AsyncSession = Depends(get_session),
+    db: AsyncDatabase = Depends(get_db),
 ) -> dict:
     """Exchange a web API key for a JWT."""
-    result = await session.execute(
-        select(User).where(
-            User.api_key == body.api_key, User.key_is_active == True  # noqa: E712
-        )
-    )
-    user = result.scalar_one_or_none()
-    if not user:
+    doc = await db["user_keys"].find_one({"key": body.api_key, "is_active": True})
+    if not doc:
         raise HTTPException(status_code=401, detail="Invalid key")
 
+    discord_user_id = int(doc["discord_user_id"])
     issued = _issue_jwt(
-        discord_user_id=str(user.discord_user_id),
-        username=user.discord_username,
-        avatar=None,
+        discord_user_id=str(discord_user_id),
+        username=doc.get("discord_username", ""),
+        avatar=doc.get("avatar_hash"),
     )
-    logger.info("auth/token: issued JWT for user {}", user.discord_user_id)
+    logger.info("auth/token: issued JWT for user {}", discord_user_id)
     return {"token": issued}
 
 
@@ -300,29 +288,24 @@ async def token(
 @router.get("/me")
 async def me(
     current_user: dict = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
+    db: AsyncDatabase = Depends(get_db),
 ) -> dict:
     """Return the authenticated user's profile, read fresh from the database.
 
     Mutable fields (rsn, clan_rank, discord_roles, stats_opt_out) are always
-    fetched from PostgreSQL so changes are visible without re-login.
+    fetched from MongoDB so changes are visible without re-login.
     """
     discord_user_id = int(current_user["sub"])
-    result = await session.execute(
-        select(
-            User.rsn,
-            User.clan_rank,
-            User.discord_roles,
-            User.stats_opt_out,
-        ).where(User.discord_user_id == discord_user_id)
+    doc = await db["users"].find_one(
+        {"discord_user_id": discord_user_id},
+        {"rsn": 1, "clan_rank": 1, "discord_roles": 1, "stats_opt_out": 1},
     )
-    row = result.one_or_none()
     return {
         "discord_user_id": current_user["sub"],
         "username": current_user.get("username"),
         "avatar": current_user.get("avatar"),
-        "rsn": row.rsn if row else None,
-        "clan_rank": row.clan_rank if row else None,
-        "discord_roles": row.discord_roles if row else [],
-        "stats_opt_out": row.stats_opt_out if row else False,
+        "rsn": doc.get("rsn") if doc else None,
+        "clan_rank": doc.get("clan_rank") if doc else None,
+        "discord_roles": doc.get("discord_roles", []) if doc else [],
+        "stats_opt_out": doc.get("stats_opt_out", False) if doc else False,
     }

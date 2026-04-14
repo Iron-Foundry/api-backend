@@ -10,12 +10,14 @@ from loguru import logger
 from pymongo import AsyncMongoClient
 from valkey.asyncio import Valkey
 
+from app.db import create_engine, create_session_factory
 from app.models.users import ensure_users_indexes
 from app.routers import auth, ccdispatch, clan, events, members, staff
 from app.routers.ccdispatch import split_message
 from app.services.connection_manager import connection_manager
 from app.services.name_change import WomNameChangeService
 
+DATABASE_URL = os.getenv("DATABASE_URL", "")
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 MONGO_DB = os.getenv("MONGO_DB", "foundry")
 VALKEY_URI = os.getenv("VALKEY_URI", "redis://localhost:6379")
@@ -26,9 +28,13 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 _ALLOWED_ORIGINS = [o.strip() for o in FRONTEND_URL.split(",") if o.strip()]
 
 
-async def _discord_chat_subscriber(valkey_uri: str, db) -> None:  # type: ignore[no-untyped-def]
+async def _discord_chat_subscriber(valkey_uri: str, session_factory) -> None:  # type: ignore[no-untyped-def]
     """Subscribe to Discord clan chat messages and broadcast them to RuneLite clients."""
-    spacebar_counts: dict[str, int] = {}
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    from app.db.models import Metric
+
+    spacebar_counts: dict[int, int] = {}
     while True:
         sub = Valkey.from_url(valkey_uri, socket_timeout=None)
         try:
@@ -45,13 +51,16 @@ async def _discord_chat_subscriber(valkey_uri: str, db) -> None:  # type: ignore
                     )
                     try:
                         data = json.loads(raw["data"])
-                        guild: str = data["guild_name"]
+                        # Support both guild_id (int) and guild_name (legacy str)
+                        guild_id: int = int(
+                            data.get("guild_id") or data.get("guild_name", 0)
+                        )
                         text: str = data["message"]
                         logger.info(
                             "discord_chat_subscriber: forwarding [{}/{}] → {} client(s)",
-                            guild,
+                            guild_id,
                             data.get("sender", "?"),
-                            connection_manager.connection_count(guild),
+                            connection_manager.connection_count(guild_id),
                         )
                         for part in split_message(text):
                             msg = json.dumps(
@@ -64,10 +73,12 @@ async def _discord_chat_subscriber(valkey_uri: str, db) -> None:  # type: ignore
                                     },
                                 }
                             )
-                            await connection_manager.broadcast(guild, msg)
+                            await connection_manager.broadcast(guild_id, msg)
                         if not text.strip():
-                            spacebar_counts[guild] = spacebar_counts.get(guild, 0) + 1
-                            count = spacebar_counts[guild]
+                            spacebar_counts[guild_id] = (
+                                spacebar_counts.get(guild_id, 0) + 1
+                            )
+                            count = spacebar_counts[guild_id]
                             if count == 2:
                                 sys_text: str | None = "Spacebar check started!"
                             elif count > 2:
@@ -76,7 +87,7 @@ async def _discord_chat_subscriber(valkey_uri: str, db) -> None:  # type: ignore
                                 sys_text = None
                             if sys_text:
                                 await connection_manager.broadcast(
-                                    guild,
+                                    guild_id,
                                     json.dumps(
                                         {
                                             "message_type": "ToClanChat",
@@ -89,30 +100,34 @@ async def _discord_chat_subscriber(valkey_uri: str, db) -> None:  # type: ignore
                                     ),
                                 )
                             if count >= 2:
-                                record_id = f"longest_spacebar_check_{guild}"
-                                rec = await db["fun_metrics"].find_one(
-                                    {"_id": record_id}
-                                )
-                                if not rec or count > rec["count"]:
-                                    await db["fun_metrics"].update_one(
-                                        {"_id": record_id},
-                                        {
-                                            "$set": {
-                                                "count": count,
-                                                "guild_name": guild,
-                                                "achieved_at": datetime.now(
-                                                    timezone.utc
-                                                ),
-                                            }
-                                        },
-                                        upsert=True,
+                                record_id = f"longest_spacebar_check_{guild_id}"
+                                now = datetime.now(timezone.utc)
+                                stmt = (
+                                    pg_insert(Metric)
+                                    .values(
+                                        id=record_id,
+                                        count=count,
+                                        achieved_at=now,
+                                        last_updated=now,
                                     )
+                                    .on_conflict_do_update(
+                                        index_elements=["id"],
+                                        set_={
+                                            "count": count,
+                                            "last_updated": now,
+                                        },
+                                        where=Metric.count < count,
+                                    )
+                                )
+                                async with session_factory() as session:
+                                    await session.execute(stmt)
+                                    await session.commit()
                         else:
-                            prev = spacebar_counts.get(guild, 0)
-                            spacebar_counts[guild] = 0
+                            prev = spacebar_counts.get(guild_id, 0)
+                            spacebar_counts[guild_id] = 0
                             if prev >= 2:
                                 await connection_manager.broadcast(
-                                    guild,
+                                    guild_id,
                                     json.dumps(
                                         {
                                             "message_type": "ToClanChat",
@@ -140,19 +155,32 @@ async def _discord_chat_subscriber(valkey_uri: str, db) -> None:  # type: ignore
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # ── PostgreSQL ────────────────────────────────────────────────────────────
+    if DATABASE_URL:
+        logger.info("Connecting to PostgreSQL...")
+        engine = create_engine(DATABASE_URL)
+        app.state.engine = engine
+        app.state.session_factory = create_session_factory(engine)
+    else:
+        logger.warning("DATABASE_URL not set — PostgreSQL disabled")
+        app.state.engine = None
+        app.state.session_factory = None
+
+    # ── MongoDB (legacy — kept until all callers removed) ─────────────────────
     logger.info("Connecting to MongoDB at {}...", MONGO_URI)
     app.state.mongo = AsyncMongoClient(MONGO_URI)
     app.state.db = app.state.mongo[MONGO_DB]
     await ensure_users_indexes(app.state.db)
+
     logger.info("Connecting to Valkey at {}...", VALKEY_URI)
     app.state.valkey = Valkey.from_url(VALKEY_URI)
     subscriber_task = asyncio.create_task(
-        _discord_chat_subscriber(VALKEY_URI, app.state.db),
+        _discord_chat_subscriber(VALKEY_URI, app.state.session_factory),
         name="discord-chat-subscriber",
     )
     if WOM_GROUP_ID:
         wom_service: WomNameChangeService | None = WomNameChangeService(
-            app.state.db, int(WOM_GROUP_ID), WOM_GROUP_KEY, WOM_CLAN_NAME
+            app.state.session_factory, int(WOM_GROUP_ID), WOM_GROUP_KEY, WOM_CLAN_NAME
         )
         await wom_service.start()
     else:
@@ -166,6 +194,9 @@ async def lifespan(app: FastAPI):
         pass
     if wom_service:
         await wom_service.stop()
+    if app.state.engine:
+        logger.info("Closing PostgreSQL connection...")
+        await app.state.engine.dispose()
     logger.info("Closing MongoDB connection...")
     await app.state.mongo.aclose()
     logger.info("Closing Valkey connection...")
