@@ -16,17 +16,20 @@ _XP_STEP = 5_000_000             # every 5M xp
 
 @router.get("/stats")
 async def clan_stats(db: AsyncDatabase = Depends(get_db)) -> dict:
-    """Return aggregate clan stats: total GP looted and total drop count."""
-    pipeline = [
-        {"$group": {"_id": None, "total_gp": {"$sum": "$coin_value"}, "total_drops": {"$sum": 1}}},
+    """Return aggregate clan stats: total GP looted and total collection log items."""
+    gp_pipeline = [
+        {"$group": {"_id": None, "total_gp": {"$sum": "$coin_value"}}},
     ]
-    result = None
-    async for doc in await db["loot_events"].aggregate(pipeline):
-        result = doc
+    gp_result = None
+    async for doc in await db["loot_events"].aggregate(gp_pipeline):
+        gp_result = doc
         break
+
+    collection_log_items = await db["collection_log_events"].count_documents({})
+
     return {
-        "total_gp": result["total_gp"] if result else 0,
-        "total_drops": result["total_drops"] if result else 0,
+        "total_gp": gp_result["total_gp"] if gp_result else 0,
+        "collection_log_items": collection_log_items,
     }
 
 
