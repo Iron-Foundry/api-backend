@@ -97,7 +97,20 @@ async def _fetch_discord_roles(discord_user_id: int) -> list[str]:
                 return []
 
             member_role_ids: list[str] = member_resp.json().get("roles", [])
-            return [role_map[rid] for rid in member_role_ids if rid in role_map]
+            role_names = [role_map[rid] for rid in member_role_ids if rid in role_map]
+
+            # Guild owner has no explicit role — inject Co-owner.
+            guild_resp = await client.get(
+                f"{_DISCORD_API}/guilds/{GUILD_ID}", headers=bot_headers
+            )
+            if (
+                guild_resp.status_code == 200
+                and guild_resp.json().get("owner_id") == str(discord_user_id)
+                and "Co-owner" not in role_names
+            ):
+                role_names.append("Co-owner")
+
+            return role_names
     except Exception as exc:
         logger.warning("discord_roles: unexpected error: {}", exc)
         return []

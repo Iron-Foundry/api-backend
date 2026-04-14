@@ -16,7 +16,7 @@ _DISCORD_ROLE_ORDER = [
     "Guest", "Achiever", "Sapphire", "Emerald", "Ruby",
     "Diamond", "Dragonstone", "Onyx", "Zenyte",
     "Ex-Moderator", "Mentor", "Event Team", "Moderator",
-    "Senior Moderator", "Co-owner",
+    "Senior Moderator", "Deputy Owner", "Co-owner",
 ]
 
 # Ticket types grouped by the minimum Discord role required to view them.
