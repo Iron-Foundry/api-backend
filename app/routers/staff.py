@@ -167,11 +167,14 @@ async def staff_tickets(
             "created_at": row.created_at.isoformat() if row.created_at else None,
             "closed_at": row.closed_at.isoformat() if row.closed_at else None,
             "last_message_at": row.last_message_at.isoformat() if row.last_message_at else None,
-            "creator_id": row.creator_id,
-            "creator_name": row.creator_name,
+            "creator": {
+                "id": row.creator_id,
+                "display_name": row.creator_name,
+                "avatar_url": None,
+            },
             "closed_by_id": row.closed_by_id,
             "close_reason": row.close_reason,
-            "ticket_ids": row.ticket_id,
+            "staff_note": row.staff_note,
         })
     return tickets
 
