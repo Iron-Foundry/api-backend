@@ -14,6 +14,22 @@ _XP_MIN_MILESTONE = 15_000_000   # 15M xp
 _XP_STEP = 5_000_000             # every 5M xp
 
 
+@router.get("/stats")
+async def clan_stats(db: AsyncDatabase = Depends(get_db)) -> dict:
+    """Return aggregate clan stats: total GP looted and total drop count."""
+    pipeline = [
+        {"$group": {"_id": None, "total_gp": {"$sum": "$coin_value"}, "total_drops": {"$sum": 1}}},
+    ]
+    result = None
+    async for doc in db["loot_events"].aggregate(pipeline):
+        result = doc
+        break
+    return {
+        "total_gp": result["total_gp"] if result else 0,
+        "total_drops": result["total_drops"] if result else 0,
+    }
+
+
 @router.get("/recent-achievements")
 async def recent_achievements(
     limit: int = Query(default=20, ge=1, le=100),
