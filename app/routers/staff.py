@@ -109,10 +109,11 @@ async def staff_members(
             User.clan_rank,
             User.discord_roles,
             User.stats_opt_out,
+            User.join_date,
             User.created_at,
             User.total_loot_value,
             User.collection_log_slots,
-        ).order_by(User.created_at.desc())
+        ).order_by(User.join_date.asc().nulls_last())
     )
     members: list[dict] = []
     for row in result:
@@ -123,6 +124,7 @@ async def staff_members(
             "clan_rank": row.clan_rank,
             "discord_roles": row.discord_roles,
             "stats_opt_out": row.stats_opt_out,
+            "join_date": row.join_date.isoformat() if row.join_date else None,
             "created_at": row.created_at.isoformat() if row.created_at else None,
             "total_loot_value": row.total_loot_value,
             "collection_log_slots": row.collection_log_slots,

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Event, User
+from app.db.models import Event, Metric, User
 from app.dependencies import get_session
 
 router = APIRouter(prefix="/clan", tags=["clan"])
@@ -33,9 +33,15 @@ async def clan_stats(session: AsyncSession = Depends(get_session)) -> dict:
     )
     collection_log_items = cl_result.scalar_one() or 0
 
+    clog_result = await session.execute(
+        select(Metric.count).where(Metric.id == "total_clogs")
+    )
+    total_clogs = clog_result.scalar_one_or_none() or 0
+
     return {
         "total_gp": total_gp,
         "collection_log_items": collection_log_items,
+        "total_clogs": total_clogs,
     }
 
 

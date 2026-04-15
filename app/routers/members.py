@@ -23,7 +23,8 @@ _RSN_RE = re.compile(r"^[A-Za-z0-9 _-]{1,12}$")
 
 
 class PrivacyUpdate(BaseModel):
-    stats_opt_out: bool
+    stats_opt_out: bool | None = None
+    hide_presence_notifications: bool | None = None
 
 
 class RsnUpdate(BaseModel):
@@ -41,18 +42,19 @@ async def update_privacy(
 ) -> dict:
     """Toggle stats opt-out for the authenticated user."""
     discord_user_id = int(current_user["sub"])
+    values: dict = {"updated_at": datetime.now(timezone.utc)}
+    if body.stats_opt_out is not None:
+        values["stats_opt_out"] = body.stats_opt_out
+    if body.hide_presence_notifications is not None:
+        values["hide_presence_notifications"] = body.hide_presence_notifications
+    if len(values) == 1:
+        return {}
     await session.execute(
-        update(User)
-        .where(User.discord_user_id == discord_user_id)
-        .values(stats_opt_out=body.stats_opt_out, updated_at=datetime.now(timezone.utc))
+        update(User).where(User.discord_user_id == discord_user_id).values(**values)
     )
     await session.commit()
-    logger.info(
-        "members/privacy: user {} set stats_opt_out={}",
-        discord_user_id,
-        body.stats_opt_out,
-    )
-    return {"stats_opt_out": body.stats_opt_out}
+    logger.info("members/privacy: user {} updated privacy {}", discord_user_id, values)
+    return {k: v for k, v in values.items() if k != "updated_at"}
 
 
 @router.patch("/me/rsn")
@@ -171,6 +173,18 @@ async def update_rsn(
             discord_user_id,
         )
 
+    # Stamp user_id on all events whose player_name matches this RSN
+    event_result = await session.execute(
+        update(Event)
+        .where(func.lower(Event.player_name) == rsn.lower())
+        .values(user_id=discord_user_id)
+    )
+    logger.info(
+        "members/rsn: linked user_id {} to {} event rows",
+        discord_user_id,
+        event_result.rowcount,
+    )
+
     await session.commit()
     return {"rsn": rsn}
 
@@ -194,15 +208,15 @@ async def member_feed(
     if not rsn:
         return []
 
-    per_col = min(limit * 2, 500)
+    fetch_limit = min(limit * 10, 2000)
     events_result = await session.execute(
         select(Event)
         .where(
-            func.lower(Event.player_name) == rsn.lower(),
+            Event.user_id == discord_user_id,
             Event.type.notin_(["unknown"]),
         )
         .order_by(Event.timestamp.desc())
-        .limit(per_col)
+        .limit(fetch_limit)
     )
     rows = events_result.scalars().all()
 
@@ -212,10 +226,10 @@ async def member_feed(
         .where(
             Event.type == "pk",
             Event.data["loser"].as_string() == rsn,
-            func.lower(Event.player_name) != rsn.lower(),
+            Event.user_id != discord_user_id,
         )
         .order_by(Event.timestamp.desc())
-        .limit(per_col)
+        .limit(fetch_limit)
     )
     pk_rows = pk_result.scalars().all()
 
@@ -255,7 +269,7 @@ async def member_feed(
                           "label": d.get("item_name", ""), "detail": "Clue scroll",
                           "value": d.get("coin_value", 0)})
         elif t == "pk":
-            won = (row.player_name or "").lower() == rsn.lower()
+            won = row.user_id == discord_user_id and (row.player_name or "").lower() == rsn.lower()
             other = d.get("loser" if won else "winner", "")
             items.append({"type": "pk", "timestamp": ts,
                           "label": f"{'Killed' if won else 'Killed by'} {other}",

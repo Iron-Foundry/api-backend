@@ -6,12 +6,12 @@ from typing import Any
 
 from fastapi import APIRouter, Depends
 from loguru import logger
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from valkey.asyncio import Valkey
 
-from app.db.models import CofferEvent, Event, Leaderboard, MembershipEvent, User
+from app.db.models import CofferEvent, Event, Leaderboard, MembershipEvent, Metric, User
 from app.dependencies import get_session, get_valkey, verify_clan
 from app.models.clan_chat import ClanChatPayload
 from app.services import parser
@@ -307,6 +307,15 @@ async def _handle_broadcast(
                     updated_at=now,
                 )
             )
+            # Increment total_clogs metric
+            await session.execute(
+                pg_insert(Metric)
+                .values(id="total_clogs", count=1, last_updated=now)
+                .on_conflict_do_update(
+                    index_elements=["id"],
+                    set_={"count": Metric.count + 1, "last_updated": now},
+                )
+            )
             logger.info(
                 "[{}] Collection log: {} - {} (slot {})",
                 clan["guild_id"],
@@ -584,5 +593,18 @@ async def ingest_chat(
             }
             await publish(valkey, "chat", dispatch_data)
 
+    # Stamp user_id on any events inserted this transaction
+    await session.execute(
+        text(
+            """
+            UPDATE events e
+            SET user_id = u.discord_user_id
+            FROM users u
+            WHERE u.rsn IS NOT NULL
+              AND lower(e.player_name) = lower(u.rsn)
+              AND e.user_id IS NULL
+            """
+        )
+    )
     await session.commit()
     return {"ok": True, "processed": len(payloads)}

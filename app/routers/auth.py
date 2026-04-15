@@ -314,6 +314,7 @@ async def me(
             User.clan_rank,
             User.discord_roles,
             User.stats_opt_out,
+            User.hide_presence_notifications,
         ).where(User.discord_user_id == discord_user_id)
     )
     row = result.one_or_none()
@@ -325,4 +326,5 @@ async def me(
         "clan_rank": row.clan_rank if row else None,
         "discord_roles": row.discord_roles if row else [],
         "stats_opt_out": row.stats_opt_out if row else False,
+        "hide_presence_notifications": row.hide_presence_notifications if row else False,
     }

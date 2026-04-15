@@ -62,11 +62,16 @@ async def clan_chat_dispatch(websocket: WebSocket) -> None:
 
     guild_id: int | None = None
     discord_user_id: int | None = None
+    hide_presence: bool = False
 
     if verification_code and session_factory:
         async with session_factory() as session:
             result = await session.execute(
-                select(User.guild_id, User.discord_user_id).where(
+                select(
+                    User.guild_id,
+                    User.discord_user_id,
+                    User.hide_presence_notifications,
+                ).where(
                     User.api_key == verification_code,
                     User.key_is_active == True,  # noqa: E712
                 )
@@ -75,6 +80,7 @@ async def clan_chat_dispatch(websocket: WebSocket) -> None:
             if row:
                 guild_id = row.guild_id
                 discord_user_id = row.discord_user_id
+                hide_presence = row.hide_presence_notifications
 
     if guild_id is None or discord_user_id is None:
         await websocket.close(code=1008)
@@ -89,6 +95,7 @@ async def clan_chat_dispatch(websocket: WebSocket) -> None:
             "discord_user_id": discord_user_id,
             "guild_id": guild_id,
             "connection_count": connection_manager.connection_count(guild_id),
+            "hide_presence_notifications": hide_presence,
         })
         try:
             await valkey.publish("foundry:ws_presence", payload)

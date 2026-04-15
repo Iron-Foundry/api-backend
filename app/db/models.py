@@ -46,6 +46,10 @@ class User(Base):
     stats_opt_out: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="false"
     )
+    hide_presence_notifications: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+    recruited_by: Mapped[int | None] = mapped_column(BigInteger)
     api_key: Mapped[str | None] = mapped_column(Text, unique=True)
     key_is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="false"
@@ -55,6 +59,7 @@ class User(Base):
     temp_vc_lock_status: Mapped[str | None] = mapped_column(Text)
     temp_vc_member_limit: Mapped[int | None] = mapped_column(Integer)
     temp_vc_bitrate: Mapped[int | None] = mapped_column(Integer)
+    join_date: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
 
@@ -72,7 +77,7 @@ class Event(Base):
     )
     raw_message: Mapped[str | None] = mapped_column(Text)
     data: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
-    discord_user_id: Mapped[int | None] = mapped_column(BigInteger)
+    user_id: Mapped[int | None] = mapped_column(BigInteger, index=True)
 
 
 class CofferEvent(Base):
