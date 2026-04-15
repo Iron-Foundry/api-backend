@@ -125,7 +125,7 @@ async def staff_members(
     members: list[dict] = []
     for row in result:
         members.append({
-            "discord_user_id": row.discord_user_id,
+            "discord_user_id": str(row.discord_user_id),
             "discord_username": row.discord_username,
             "rsn": row.rsn,
             "clan_rank": row.clan_rank,
@@ -206,7 +206,7 @@ async def update_member_rsn(
             )
         await session.commit()
         logger.info("staff/rsn: cleared RSN for user {}", discord_user_id)
-        return {"discord_user_id": discord_user_id, "rsn": None}
+        return {"discord_user_id": str(discord_user_id), "rsn": None}
 
     # ── Setting / changing the RSN ────────────────────────────────────────
     # check uniqueness (case-insensitive, excluding self)
