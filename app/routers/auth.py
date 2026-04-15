@@ -53,7 +53,7 @@ def _issue_jwt(
         "sub": discord_user_id,
         "username": username,
         "avatar": avatar,
-        "exp": datetime.now(timezone.utc) + timedelta(days=7),
+        "exp": datetime.now(timezone.utc) + timedelta(days=30),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=_ALGORITHM)
 
