@@ -353,4 +353,6 @@ async def member_ticket_transcript(
             status_code=404, detail="Transcript not available for this ticket."
         )
 
-    return {"ticket_id": tr.ticket_id, "entries": tr.entries}
+    raw = tr.entries
+    entries = raw.get("entries", []) if isinstance(raw, dict) else (raw or [])
+    return {"ticket_id": tr.ticket_id, "entries": entries}
