@@ -22,6 +22,7 @@ class User(Base):
 
     discord_user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     discord_username: Mapped[str] = mapped_column(Text, nullable=False)
+    discord_avatar_url: Mapped[str | None] = mapped_column(Text)
     guild_id: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default="0")
     rsn: Mapped[str | None] = mapped_column(Text, unique=True)
     clan_rank: Mapped[str | None] = mapped_column(Text)

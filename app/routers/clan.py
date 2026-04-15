@@ -2,20 +2,15 @@
 
 from __future__ import annotations
 
-import os
-
-import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Event, Metric, User
-from app.dependencies import get_session
+from app.dependencies import get_current_user, get_session
 
 router = APIRouter(prefix="/clan", tags=["clan"])
 
-_DISCORD_API = "https://discord.com/api/v10"
 _DROP_MIN_VALUE = 2_000_000      # 2M gp
 _XP_MIN_MILESTONE = 15_000_000   # 15M xp
 _XP_STEP = 5_000_000             # every 5M xp
@@ -155,41 +150,16 @@ async def recent_achievements(
 
 
 @router.get("/user-avatar/{user_id}")
-async def user_avatar(user_id: int) -> Response:
-    """Proxy the Discord avatar image for the given user ID.
-
-    Uses the bot token to resolve the avatar hash, fetches the image from the
-    Discord CDN, and streams the bytes back so the browser never has to make
-    a cross-origin request to the CDN directly.
-    """
-    token = os.getenv("DISCORD_TOKEN")
-    if not token:
-        raise HTTPException(status_code=503, detail="Discord token not configured")
-
-    async with httpx.AsyncClient() as client:
-        user_resp = await client.get(
-            f"{_DISCORD_API}/users/{user_id}",
-            headers={"Authorization": f"Bot {token}"},
-        )
-        if user_resp.status_code == 404:
-            raise HTTPException(status_code=404, detail="Discord user not found")
-        if user_resp.status_code != 200:
-            raise HTTPException(status_code=502, detail="Discord API error")
-
-        data = user_resp.json()
-        avatar = data.get("avatar")
-        if avatar:
-            cdn_url = f"https://cdn.discordapp.com/avatars/{user_id}/{avatar}.webp?size=64"
-        else:
-            discriminator = int(data.get("discriminator", "0") or "0")
-            index = (user_id >> 22) % 6 if discriminator == 0 else discriminator % 5
-            cdn_url = f"https://cdn.discordapp.com/embed/avatars/{index}.png"
-
-        img_resp = await client.get(cdn_url)
-
-    content_type = img_resp.headers.get("content-type", "image/webp")
-    return Response(
-        content=img_resp.content,
-        media_type=content_type,
-        headers={"Cache-Control": "public, max-age=3600"},
+async def user_avatar(
+    user_id: int,
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Return the stored Discord avatar URL for the given user ID."""
+    result = await session.execute(
+        select(User.discord_avatar_url).where(User.discord_user_id == user_id)
     )
+    avatar_url = result.scalar_one_or_none()
+    if not avatar_url:
+        raise HTTPException(status_code=404, detail="Avatar not available.")
+    return {"avatar_url": avatar_url}
