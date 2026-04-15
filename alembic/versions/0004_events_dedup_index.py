@@ -15,14 +15,20 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Prevent duplicate broadcast events within the same minute.
-    # Legitimate repeat events (e.g. same drop twice) are extremely unlikely
-    # within the same minute. This index is the last-resort safety net;
-    # primary dedup is handled by Valkey TTL in the dispatcher.
+    # EXTRACT(EPOCH FROM timestamptz) is STABLE in PG (it checks TimeZone GUC),
+    # so we wrap it in an IMMUTABLE function to satisfy index expression requirements.
+    # Epoch is always UTC-based so the IMMUTABLE declaration is safe in practice.
+    op.execute(
+        """
+        CREATE OR REPLACE FUNCTION _minute_bucket(ts timestamptz)
+        RETURNS bigint LANGUAGE sql IMMUTABLE STRICT
+        AS $$ SELECT (EXTRACT(EPOCH FROM ts)::bigint / 60) $$
+        """
+    )
     op.execute(
         """
         CREATE UNIQUE INDEX events_dedup_idx
-        ON events (player_name, raw_message, (EXTRACT(EPOCH FROM timestamp)::bigint / 60))
+        ON events (player_name, raw_message, _minute_bucket(timestamp))
         WHERE player_name IS NOT NULL AND raw_message IS NOT NULL
         """
     )
@@ -30,3 +36,4 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.execute("DROP INDEX IF EXISTS events_dedup_idx")
+    op.execute("DROP FUNCTION IF EXISTS _minute_bucket(timestamptz)")
