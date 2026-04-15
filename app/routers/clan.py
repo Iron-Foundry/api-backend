@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+import os
+
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +15,7 @@ from app.dependencies import get_session
 
 router = APIRouter(prefix="/clan", tags=["clan"])
 
+_DISCORD_API = "https://discord.com/api/v10"
 _DROP_MIN_VALUE = 2_000_000      # 2M gp
 _XP_MIN_MILESTONE = 15_000_000   # 15M xp
 _XP_STEP = 5_000_000             # every 5M xp
@@ -147,3 +152,38 @@ async def recent_achievements(
 
     results.sort(key=lambda x: x["timestamp"], reverse=True)
     return results[:limit]
+
+
+@router.get("/user-avatar/{user_id}")
+async def user_avatar(user_id: int) -> RedirectResponse:
+    """Redirect to Discord CDN avatar for the given user ID.
+
+    Uses the bot token to fetch the user's avatar hash from the Discord API,
+    then redirects to the CDN URL. Falls back to the default Discord avatar
+    if the user has no avatar set.
+    """
+    token = os.getenv("DISCORD_TOKEN")
+    if not token:
+        raise HTTPException(status_code=503, detail="Discord token not configured")
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{_DISCORD_API}/users/{user_id}",
+            headers={"Authorization": f"Bot {token}"},
+        )
+
+    if resp.status_code == 404:
+        raise HTTPException(status_code=404, detail="Discord user not found")
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Discord API error")
+
+    data = resp.json()
+    avatar = data.get("avatar")
+    if avatar:
+        url = f"https://cdn.discordapp.com/avatars/{user_id}/{avatar}.webp?size=64"
+    else:
+        discriminator = int(data.get("discriminator", "0") or "0")
+        index = (user_id >> 22) % 6 if discriminator == 0 else discriminator % 5
+        url = f"https://cdn.discordapp.com/embed/avatars/{index}.png"
+
+    return RedirectResponse(url=url, status_code=302)

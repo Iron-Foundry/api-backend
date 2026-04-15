@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+import re
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, select
+from loguru import logger
+from pydantic import BaseModel
+from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Ticket, Transcript, User
+from app.db.models import CofferEvent, Event, Leaderboard, MembershipEvent, Ticket, Transcript, User
 from app.dependencies import get_current_user, get_session
+
+_RSN_RE = re.compile(r"^[A-Za-z0-9 _-]{1,12}$")
 
 router = APIRouter(prefix="/staff", tags=["staff"])
 
@@ -130,6 +137,209 @@ async def staff_members(
             "collection_log_slots": row.collection_log_slots,
         })
     return members
+
+
+class RsnUpdate(BaseModel):
+    rsn: str | None
+
+
+@router.patch("/members/{discord_user_id}/rsn")
+async def update_member_rsn(
+    discord_user_id: int,
+    body: RsnUpdate,
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Set, change, or clear a member's RSN. Requires Moderator or higher.
+
+    Performs the same backfill and event-linking as the self-service
+    PATCH /members/me/rsn endpoint. When the user already has an RSN the
+    old name is cascaded across all player_name columns before the new one
+    is applied.
+    """
+    await _require_rank("Moderator", current_user, session)
+
+    new_rsn = body.rsn.strip() if body.rsn else None
+    if new_rsn == "":
+        new_rsn = None
+
+    # validate format when setting a value
+    if new_rsn and not _RSN_RE.match(new_rsn):
+        raise HTTPException(
+            status_code=422,
+            detail="RSN must be 1–12 characters: letters, numbers, spaces, hyphens, underscores.",
+        )
+
+    # fetch current state for this user
+    user_result = await session.execute(
+        select(
+            User.discord_user_id,
+            User.rsn,
+            User.clan_rank,
+            User.total_loot_value,
+            User.collection_log_slots,
+        ).where(User.discord_user_id == discord_user_id)
+    )
+    user_row = user_result.one_or_none()
+    if not user_row:
+        raise HTTPException(status_code=404, detail="Member not found.")
+
+    old_rsn: str | None = user_row.rsn
+    now = datetime.now(timezone.utc)
+
+    # ── Clearing the RSN ──────────────────────────────────────────────────
+    if new_rsn is None:
+        await session.execute(
+            update(User)
+            .where(User.discord_user_id == discord_user_id)
+            .values(rsn=None, updated_at=now)
+        )
+        if old_rsn:
+            # unlink events that were linked via this RSN
+            await session.execute(
+                update(Event)
+                .where(
+                    Event.user_id == discord_user_id,
+                    func.lower(Event.player_name) == old_rsn.lower(),
+                )
+                .values(user_id=None)
+            )
+        await session.commit()
+        logger.info("staff/rsn: cleared RSN for user {}", discord_user_id)
+        return {"discord_user_id": discord_user_id, "rsn": None}
+
+    # ── Setting / changing the RSN ────────────────────────────────────────
+    # check uniqueness (case-insensitive, excluding self)
+    conflict = await session.execute(
+        select(User.discord_user_id).where(
+            func.lower(User.rsn) == new_rsn.lower(),
+            User.discord_user_id != discord_user_id,
+        )
+    )
+    if conflict.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="RSN already linked to another account.")
+
+    # if this is a rename, cascade old_rsn → new_rsn across all tables
+    if old_rsn and old_rsn.lower() != new_rsn.lower():
+        await session.execute(
+            update(Event)
+            .where(func.lower(Event.player_name) == old_rsn.lower())
+            .values(player_name=new_rsn)
+        )
+        await session.execute(
+            text(
+                "UPDATE events SET data = jsonb_set(data, '{winner}', to_jsonb(:new::text))"
+                " WHERE type = 'pk' AND lower(data->>'winner') = lower(:old)"
+            ),
+            {"old": old_rsn, "new": new_rsn},
+        )
+        await session.execute(
+            text(
+                "UPDATE events SET data = jsonb_set(data, '{loser}', to_jsonb(:new::text))"
+                " WHERE type = 'pk' AND lower(data->>'loser') = lower(:old)"
+            ),
+            {"old": old_rsn, "new": new_rsn},
+        )
+        await session.execute(
+            update(CofferEvent)
+            .where(func.lower(CofferEvent.player_name) == old_rsn.lower())
+            .values(player_name=new_rsn)
+        )
+        await session.execute(
+            update(MembershipEvent)
+            .where(func.lower(MembershipEvent.player_name) == old_rsn.lower())
+            .values(player_name=new_rsn)
+        )
+        await session.execute(
+            update(Leaderboard)
+            .where(func.lower(Leaderboard.player_name) == old_rsn.lower())
+            .values(player_name=new_rsn)
+        )
+        logger.info(
+            "staff/rsn: cascaded rename {!r} → {!r} for user {}",
+            old_rsn, new_rsn, discord_user_id,
+        )
+
+    # update the RSN on the user record
+    await session.execute(
+        update(User)
+        .where(User.discord_user_id == discord_user_id)
+        .values(rsn=new_rsn, updated_at=now)
+    )
+    logger.info("staff/rsn: user {} set RSN {!r}", discord_user_id, new_rsn)
+
+    # ── Backfill (same as self-service endpoint) ──────────────────────────
+    backfill: dict = {}
+
+    if not user_row.clan_rank:
+        rank_result = await session.execute(
+            select(Event.data["rank"].as_string())
+            .where(
+                func.lower(Event.player_name) == new_rsn.lower(),
+                Event.data["rank"].as_string().isnot(None),
+                Event.type.in_(["loot", "level", "xp_milestone", "quest", "diary", "combat_achievement"]),
+            )
+            .order_by(Event.timestamp.desc())
+            .limit(1)
+        )
+        rank_val = rank_result.scalar_one_or_none()
+        if rank_val:
+            backfill["clan_rank"] = rank_val
+
+    if not user_row.total_loot_value:
+        loot_result = await session.execute(
+            select(func.coalesce(func.sum(Event.data["coin_value"].as_integer()), 0)).where(
+                func.lower(Event.player_name) == new_rsn.lower(),
+                Event.type.in_(["loot", "loot_key", "clue_item"]),
+            )
+        )
+        total_loot = loot_result.scalar_one_or_none() or 0
+        if total_loot:
+            backfill["total_loot_value"] = total_loot
+
+    if not user_row.collection_log_slots:
+        cl_result = await session.execute(
+            select(func.coalesce(func.max(Event.data["log_slots"].as_integer()), 0)).where(
+                func.lower(Event.player_name) == new_rsn.lower(),
+                Event.type == "collection_log",
+            )
+        )
+        cl_slots = cl_result.scalar_one_or_none() or 0
+        if cl_slots:
+            backfill["collection_log_slots"] = cl_slots
+
+    ticket_result = await session.execute(
+        select(Ticket.ticket_id).where(Ticket.creator_id == discord_user_id)
+    )
+    ticket_ids = sorted([row[0] for row in ticket_result])
+    if ticket_ids:
+        backfill["ticket_ids"] = ticket_ids
+
+    if backfill:
+        backfill["updated_at"] = now
+        await session.execute(
+            update(User)
+            .where(User.discord_user_id == discord_user_id)
+            .values(**backfill)
+        )
+        logger.info(
+            "staff/rsn: backfilled {} for user {}",
+            list(backfill.keys()), discord_user_id,
+        )
+
+    # stamp user_id on all events matching the new RSN
+    event_result = await session.execute(
+        update(Event)
+        .where(func.lower(Event.player_name) == new_rsn.lower())
+        .values(user_id=discord_user_id)
+    )
+    logger.info(
+        "staff/rsn: linked user_id {} to {} event rows",
+        discord_user_id, event_result.rowcount,
+    )
+
+    await session.commit()
+    return {"discord_user_id": discord_user_id, "rsn": new_rsn}
 
 
 @router.get("/tickets")

@@ -7,19 +7,15 @@ from datetime import datetime, timezone
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
-from pymongo import AsyncMongoClient
 from valkey.asyncio import Valkey
 
 from app.db import create_engine, create_session_factory
-from app.models.users import ensure_users_indexes
 from app.routers import auth, ccdispatch, clan, events, members, staff
 from app.routers.ccdispatch import split_message
 from app.services.connection_manager import connection_manager
 from app.services.name_change import WomNameChangeService
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
-MONGO_DB = os.getenv("MONGO_DB", "foundry")
 VALKEY_URI = os.getenv("VALKEY_URI", "redis://localhost:6379")
 WOM_GROUP_ID = os.getenv("WOM_GROUP_ID")
 WOM_GROUP_KEY = os.getenv("WOM_GROUP_KEY")
@@ -166,12 +162,6 @@ async def lifespan(app: FastAPI):
         app.state.engine = None
         app.state.session_factory = None
 
-    # ── MongoDB (legacy — kept until all callers removed) ─────────────────────
-    logger.info("Connecting to MongoDB at {}...", MONGO_URI)
-    app.state.mongo = AsyncMongoClient(MONGO_URI)
-    app.state.db = app.state.mongo[MONGO_DB]
-    await ensure_users_indexes(app.state.db)
-
     logger.info("Connecting to Valkey at {}...", VALKEY_URI)
     app.state.valkey = Valkey.from_url(VALKEY_URI)
     subscriber_task = asyncio.create_task(
@@ -197,8 +187,6 @@ async def lifespan(app: FastAPI):
     if app.state.engine:
         logger.info("Closing PostgreSQL connection...")
         await app.state.engine.dispose()
-    logger.info("Closing MongoDB connection...")
-    await app.state.mongo.aclose()
     logger.info("Closing Valkey connection...")
     await app.state.valkey.aclose()
 

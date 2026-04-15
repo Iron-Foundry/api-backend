@@ -3,7 +3,6 @@ from collections.abc import AsyncGenerator
 
 from fastapi import Depends, Header, HTTPException, Request
 from jose import JWTError, jwt
-from pymongo.asynchronous.database import AsyncDatabase
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from valkey.asyncio import Valkey
@@ -12,10 +11,6 @@ from app.db.models import User
 
 JWT_SECRET = os.getenv("JWT_SECRET", "change-me")
 _ALGORITHM = "HS256"
-
-
-def get_db(request: Request) -> AsyncDatabase:
-    return request.app.state.db
 
 
 def get_valkey(request: Request) -> Valkey:
