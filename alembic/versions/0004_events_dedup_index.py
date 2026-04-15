@@ -22,7 +22,7 @@ def upgrade() -> None:
     op.execute(
         """
         CREATE UNIQUE INDEX events_dedup_idx
-        ON events (player_name, raw_message, date_trunc('minute', timestamp))
+        ON events (player_name, raw_message, (EXTRACT(EPOCH FROM timestamp)::bigint / 60))
         WHERE player_name IS NOT NULL AND raw_message IS NOT NULL
         """
     )
