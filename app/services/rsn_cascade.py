@@ -67,3 +67,4 @@ async def cascade_rsn_change(
     )
 
     await session.commit()
+

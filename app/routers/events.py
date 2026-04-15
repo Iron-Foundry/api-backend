@@ -107,6 +107,11 @@ def _dispatch_doc(event_type: str, player_name: str | None, data: dict) -> dict:
     return result
 
 
+async def _insert_event(session: AsyncSession, **kwargs: Any) -> None:
+    """Insert an Event row, silently skipping on duplicate (dedup index conflict)."""
+    await session.execute(pg_insert(Event).values(**kwargs).on_conflict_do_nothing())
+
+
 async def _handle_broadcast(
     payload: ClanChatPayload,
     clan: dict,
@@ -131,16 +136,15 @@ async def _handle_broadcast(
                 "rank": payload.rank,
                 "sender": payload.sender,
             }
-            session.add(
-                Event(
-                    type="loot",
-                    timestamp=now,
-                    player_name=parsed.player_name,
-                    sender=payload.sender,
-                    is_league_world=payload.is_league_world,
-                    raw_message=payload.message,
-                    data=data,
-                )
+            await _insert_event(
+                session,
+                type="loot",
+                timestamp=now,
+                player_name=parsed.player_name,
+                sender=payload.sender,
+                is_league_world=payload.is_league_world,
+                raw_message=payload.message,
+                data=data,
             )
             await _increment_loot_value(session, parsed.player_name, parsed.coin_value)
             logger.info(
@@ -160,16 +164,15 @@ async def _handle_broadcast(
         parsed = parser.parse_level_up(payload.message)
         if parsed:
             data = {"skill": parsed.skill, "new_level": parsed.new_level}
-            session.add(
-                Event(
-                    type="level",
-                    timestamp=now,
-                    player_name=parsed.player_name,
-                    sender=payload.sender,
-                    is_league_world=payload.is_league_world,
-                    raw_message=payload.message,
-                    data=data,
-                )
+            await _insert_event(
+                session,
+                type="level",
+                timestamp=now,
+                player_name=parsed.player_name,
+                sender=payload.sender,
+                is_league_world=payload.is_league_world,
+                raw_message=payload.message,
+                data=data,
             )
             logger.info(
                 "[{}] Level-up: {} reached {} {}",
@@ -184,16 +187,15 @@ async def _handle_broadcast(
         parsed = parser.parse_xp_milestone(payload.message)
         if parsed:
             data = {"skill": parsed.skill, "xp": parsed.xp}
-            session.add(
-                Event(
-                    type="xp_milestone",
-                    timestamp=now,
-                    player_name=parsed.player_name,
-                    sender=payload.sender,
-                    is_league_world=payload.is_league_world,
-                    raw_message=payload.message,
-                    data=data,
-                )
+            await _insert_event(
+                session,
+                type="xp_milestone",
+                timestamp=now,
+                player_name=parsed.player_name,
+                sender=payload.sender,
+                is_league_world=payload.is_league_world,
+                raw_message=payload.message,
+                data=data,
             )
             logger.info(
                 "[{}] XP milestone: {} reached {:,} XP in {}",
@@ -214,16 +216,15 @@ async def _handle_broadcast(
         parsed = parser.parse_achievement(payload.message)
         if parsed:
             data = {"achievement_type": parsed.kind, "name": parsed.name}
-            session.add(
-                Event(
-                    type=parsed.kind,
-                    timestamp=now,
-                    player_name=parsed.player_name,
-                    sender=payload.sender,
-                    is_league_world=payload.is_league_world,
-                    raw_message=payload.message,
-                    data=data,
-                )
+            await _insert_event(
+                session,
+                type=parsed.kind,
+                timestamp=now,
+                player_name=parsed.player_name,
+                sender=payload.sender,
+                is_league_world=payload.is_league_world,
+                raw_message=payload.message,
+                data=data,
             )
             logger.info(
                 "[{}] Achievement: {} - {}",
@@ -238,16 +239,15 @@ async def _handle_broadcast(
     elif kind == BroadcastType.PET:
         parsed = parser.parse_pet(payload.message)
         if parsed:
-            session.add(
-                Event(
-                    type="pet",
-                    timestamp=now,
-                    player_name=parsed.player_name,
-                    sender=payload.sender,
-                    is_league_world=payload.is_league_world,
-                    raw_message=payload.message,
-                    data={},
-                )
+            await _insert_event(
+                session,
+                type="pet",
+                timestamp=now,
+                player_name=parsed.player_name,
+                sender=payload.sender,
+                is_league_world=payload.is_league_world,
+                raw_message=payload.message,
+                data={},
             )
             logger.info("[{}] Pet drop: {}", clan["guild_id"], parsed.player_name)
             await publish(valkey, "pet", _dispatch_doc("pet", parsed.player_name, {}))
@@ -256,16 +256,15 @@ async def _handle_broadcast(
         parsed = parser.parse_new_member(payload.message)
         if parsed:
             data = {"invited_by": parsed.invited_by}
-            session.add(
-                Event(
-                    type="new_member",
-                    timestamp=now,
-                    player_name=parsed.player_name,
-                    sender=payload.sender,
-                    is_league_world=payload.is_league_world,
-                    raw_message=payload.message,
-                    data=data,
-                )
+            await _insert_event(
+                session,
+                type="new_member",
+                timestamp=now,
+                player_name=parsed.player_name,
+                sender=payload.sender,
+                is_league_world=payload.is_league_world,
+                raw_message=payload.message,
+                data=data,
             )
             logger.info(
                 "[{}] New member: {} (invited by {})",
@@ -285,16 +284,15 @@ async def _handle_broadcast(
                 "log_slots": parsed.log_slots,
                 "log_slots_max": parsed.log_slots_max,
             }
-            session.add(
-                Event(
-                    type="collection_log",
-                    timestamp=now,
-                    player_name=parsed.player_name,
-                    sender=payload.sender,
-                    is_league_world=payload.is_league_world,
-                    raw_message=payload.message,
-                    data=data,
-                )
+            await _insert_event(
+                session,
+                type="collection_log",
+                timestamp=now,
+                player_name=parsed.player_name,
+                sender=payload.sender,
+                is_league_world=payload.is_league_world,
+                raw_message=payload.message,
+                data=data,
             )
             # Update collection log slots on user (keep max)
             await session.execute(
@@ -326,16 +324,15 @@ async def _handle_broadcast(
         parsed = parser.parse_loot_key(payload.message)
         if parsed:
             data = {"coin_value": parsed.coin_value}
-            session.add(
-                Event(
-                    type="loot_key",
-                    timestamp=now,
-                    player_name=parsed.player_name,
-                    sender=payload.sender,
-                    is_league_world=payload.is_league_world,
-                    raw_message=payload.message,
-                    data=data,
-                )
+            await _insert_event(
+                session,
+                type="loot_key",
+                timestamp=now,
+                player_name=parsed.player_name,
+                sender=payload.sender,
+                is_league_world=payload.is_league_world,
+                raw_message=payload.message,
+                data=data,
             )
             await _increment_loot_value(session, parsed.player_name, parsed.coin_value)
             logger.info(
@@ -352,16 +349,15 @@ async def _handle_broadcast(
         parsed = parser.parse_clue_item(payload.message)
         if parsed:
             data = {"item_name": parsed.item_name, "coin_value": parsed.coin_value}
-            session.add(
-                Event(
-                    type="clue_item",
-                    timestamp=now,
-                    player_name=parsed.player_name,
-                    sender=payload.sender,
-                    is_league_world=payload.is_league_world,
-                    raw_message=payload.message,
-                    data=data,
-                )
+            await _insert_event(
+                session,
+                type="clue_item",
+                timestamp=now,
+                player_name=parsed.player_name,
+                sender=payload.sender,
+                is_league_world=payload.is_league_world,
+                raw_message=payload.message,
+                data=data,
             )
             await _increment_loot_value(session, parsed.player_name, parsed.coin_value)
             logger.info(
@@ -382,16 +378,15 @@ async def _handle_broadcast(
                 "loser": parsed.loser,
                 "gp_exchanged": parsed.gp_exchanged,
             }
-            session.add(
-                Event(
-                    type="pk",
-                    timestamp=now,
-                    player_name=parsed.winner,
-                    sender=payload.sender,
-                    is_league_world=payload.is_league_world,
-                    raw_message=payload.message,
-                    data=data,
-                )
+            await _insert_event(
+                session,
+                type="pk",
+                timestamp=now,
+                player_name=parsed.winner,
+                sender=payload.sender,
+                is_league_world=payload.is_league_world,
+                raw_message=payload.message,
+                data=data,
             )
             logger.info(
                 "[{}] PK: {} defeated {} ({} gp)",
@@ -410,16 +405,15 @@ async def _handle_broadcast(
                 "time_seconds": parsed.time_seconds,
                 "variant": parsed.variant or "",
             }
-            session.add(
-                Event(
-                    type="personal_best",
-                    timestamp=now,
-                    player_name=parsed.player_name,
-                    sender=payload.sender,
-                    is_league_world=payload.is_league_world,
-                    raw_message=payload.message,
-                    data=data,
-                )
+            await _insert_event(
+                session,
+                type="personal_best",
+                timestamp=now,
+                player_name=parsed.player_name,
+                sender=payload.sender,
+                is_league_world=payload.is_league_world,
+                raw_message=payload.message,
+                data=data,
             )
             # Upsert leaderboard — keep fastest time
             lb_stmt = (
@@ -525,16 +519,15 @@ async def _handle_broadcast(
     elif kind == BroadcastType.HCIM_DEATH:
         parsed = parser.parse_hcim_death(payload.message)
         if parsed:
-            session.add(
-                Event(
-                    type="hcim_death",
-                    timestamp=now,
-                    player_name=parsed.player_name,
-                    sender=payload.sender,
-                    is_league_world=payload.is_league_world,
-                    raw_message=payload.message,
-                    data={},
-                )
+            await _insert_event(
+                session,
+                type="hcim_death",
+                timestamp=now,
+                player_name=parsed.player_name,
+                sender=payload.sender,
+                is_league_world=payload.is_league_world,
+                raw_message=payload.message,
+                data={},
             )
             logger.info("[{}] HCIM death: {}", clan["guild_id"], parsed.player_name)
             await publish(
@@ -543,15 +536,14 @@ async def _handle_broadcast(
 
     else:
         # Store unknown broadcasts so no data is silently lost
-        session.add(
-            Event(
-                type="unknown",
-                timestamp=now,
-                sender=payload.sender,
-                is_league_world=payload.is_league_world,
-                raw_message=payload.message,
-                data={},
-            )
+        await _insert_event(
+            session,
+            type="unknown",
+            timestamp=now,
+            sender=payload.sender,
+            is_league_world=payload.is_league_world,
+            raw_message=payload.message,
+            data={},
         )
         logger.debug("[{}] Unknown broadcast: {}", clan["guild_id"], payload.message)
 
