@@ -112,6 +112,7 @@ async def staff_members(
         select(
             User.discord_user_id,
             User.discord_username,
+            User.discord_avatar_url,
             User.rsn,
             User.clan_rank,
             User.discord_roles,
@@ -120,6 +121,8 @@ async def staff_members(
             User.created_at,
             User.total_loot_value,
             User.collection_log_slots,
+            User.recruited_by,
+            User.key_is_active,
         ).order_by(User.join_date.asc().nulls_last())
     )
     members: list[dict] = []
@@ -127,6 +130,7 @@ async def staff_members(
         members.append({
             "discord_user_id": str(row.discord_user_id),
             "discord_username": row.discord_username,
+            "discord_avatar_url": row.discord_avatar_url,
             "rsn": row.rsn,
             "clan_rank": row.clan_rank,
             "discord_roles": row.discord_roles,
@@ -135,6 +139,8 @@ async def staff_members(
             "created_at": row.created_at.isoformat() if row.created_at else None,
             "total_loot_value": row.total_loot_value,
             "collection_log_slots": row.collection_log_slots,
+            "recruited_by": str(row.recruited_by) if row.recruited_by else None,
+            "key_is_active": row.key_is_active,
         })
     return members
 
