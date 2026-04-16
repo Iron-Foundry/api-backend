@@ -244,7 +244,9 @@ async def recent_achievements(
 async def clan_leaderboards(session: AsyncSession = Depends(get_session)) -> list[dict]:
     """Return all personal best entries from the leaderboards table, sorted by activity then time."""
     result = await session.execute(
-        select(Leaderboard).order_by(
+        select(Leaderboard)
+        .where(Leaderboard.time_seconds > 0)
+        .order_by(
             Leaderboard.activity,
             Leaderboard.variant,
             Leaderboard.time_seconds,
