@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from valkey.asyncio import Valkey
 
-from app.db.models import Event, Metric, User
+from app.db.models import Event, Leaderboard, Metric, User
 from app.dependencies import get_current_user, get_session, get_valkey
 
 router = APIRouter(prefix="/clan", tags=["clan"])
@@ -238,6 +238,27 @@ async def recent_achievements(
 
     results.sort(key=lambda x: x["timestamp"], reverse=True)
     return results[:limit]
+
+
+@router.get("/leaderboards")
+async def clan_leaderboards(session: AsyncSession = Depends(get_session)) -> list[dict]:
+    """Return all personal best entries from the leaderboards table, sorted by activity then time."""
+    result = await session.execute(
+        select(Leaderboard).order_by(
+            Leaderboard.activity,
+            Leaderboard.variant,
+            Leaderboard.time_seconds,
+        )
+    )
+    return [
+        {
+            "player_name": r.player_name,
+            "activity": r.activity,
+            "variant": r.variant,
+            "time_seconds": r.time_seconds,
+        }
+        for r in result.scalars()
+    ]
 
 
 @router.get("/user-avatar/{user_id}")
