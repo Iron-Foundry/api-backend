@@ -55,6 +55,46 @@ async def _fetch_metric_total(client: httpx.AsyncClient, group_id: str, metric: 
         offset += limit
     return total
 
+_KC_METRICS: dict[str, str] = {
+    "chambers_of_xeric":             "Chambers of Xeric",
+    "chambers_of_xeric_challenge_mode": "CoX: Challenge Mode",
+    "theatre_of_blood":              "Theatre of Blood",
+    "theatre_of_blood_hard_mode":    "ToB: Hard Mode",
+    "tombs_of_amascut":              "Tombs of Amascut",
+    "tombs_of_amascut_expert_mode":  "ToA: Expert Mode",
+    "nex":                           "Nex",
+    "zulrah":                        "Zulrah",
+    "vorkath":                       "Vorkath",
+    "nightmare":                     "Nightmare",
+    "phosanis_nightmare":            "Phosani's Nightmare",
+    "phantom_muspah":                "Phantom Muspah",
+    "duke_sucellus":                 "Duke Sucellus",
+    "the_leviathan":                 "The Leviathan",
+    "the_whisperer":                 "The Whisperer",
+    "vardorvis":                     "Vardorvis",
+}
+_KC_CACHE_KEY = "clan:kc_leaderboard"
+_KC_TTL = 15 * 60  # 15 minutes
+
+
+async def _fetch_top_entries(
+    client: httpx.AsyncClient, group_id: str, metric: str, limit: int = 10
+) -> list[dict]:
+    """Fetch the top `limit` players for a WOM group metric."""
+    resp = await client.get(
+        f"https://api.wiseoldman.net/v2/groups/{group_id}/hiscores",
+        params={"metric": metric, "limit": limit, "offset": 0},
+        headers={"User-Agent": "IronFoundry/1.0"},
+    )
+    if not resp.is_success:
+        return []
+    return [
+        {"player_name": e["player"]["displayName"], "kills": e["data"]["kills"]}
+        for e in resp.json()
+        if (e.get("data", {}).get("kills") or 0) > 0
+    ]
+
+
 _DROP_MIN_VALUE = 2_000_000      # 2M gp
 _XP_MIN_MILESTONE = 15_000_000   # 15M xp
 _XP_STEP = 5_000_000             # every 5M xp
@@ -260,6 +300,46 @@ async def clan_leaderboards(session: AsyncSession = Depends(get_session)) -> lis
             "time_seconds": r.time_seconds,
         }
         for r in result.scalars()
+    ]
+
+
+@router.get("/leaderboards/killcounts")
+async def killcount_leaderboard(valkey: Valkey = Depends(get_valkey)) -> list[dict]:
+    """Top-10 players per boss metric, fetched from WOM and cached for 15 minutes."""
+    cached = await valkey.get(_KC_CACHE_KEY)
+    if cached:
+        return json.loads(cached)
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        results = await asyncio.gather(
+            *[_fetch_top_entries(client, _WOM_GROUP_ID, m) for m in _KC_METRICS],
+            return_exceptions=True,
+        )
+
+    leaderboard = [
+        {"metric": metric, "display_name": display, "entries": entries}
+        for (metric, display), entries in zip(_KC_METRICS.items(), results)
+        if isinstance(entries, list) and entries
+    ]
+    await valkey.setex(_KC_CACHE_KEY, _KC_TTL, json.dumps(leaderboard))
+    return leaderboard
+
+
+@router.get("/leaderboards/collection-log")
+async def collection_log_leaderboard(session: AsyncSession = Depends(get_session)) -> list[dict]:
+    """Return users ranked by collection log slots filled, excluding opt-outs."""
+    result = await session.execute(
+        select(User.rsn, User.discord_username, User.collection_log_slots, User.collection_log_slots_max)
+        .where(User.stats_opt_out.is_(False), User.collection_log_slots > 0)
+        .order_by(User.collection_log_slots.desc())
+    )
+    return [
+        {
+            "player_name": r.rsn or r.discord_username,
+            "slots": r.collection_log_slots,
+            "slots_max": r.collection_log_slots_max,
+        }
+        for r in result
     ]
 
 
