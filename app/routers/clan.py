@@ -7,7 +7,7 @@ import json
 import os
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from valkey.asyncio import Valkey
@@ -56,43 +56,147 @@ async def _fetch_metric_total(client: httpx.AsyncClient, group_id: str, metric: 
     return total
 
 _KC_METRICS: dict[str, str] = {
-    "chambers_of_xeric":             "Chambers of Xeric",
+    "abyssal_sire":                     "Abyssal Sire",
+    "alchemical_hydra":                 "Alchemical Hydra",
+    "amoxliatl":                        "Amoxliatl",
+    "araxxor":                          "Araxxor",
+    "artio":                            "Artio",
+    "barrows_chests":                   "Barrows",
+    "bryophyta":                        "Bryophyta",
+    "callisto":                         "Callisto",
+    "calvarion":                        "Calvar'ion",
+    "cerberus":                         "Cerberus",
+    "chambers_of_xeric":                "Chambers of Xeric",
     "chambers_of_xeric_challenge_mode": "CoX: Challenge Mode",
-    "theatre_of_blood":              "Theatre of Blood",
-    "theatre_of_blood_hard_mode":    "ToB: Hard Mode",
-    "tombs_of_amascut":              "Tombs of Amascut",
-    "tombs_of_amascut_expert_mode":  "ToA: Expert Mode",
-    "nex":                           "Nex",
-    "zulrah":                        "Zulrah",
-    "vorkath":                       "Vorkath",
-    "nightmare":                     "Nightmare",
-    "phosanis_nightmare":            "Phosani's Nightmare",
-    "phantom_muspah":                "Phantom Muspah",
-    "duke_sucellus":                 "Duke Sucellus",
-    "the_leviathan":                 "The Leviathan",
-    "the_whisperer":                 "The Whisperer",
-    "vardorvis":                     "Vardorvis",
+    "chaos_elemental":                  "Chaos Elemental",
+    "chaos_fanatic":                    "Chaos Fanatic",
+    "commander_zilyana":                "Commander Zilyana",
+    "corporeal_beast":                  "Corporeal Beast",
+    "crazy_archaeologist":              "Crazy Archaeologist",
+    "dagannoth_prime":                  "Dagannoth Prime",
+    "dagannoth_rex":                    "Dagannoth Rex",
+    "dagannoth_supreme":                "Dagannoth Supreme",
+    "deranged_archaeologist":           "Deranged Archaeologist",
+    "duke_sucellus":                    "Duke Sucellus",
+    "general_graardor":                 "General Graardor",
+    "giant_mole":                       "Giant Mole",
+    "grotesque_guardians":              "Grotesque Guardians",
+    "hespori":                          "Hespori",
+    "kalphite_queen":                   "Kalphite Queen",
+    "king_black_dragon":                "King Black Dragon",
+    "kraken":                           "Kraken",
+    "kree_arra":                        "Kree'arra",
+    "kril_tsutsaroth":                  "K'ril Tsutsaroth",
+    "lunar_chests":                     "Lunar Chests",
+    "mimic":                            "Mimic",
+    "nex":                              "Nex",
+    "nightmare":                        "Nightmare",
+    "obor":                             "Obor",
+    "phantom_muspah":                   "Phantom Muspah",
+    "phosanis_nightmare":               "Phosani's Nightmare",
+    "scurrius":                         "Scurrius",
+    "skotizo":                          "Skotizo",
+    "sol_heredit":                      "Sol Heredit",
+    "spindel":                          "Spindel",
+    "tempoross":                        "Tempoross",
+    "the_corrupted_gauntlet":           "The Corrupted Gauntlet",
+    "the_gauntlet":                     "The Gauntlet",
+    "the_hueycoatl":                    "The Hueycoatl",
+    "the_leviathan":                    "The Leviathan",
+    "the_whisperer":                    "The Whisperer",
+    "theatre_of_blood":                 "Theatre of Blood",
+    "theatre_of_blood_hard_mode":       "ToB: Hard Mode",
+    "thermonuclear_smoke_devil":        "Thermonuclear Smoke Devil",
+    "tombs_of_amascut":                 "Tombs of Amascut",
+    "tombs_of_amascut_expert_mode":     "ToA: Expert Mode",
+    "tzkal_zuk":                        "TzKal-Zuk",
+    "tztok_jad":                        "TzTok-Jad",
+    "vardorvis":                        "Vardorvis",
+    "venenatis":                        "Venenatis",
+    "vetion":                           "Vet'ion",
+    "vorkath":                          "Vorkath",
+    "wintertodt":                       "Wintertodt",
+    "zalcano":                          "Zalcano",
+    "zulrah":                           "Zulrah",
 }
-_KC_CACHE_KEY = "clan:kc_leaderboard"
-_KC_TTL = 15 * 60  # 15 minutes
+_KC_FRESH_KEY  = "clan:kc_fresh"
+_KC_STALE_KEY  = "clan:kc_stale"
+_KC_LOCK_KEY   = "clan:kc_lock"
+_KC_FRESH_TTL  = 15 * 60        # 15 minutes
+_KC_STALE_TTL  = 48 * 60 * 60  # 48 hours
+_KC_LOCK_TTL   = 300            # max time we expect the full refresh to take
 
 
-async def _fetch_top_entries(
-    client: httpx.AsyncClient, group_id: str, metric: str, limit: int = 10
-) -> list[dict]:
-    """Fetch the top `limit` players for a WOM group metric."""
-    resp = await client.get(
-        f"https://api.wiseoldman.net/v2/groups/{group_id}/hiscores",
-        params={"metric": metric, "limit": limit, "offset": 0},
-        headers={"User-Agent": "IronFoundry/1.0"},
-    )
-    if not resp.is_success:
-        return []
-    return [
-        {"player_name": e["player"]["displayName"], "kills": e["data"]["kills"]}
-        for e in resp.json()
-        if (e.get("data", {}).get("kills") or 0) > 0
-    ]
+async def _fetch_kc_metric(
+    client: httpx.AsyncClient, group_id: str, metric: str, top_n: int = 10
+) -> list[dict] | None:
+    """Fetch top `top_n` players for one WOM metric, retrying once on 429.
+
+    Returns None if the metric is unavailable or a non-retryable error occurs.
+    After a successful response the caller should check rate-limit headers and
+    sleep if the remaining quota is low.
+    """
+    for attempt in range(2):
+        try:
+            resp = await client.get(
+                f"https://api.wiseoldman.net/v2/groups/{group_id}/hiscores",
+                params={"metric": metric, "limit": top_n, "offset": 0},
+                headers={"User-Agent": "IronFoundry/1.0"},
+            )
+        except Exception:
+            return None
+
+        if resp.status_code == 429:
+            retry_after = float(resp.headers.get("Retry-After", "10"))
+            await asyncio.sleep(retry_after)
+            continue
+
+        if not resp.is_success:
+            return None
+
+        # Throttle proactively before the next request
+        remaining = int(resp.headers.get("X-RateLimit-Remaining", "100"))
+        if remaining <= 5:
+            reset_in = float(resp.headers.get("X-RateLimit-Reset", "2"))
+            await asyncio.sleep(max(reset_in, 0.5))
+
+        return [
+            {"player_name": e["player"]["displayName"], "kills": e["data"]["kills"]}
+            for e in resp.json()
+            if (e.get("data", {}).get("kills") or 0) > 0
+        ]
+
+    return None  # both attempts exhausted
+
+
+async def _build_kc_cache(valkey: Valkey) -> None:
+    """Sequential, rate-limit-aware population of the KC leaderboard cache.
+
+    Uses a Valkey lock so only one refresh runs at a time.
+    On success both fresh (15 min) and stale (48 h) keys are updated.
+    """
+    acquired = await valkey.set(_KC_LOCK_KEY, "1", ex=_KC_LOCK_TTL, nx=True)
+    if not acquired:
+        return  # another refresh is already running
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            out: list[dict] = []
+            for metric, display_name in _KC_METRICS.items():
+                entries = await _fetch_kc_metric(client, _WOM_GROUP_ID, metric)
+                if entries:
+                    out.append({
+                        "metric": metric,
+                        "display_name": display_name,
+                        "entries": entries,
+                    })
+
+        if out:
+            payload = json.dumps(out)
+            await valkey.setex(_KC_FRESH_KEY, _KC_FRESH_TTL, payload)
+            await valkey.setex(_KC_STALE_KEY, _KC_STALE_TTL, payload)
+    finally:
+        await valkey.delete(_KC_LOCK_KEY)
 
 
 _DROP_MIN_VALUE = 2_000_000      # 2M gp
@@ -304,25 +408,26 @@ async def clan_leaderboards(session: AsyncSession = Depends(get_session)) -> lis
 
 
 @router.get("/leaderboards/killcounts")
-async def killcount_leaderboard(valkey: Valkey = Depends(get_valkey)) -> list[dict]:
-    """Top-10 players per boss metric, fetched from WOM and cached for 15 minutes."""
-    cached = await valkey.get(_KC_CACHE_KEY)
-    if cached:
-        return json.loads(cached)
+async def killcount_leaderboard(
+    background_tasks: BackgroundTasks,
+    valkey: Valkey = Depends(get_valkey),
+) -> list[dict]:
+    """Top-10 players per boss, served from cache.
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        results = await asyncio.gather(
-            *[_fetch_top_entries(client, _WOM_GROUP_ID, m) for m in _KC_METRICS],
-            return_exceptions=True,
-        )
+    Fresh cache TTL is 15 minutes.  When it expires a background refresh is
+    scheduled (rate-limit-aware, sequential WOM fetches).  While the refresh
+    runs the stale cache (48 h) is returned so the page never shows empty data.
+    """
+    fresh = await valkey.get(_KC_FRESH_KEY)
+    if fresh:
+        return json.loads(fresh)
 
-    leaderboard = [
-        {"metric": metric, "display_name": display, "entries": entries}
-        for (metric, display), entries in zip(_KC_METRICS.items(), results)
-        if isinstance(entries, list) and entries
-    ]
-    await valkey.setex(_KC_CACHE_KEY, _KC_TTL, json.dumps(leaderboard))
-    return leaderboard
+    # Fresh miss — kick off a background refresh if none is running
+    background_tasks.add_task(_build_kc_cache, valkey)
+
+    # Return stale data while the refresh runs; empty list on first ever load
+    stale = await valkey.get(_KC_STALE_KEY)
+    return json.loads(stale) if stale else []
 
 
 @router.get("/leaderboards/collection-log")
