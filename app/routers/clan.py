@@ -432,19 +432,42 @@ async def killcount_leaderboard(
 
 @router.get("/leaderboards/collection-log")
 async def collection_log_leaderboard(session: AsyncSession = Depends(get_session)) -> list[dict]:
-    """Return users ranked by collection log slots filled, excluding opt-outs."""
+    """Return players ranked by collection log slots, sourced from all clog events.
+
+    Uses the events table so unlinked players are included. For each player the
+    highest log_slots value ever seen is used (events are monotonically increasing).
+    Players who have opted out of stats tracking are excluded.
+    """
+    # Opt-out list — keyed by lower-case RSN
+    opt_out_result = await session.execute(
+        select(func.lower(User.rsn)).where(
+            User.stats_opt_out.is_(True), User.rsn.is_not(None)
+        )
+    )
+    opt_out_rsns: set[str] = {row[0] for row in opt_out_result}
+
     result = await session.execute(
-        select(User.rsn, User.discord_username, User.collection_log_slots, User.collection_log_slots_max)
-        .where(User.stats_opt_out.is_(False), User.collection_log_slots > 0)
-        .order_by(User.collection_log_slots.desc())
+        select(
+            Event.player_name,
+            func.max(Event.data["log_slots"].as_integer()).label("slots"),
+            func.max(Event.data["log_slots_max"].as_integer()).label("slots_max"),
+        )
+        .where(
+            Event.type == "collection_log",
+            Event.player_name.is_not(None),
+            Event.is_league_world.is_(False),
+        )
+        .group_by(Event.player_name)
+        .order_by(func.max(Event.data["log_slots"].as_integer()).desc())
     )
     return [
         {
-            "player_name": r.rsn or r.discord_username,
-            "slots": r.collection_log_slots,
-            "slots_max": r.collection_log_slots_max,
+            "player_name": r.player_name,
+            "slots": r.slots or 0,
+            "slots_max": r.slots_max or 0,
         }
         for r in result
+        if r.player_name and r.player_name.lower() not in opt_out_rsns
     ]
 
 
