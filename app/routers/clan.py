@@ -446,11 +446,20 @@ async def collection_log_leaderboard(session: AsyncSession = Depends(get_session
     )
     opt_out_rsns: set[str] = {row[0] for row in opt_out_result}
 
+    # Global slots_max — the single highest value seen across all clog events
+    global_max_result = await session.execute(
+        select(func.max(Event.data["log_slots_max"].as_integer())).where(
+            Event.type == "collection_log",
+            Event.is_league_world.is_(False),
+        )
+    )
+    global_slots_max: int = global_max_result.scalar_one_or_none() or 0
+
+    slots_col = func.max(Event.data["log_slots"].as_integer())
     result = await session.execute(
         select(
             Event.player_name,
-            func.max(Event.data["log_slots"].as_integer()).label("slots"),
-            func.max(Event.data["log_slots_max"].as_integer()).label("slots_max"),
+            slots_col.label("slots"),
         )
         .where(
             Event.type == "collection_log",
@@ -458,13 +467,13 @@ async def collection_log_leaderboard(session: AsyncSession = Depends(get_session
             Event.is_league_world.is_(False),
         )
         .group_by(Event.player_name)
-        .order_by(func.max(Event.data["log_slots"].as_integer()).desc())
+        .order_by(slots_col.desc().nulls_last())
     )
     return [
         {
             "player_name": r.player_name,
             "slots": r.slots or 0,
-            "slots_max": r.slots_max or 0,
+            "slots_max": global_slots_max,
         }
         for r in result
         if r.player_name and r.player_name.lower() not in opt_out_rsns
