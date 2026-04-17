@@ -45,9 +45,12 @@ async def _get_roles(current_user: dict, session: AsyncSession) -> list[str]:
 
 
 def _extract_fields(raw: list | dict) -> list[dict]:
-    if isinstance(raw, list):
-        return raw
-    return raw.get("fields", [])
+    fields: list[dict] = raw if isinstance(raw, list) else raw.get("fields", [])
+    # Legacy templates used "text" instead of "label" — normalise in place
+    return [
+        {**f, "label": f["text"]} if "label" not in f and "text" in f else f
+        for f in fields
+    ]
 
 
 async def _list_templates(
@@ -243,6 +246,13 @@ async def get_template_responses(
         .where(SurveyResponse.template_id == template_id)
     )
     for resp, ticket, user in discord_result:
+        raw_resp: dict = resp.responses or {}
+        # New format: full SurveyResponse model dump — answers are nested
+        # Legacy format: flat {field_id: value} dict
+        if "ticket_id" in raw_resp:
+            answers = raw_resp.get("answers") or {}
+        else:
+            answers = raw_resp
         out.append({
             "id": f"discord_{resp.ticket_id}",
             "source": "discord",
@@ -250,7 +260,7 @@ async def get_template_responses(
             "discord_username": user.discord_username if user else ticket.creator_name,
             "rsn": user.rsn if user else None,
             "discord_roles": user.discord_roles if user else [],
-            "answers": resp.responses,
+            "answers": answers,
             "submitted_at": resp.submitted_at.isoformat() if resp.submitted_at else None,
         })
 
