@@ -10,7 +10,7 @@ from loguru import logger
 from valkey.asyncio import Valkey
 
 from app.db import create_engine, create_session_factory
-from app.routers import auth, ccdispatch, clan, events, members, staff
+from app.routers import auth, ccdispatch, clan, events, members, staff, surveys
 from app.routers.ccdispatch import split_message
 from app.services.connection_manager import connection_manager
 from app.services.name_change import WomNameChangeService
@@ -207,6 +207,7 @@ app.include_router(events.router)
 app.include_router(ccdispatch.router)
 app.include_router(members.router)
 app.include_router(staff.router)
+app.include_router(surveys.router)
 
 
 @app.get("/health")
