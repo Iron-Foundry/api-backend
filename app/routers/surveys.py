@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import SurveyActive, SurveyResponse, SurveyTemplate, User, WebSurveySubmission
+from app.db.models import SurveyActive, SurveyResponse, SurveyTemplate, Ticket, User, WebSurveySubmission
 from app.dependencies import get_current_user, get_session
 
 router = APIRouter(prefix="/surveys", tags=["surveys"])
@@ -21,7 +21,6 @@ _DISCORD_ROLE_ORDER = [
     "Senior Moderator", "Deputy Owner", "Co-owner",
 ]
 
-# Minimum non-staff visibility options (must stay in role order)
 _VISIBILITY_OPTIONS = ["Mentor", "Event Team", "Moderator"]
 
 
@@ -46,7 +45,6 @@ async def _get_roles(current_user: dict, session: AsyncSession) -> list[str]:
 
 
 def _extract_fields(raw: list | dict) -> list[dict]:
-    """Extract field list from questions JSONB (handles both list and dict formats)."""
     if isinstance(raw, list):
         return raw
     return raw.get("fields", [])
@@ -55,7 +53,6 @@ def _extract_fields(raw: list | dict) -> list[dict]:
 async def _list_templates(
     category: str, roles: list[str], discord_user_id: int, session: AsyncSession
 ) -> list[dict]:
-    """Return templates of the given category visible to the user."""
     is_staff = _has_min_rank(roles, "Mentor")
 
     active_result = await session.execute(select(SurveyActive))
@@ -69,7 +66,13 @@ async def _list_templates(
     )
     response_counts: dict[str, int] = {r.template_id: r.count for r in count_result}
 
-    # Web submissions for this user
+    web_count_result = await session.execute(
+        select(WebSurveySubmission.template_id, func.count().label("count")).group_by(
+            WebSurveySubmission.template_id
+        )
+    )
+    web_response_counts: dict[str, int] = {r.template_id: r.count for r in web_count_result}
+
     sub_result = await session.execute(
         select(WebSurveySubmission.template_id).where(
             WebSurveySubmission.discord_user_id == discord_user_id
@@ -95,7 +98,6 @@ async def _list_templates(
         if row_category != category:
             continue
 
-        # Non-staff: show open templates they're eligible for + closed templates with prior submission
         if not is_staff:
             eligible = visibility is not None and _has_min_rank(roles, visibility)
             has_submission = row.template_id in submitted_set
@@ -114,6 +116,7 @@ async def _list_templates(
         }
         if is_staff:
             entry["response_count"] = response_counts.get(row.template_id, 0)
+            entry["web_response_count"] = web_response_counts.get(row.template_id, 0)
         out.append(entry)
 
     return out
@@ -124,7 +127,6 @@ async def list_surveys(
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[dict]:
-    """List survey templates visible to the current user."""
     discord_user_id = int(current_user["sub"])
     roles = await _get_roles(current_user, session)
     return await _list_templates("survey", roles, discord_user_id, session)
@@ -135,7 +137,6 @@ async def list_applications(
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[dict]:
-    """List application templates visible to the current user."""
     discord_user_id = int(current_user["sub"])
     roles = await _get_roles(current_user, session)
     return await _list_templates("application", roles, discord_user_id, session)
@@ -147,7 +148,6 @@ async def get_template(
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Get full template details including questions. Gated by visibility or prior submission."""
     discord_user_id = int(current_user["sub"])
     roles = await _get_roles(current_user, session)
     is_staff = _has_min_rank(roles, "Mentor")
@@ -169,7 +169,6 @@ async def get_template(
         description = raw.get("description")
         category = raw.get("category", "survey")
 
-    # Fetch prior web submission
     sub_result = await session.execute(
         select(WebSurveySubmission).where(
             WebSurveySubmission.template_id == template_id,
@@ -178,7 +177,6 @@ async def get_template(
     )
     prior_sub = sub_result.scalar_one_or_none()
 
-    # Non-staff: need visibility match OR prior submission
     if not is_staff:
         eligible = visibility is not None and _has_min_rank(roles, visibility)
         if not eligible and prior_sub is None:
@@ -201,6 +199,65 @@ async def get_template(
     }
 
 
+@router.get("/{template_id}/responses")
+async def get_template_responses(
+    template_id: str,
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[dict]:
+    """List all submissions (web + Discord) for a template. Requires Mentor+."""
+    roles = await _get_roles(current_user, session)
+    if not _has_min_rank(roles, "Mentor"):
+        raise HTTPException(status_code=403, detail="Requires Mentor or higher.")
+
+    template_result = await session.execute(
+        select(SurveyTemplate).where(SurveyTemplate.template_id == template_id)
+    )
+    if template_result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="Template not found.")
+
+    # Web submissions
+    web_result = await session.execute(
+        select(WebSurveySubmission, User)
+        .join(User, User.discord_user_id == WebSurveySubmission.discord_user_id, isouter=True)
+        .where(WebSurveySubmission.template_id == template_id)
+    )
+    out: list[dict] = []
+    for sub, user in web_result:
+        out.append({
+            "id": f"web_{sub.id}",
+            "source": "web",
+            "discord_user_id": sub.discord_user_id,
+            "discord_username": user.discord_username if user else None,
+            "rsn": user.rsn if user else None,
+            "discord_roles": user.discord_roles if user else [],
+            "answers": sub.answers,
+            "submitted_at": sub.submitted_at.isoformat() if sub.submitted_at else None,
+        })
+
+    # Discord (ticket-based) submissions
+    discord_result = await session.execute(
+        select(SurveyResponse, Ticket, User)
+        .join(Ticket, Ticket.ticket_id == SurveyResponse.ticket_id)
+        .join(User, User.discord_user_id == Ticket.creator_id, isouter=True)
+        .where(SurveyResponse.template_id == template_id)
+    )
+    for resp, ticket, user in discord_result:
+        out.append({
+            "id": f"discord_{resp.ticket_id}",
+            "source": "discord",
+            "discord_user_id": ticket.creator_id,
+            "discord_username": user.discord_username if user else ticket.creator_name,
+            "rsn": user.rsn if user else None,
+            "discord_roles": user.discord_roles if user else [],
+            "answers": resp.responses,
+            "submitted_at": resp.submitted_at.isoformat() if resp.submitted_at else None,
+        })
+
+    out.sort(key=lambda r: r["submitted_at"] or "", reverse=True)
+    return out
+
+
 class SubmitResponseBody(BaseModel):
     answers: dict
 
@@ -212,7 +269,6 @@ async def submit_response(
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Submit a web response for a template. Template must be open and user eligible."""
     discord_user_id = int(current_user["sub"])
     roles = await _get_roles(current_user, session)
 
@@ -229,18 +285,15 @@ async def submit_response(
     else:
         visibility = raw.get("visibility")
 
-    # Must be open
     if visibility is None:
         raise HTTPException(
             status_code=403, detail="This template is not currently accepting responses."
         )
 
-    # Must be eligible (staff bypass)
     is_staff = _has_min_rank(roles, "Mentor")
     if not is_staff and not _has_min_rank(roles, visibility):
         raise HTTPException(status_code=403, detail="Not authorized to submit this template.")
 
-    # Check for duplicate
     existing = await session.execute(
         select(WebSurveySubmission).where(
             WebSurveySubmission.template_id == template_id,
@@ -250,7 +303,6 @@ async def submit_response(
     if existing.scalar_one_or_none() is not None:
         raise HTTPException(status_code=409, detail="You have already submitted a response.")
 
-    # Validate required fields
     fields = _extract_fields(raw)
     missing = [f["id"] for f in fields if f.get("required") and f["id"] not in body.answers]
     if missing:
@@ -269,9 +321,7 @@ async def submit_response(
 
 
 class VisibilityUpdate(BaseModel):
-    """Payload for updating template visibility."""
-
-    visibility: str | None  # None = staff only; else a Discord role name from _VISIBILITY_OPTIONS
+    visibility: str | None
 
 
 @router.patch("/{template_id}/visibility")
@@ -281,7 +331,6 @@ async def set_visibility(
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Set visibility for a template. Requires Senior Moderator or higher."""
     roles = await _get_roles(current_user, session)
     if not _has_min_rank(roles, "Senior Moderator"):
         raise HTTPException(

@@ -126,6 +126,13 @@ _KC_FRESH_TTL  = 15 * 60        # 15 minutes
 _KC_STALE_TTL  = 48 * 60 * 60  # 48 hours
 _KC_LOCK_TTL   = 300            # max time we expect the full refresh to take
 
+_LEAGUES_FRESH_KEY = "clan:leagues_fresh"
+_LEAGUES_STALE_KEY = "clan:leagues_stale"
+_LEAGUES_LOCK_KEY  = "clan:leagues_lock"
+_LEAGUES_FRESH_TTL = 15 * 60
+_LEAGUES_STALE_TTL = 48 * 60 * 60
+_LEAGUES_LOCK_TTL  = 60
+
 
 async def _fetch_kc_metric(
     client: httpx.AsyncClient, group_id: str, metric: str, top_n: int = 10
@@ -197,6 +204,62 @@ async def _build_kc_cache(valkey: Valkey) -> None:
             await valkey.setex(_KC_STALE_KEY, _KC_STALE_TTL, payload)
     finally:
         await valkey.delete(_KC_LOCK_KEY)
+
+
+async def _build_leagues_cache(valkey: Valkey) -> None:
+    """Paginate WOM group hiscores for league_points and cache the ranked list."""
+    acquired = await valkey.set(_LEAGUES_LOCK_KEY, "1", ex=_LEAGUES_LOCK_TTL, nx=True)
+    if not acquired:
+        return
+
+    try:
+        entries: list[dict] = []
+        limit = 50
+        offset = 0
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            while True:
+                try:
+                    resp = await client.get(
+                        f"https://api.wiseoldman.net/v2/groups/{_WOM_GROUP_ID}/hiscores",
+                        params={"metric": "league_points", "limit": limit, "offset": offset},
+                        headers={"User-Agent": "IronFoundry/1.0"},
+                    )
+                except Exception:
+                    break
+
+                if resp.status_code == 429:
+                    await asyncio.sleep(float(resp.headers.get("Retry-After", "10")))
+                    continue
+
+                if not resp.is_success:
+                    break
+
+                page: list[dict] = resp.json()
+                if not page:
+                    break
+
+                for e in page:
+                    score = (e.get("data") or {}).get("score") or 0
+                    if score > 0:
+                        entries.append({
+                            "player_name": e["player"]["displayName"],
+                            "score": score,
+                        })
+
+                remaining = int(resp.headers.get("X-RateLimit-Remaining", "100"))
+                if remaining <= 5:
+                    await asyncio.sleep(float(resp.headers.get("X-RateLimit-Reset", "2")))
+
+                if len(page) < limit:
+                    break
+                offset += limit
+
+        if entries:
+            payload = json.dumps(entries)
+            await valkey.setex(_LEAGUES_FRESH_KEY, _LEAGUES_FRESH_TTL, payload)
+            await valkey.setex(_LEAGUES_STALE_KEY, _LEAGUES_STALE_TTL, payload)
+    finally:
+        await valkey.delete(_LEAGUES_LOCK_KEY)
 
 
 _DROP_MIN_VALUE = 2_000_000      # 2M gp
@@ -427,6 +490,26 @@ async def killcount_leaderboard(
 
     # Return stale data while the refresh runs; empty list on first ever load
     stale = await valkey.get(_KC_STALE_KEY)
+    return json.loads(stale) if stale else []
+
+
+@router.get("/leaderboards/leagues")
+async def leagues_leaderboard(
+    background_tasks: BackgroundTasks,
+    valkey: Valkey = Depends(get_valkey),
+) -> list[dict]:
+    """Return clan members ranked by Leagues Points, served from cache.
+
+    Same stale-while-revalidate pattern as killcounts: fresh for 15 min,
+    stale fallback for 48 h while a background refresh runs.
+    """
+    fresh = await valkey.get(_LEAGUES_FRESH_KEY)
+    if fresh:
+        return json.loads(fresh)
+
+    background_tasks.add_task(_build_leagues_cache, valkey)
+
+    stale = await valkey.get(_LEAGUES_STALE_KEY)
     return json.loads(stale) if stale else []
 
 
