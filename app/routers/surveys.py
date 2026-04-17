@@ -21,7 +21,8 @@ _DISCORD_ROLE_ORDER = [
     "Senior Moderator", "Deputy Owner", "Co-owner",
 ]
 
-_VISIBILITY_OPTIONS = ["Mentor", "Event Team", "Moderator"]
+# Valid values for the response_visibility (responses-readable-by) setting
+_VISIBILITY_OPTIONS = ["Mentor", "Event Team", "Moderator", "Senior Moderator"]
 
 
 def _has_min_rank(discord_roles: list[str], min_role: str) -> bool:
@@ -51,6 +52,22 @@ def _extract_fields(raw: list | dict) -> list[dict]:
         {**f, "label": f["text"]} if "label" not in f and "text" in f else f
         for f in fields
     ]
+
+
+def _extract_is_open(raw: list | dict) -> bool:
+    """Return whether the survey is currently accepting responses from all members.
+
+    Precedence:
+    1. Explicit ``is_open`` key in the JSONB dict (set via web staff panel).
+    2. Backward-compat fallback: old templates have no ``is_open`` but used
+       ``visibility != null`` to signal that the survey was published.
+    """
+    if isinstance(raw, list):
+        return False  # legacy list-only format — treat as closed
+    if "is_open" in raw:
+        return bool(raw["is_open"])
+    # Fallback: pre-is_open templates with visibility set were "open"
+    return raw.get("visibility") is not None
 
 
 async def _list_templates(
@@ -101,16 +118,19 @@ async def _list_templates(
         if row_category != category:
             continue
 
+        is_open = _extract_is_open(raw)
+
+        # Non-staff: show open surveys (anyone can respond) + closed ones with prior submission
         if not is_staff:
-            eligible = visibility is not None and _has_min_rank(roles, visibility)
             has_submission = row.template_id in submitted_set
-            if not eligible and not has_submission:
+            if not is_open and not has_submission:
                 continue
 
         entry: dict = {
             "template_id": row.template_id,
             "title": row.title,
             "description": description,
+            "is_open": is_open,
             "visibility": visibility,
             "category": row_category,
             "is_active": row.template_id == active_template_id,
@@ -172,6 +192,8 @@ async def get_template(
         description = raw.get("description")
         category = raw.get("category", "survey")
 
+    is_open = _extract_is_open(raw)
+
     sub_result = await session.execute(
         select(WebSurveySubmission).where(
             WebSurveySubmission.template_id == template_id,
@@ -180,9 +202,9 @@ async def get_template(
     )
     prior_sub = sub_result.scalar_one_or_none()
 
+    # Non-staff: must be open (anyone can view an open survey) OR have a prior submission
     if not is_staff:
-        eligible = visibility is not None and _has_min_rank(roles, visibility)
-        if not eligible and prior_sub is None:
+        if not is_open and prior_sub is None:
             raise HTTPException(status_code=403, detail="Not authorized to view this template.")
 
     active_result = await session.execute(select(SurveyActive))
@@ -194,6 +216,7 @@ async def get_template(
         "template_id": row.template_id,
         "title": row.title,
         "description": description,
+        "is_open": is_open,
         "visibility": visibility,
         "category": category,
         "is_active": is_active,
@@ -208,16 +231,28 @@ async def get_template_responses(
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[dict]:
-    """List all submissions (web + Discord) for a template. Requires Mentor+."""
+    """List all submissions (web + Discord) for a template.
+
+    Access is gated by the template's response_visibility setting.
+    If visibility is null, requires Mentor+ (all staff). Otherwise requires
+    the specified rank or higher.
+    """
     roles = await _get_roles(current_user, session)
-    if not _has_min_rank(roles, "Mentor"):
-        raise HTTPException(status_code=403, detail="Requires Mentor or higher.")
 
     template_result = await session.execute(
         select(SurveyTemplate).where(SurveyTemplate.template_id == template_id)
     )
-    if template_result.scalar_one_or_none() is None:
+    row = template_result.scalar_one_or_none()
+    if row is None:
         raise HTTPException(status_code=404, detail="Template not found.")
+
+    raw = row.questions or {}
+    response_visibility = None if isinstance(raw, list) else raw.get("visibility")
+    min_rank = response_visibility or "Mentor"
+    if not _has_min_rank(roles, min_rank):
+        raise HTTPException(
+            status_code=403, detail=f"Requires {min_rank} or higher to view responses."
+        )
 
     # Web submissions
     web_result = await session.execute(
@@ -279,8 +314,8 @@ async def submit_response(
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
+    """Submit a web response. Survey must be open; any authenticated member may respond."""
     discord_user_id = int(current_user["sub"])
-    roles = await _get_roles(current_user, session)
 
     result = await session.execute(
         select(SurveyTemplate).where(SurveyTemplate.template_id == template_id)
@@ -290,19 +325,10 @@ async def submit_response(
         raise HTTPException(status_code=404, detail="Template not found.")
 
     raw = row.questions or {}
-    if isinstance(raw, list):
-        visibility: str | None = None
-    else:
-        visibility = raw.get("visibility")
-
-    if visibility is None:
+    if not _extract_is_open(raw):
         raise HTTPException(
-            status_code=403, detail="This template is not currently accepting responses."
+            status_code=403, detail="This survey is not currently accepting responses."
         )
-
-    is_staff = _has_min_rank(roles, "Mentor")
-    if not is_staff and not _has_min_rank(roles, visibility):
-        raise HTTPException(status_code=403, detail="Not authorized to submit this template.")
 
     existing = await session.execute(
         select(WebSurveySubmission).where(
@@ -330,7 +356,49 @@ async def submit_response(
     return {"template_id": template_id, "submitted": True}
 
 
+class OpenUpdate(BaseModel):
+    is_open: bool
+
+
+@router.patch("/{template_id}/open")
+async def set_open(
+    template_id: str,
+    body: OpenUpdate,
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Publish or close a survey. Requires Senior Moderator or higher."""
+    roles = await _get_roles(current_user, session)
+    if not _has_min_rank(roles, "Senior Moderator"):
+        raise HTTPException(
+            status_code=403, detail="Requires Senior Moderator or higher."
+        )
+
+    result = await session.execute(
+        select(SurveyTemplate).where(SurveyTemplate.template_id == template_id)
+    )
+    row = result.scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Template not found.")
+
+    raw = row.questions or {}
+    if isinstance(raw, list):
+        updated: dict = {"fields": raw, "is_open": body.is_open}
+    else:
+        updated = {**raw, "is_open": body.is_open}
+
+    await session.execute(
+        update(SurveyTemplate)
+        .where(SurveyTemplate.template_id == template_id)
+        .values(questions=updated)
+    )
+    await session.commit()
+
+    return {"template_id": template_id, "is_open": body.is_open}
+
+
 class VisibilityUpdate(BaseModel):
+    """Controls which minimum rank can read responses for this template."""
     visibility: str | None
 
 
@@ -341,6 +409,7 @@ async def set_visibility(
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
+    """Set which minimum staff rank can read responses. Requires Senior Moderator or higher."""
     roles = await _get_roles(current_user, session)
     if not _has_min_rank(roles, "Senior Moderator"):
         raise HTTPException(
