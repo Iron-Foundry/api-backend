@@ -198,6 +198,16 @@ class SurveyResponse(Base):
     submitted_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
 
 
+class WebSurveySubmission(Base):
+    __tablename__ = "web_survey_submissions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    template_id: Mapped[str] = mapped_column(Text, nullable=False)
+    discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    answers: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    submitted_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+
+
 class Config(Base):
     __tablename__ = "config"
 
