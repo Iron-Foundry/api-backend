@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import SurveyActive, SurveyResponse, SurveyTemplate, User
@@ -152,18 +152,16 @@ async def set_visibility(
     if row is None:
         raise HTTPException(status_code=404, detail="Template not found.")
 
-    # Merge visibility into the questions JSONB via SQL to avoid ORM mutation issues
+    raw = row.questions or {}
+    if isinstance(raw, list):
+        updated: dict = {"fields": raw, "visibility": body.visibility}
+    else:
+        updated = {**raw, "visibility": body.visibility}
+
     await session.execute(
-        text(
-            "UPDATE survey_templates"
-            " SET questions = CASE"
-            "   WHEN jsonb_typeof(questions) = 'array'"
-            "   THEN jsonb_build_object('fields', questions, 'visibility', :vis::text)"
-            "   ELSE questions || jsonb_build_object('visibility', :vis::text)"
-            " END"
-            " WHERE template_id = :tid"
-        ),
-        {"vis": body.visibility, "tid": template_id},
+        update(SurveyTemplate)
+        .where(SurveyTemplate.template_id == template_id)
+        .values(questions=updated)
     )
     await session.commit()
 
