@@ -87,13 +87,13 @@ async def get_categories(
 
     cat_ids = [c.id for c in all_cats]
     entries_result = await session.execute(
-        select(ContentEntry.id, ContentEntry.title, ContentEntry.slug, ContentEntry.category_id)
+        select(ContentEntry.id, ContentEntry.title, ContentEntry.slug, ContentEntry.category_id, ContentEntry.sort_order)
         .where(ContentEntry.category_id.in_(cat_ids))
-        .order_by(ContentEntry.title)
+        .order_by(ContentEntry.sort_order, ContentEntry.title)
     )
     entries_by_cat: dict = defaultdict(list)
-    for entry_id, title, slug, cat_id in entries_result:
-        entries_by_cat[cat_id].append({"id": str(entry_id), "title": title, "slug": slug})
+    for entry_id, title, slug, cat_id, sort_order in entries_result:
+        entries_by_cat[cat_id].append({"id": str(entry_id), "title": title, "slug": slug, "sort_order": sort_order})
 
     cat_map = {c.id: {
         "id": str(c.id),
@@ -437,6 +437,7 @@ class UpdateEntryBody(BaseModel):
     title: str | None = None
     slug: str | None = None
     body: str | None = None
+    sort_order: int | None = None
 
 
 @router.put("/{page_type}/entries/{entry_id}")
@@ -479,20 +480,25 @@ async def update_entry(
     if "body" in fields and body.body is not None:
         entry.body = body.body
 
-    entry.updated_at = datetime.now(timezone.utc)
+    if "sort_order" in fields and body.sort_order is not None:
+        entry.sort_order = body.sort_order
 
-    discord_user_id = int(current_user["sub"])
-    if entry.created_by != discord_user_id:
-        collab_stmt = (
-            pg_insert(ContentCollaborator)
-            .values(
-                entry_id=entry.id,
-                discord_user_id=discord_user_id,
-                added_at=datetime.now(timezone.utc),
+    # Only update timestamp and track collaborator for content changes, not reordering
+    content_fields = fields - {"sort_order"}
+    if content_fields:
+        entry.updated_at = datetime.now(timezone.utc)
+        discord_user_id = int(current_user["sub"])
+        if entry.created_by != discord_user_id:
+            collab_stmt = (
+                pg_insert(ContentCollaborator)
+                .values(
+                    entry_id=entry.id,
+                    discord_user_id=discord_user_id,
+                    added_at=datetime.now(timezone.utc),
+                )
+                .on_conflict_do_nothing()
             )
-            .on_conflict_do_nothing()
-        )
-        await session.execute(collab_stmt)
+            await session.execute(collab_stmt)
 
     await session.commit()
 

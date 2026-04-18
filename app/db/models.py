@@ -263,6 +263,7 @@ class ContentEntry(Base):
     slug: Mapped[str] = mapped_column(Text, nullable=False)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     created_by: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     updated_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
@@ -275,6 +276,18 @@ class ContentCollaborator(Base):
     entry_id: Mapped[UUID] = mapped_column(pg.UUID(as_uuid=True), ForeignKey("content_entries.id", ondelete="CASCADE"), nullable=False)
     discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     added_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+
+
+class Asset(Base):
+    __tablename__ = "assets"
+
+    id: Mapped[UUID] = mapped_column(pg.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    filename: Mapped[str] = mapped_column(Text, nullable=False)
+    original_name: Mapped[str] = mapped_column(Text, nullable=False)
+    content_type: Mapped[str] = mapped_column(Text, nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    uploaded_by: Mapped[int | None] = mapped_column(BigInteger)
+    created_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
 
 
 class RolePanel(Base):

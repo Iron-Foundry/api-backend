@@ -10,7 +10,7 @@ from loguru import logger
 from valkey.asyncio import Valkey
 
 from app.db import create_engine, create_session_factory
-from app.routers import auth, badges, ccdispatch, clan, config, content, events, members, staff, surveys
+from app.routers import assets, auth, badges, ccdispatch, clan, config, content, events, members, staff, surveys
 from app.routers.ccdispatch import split_message
 from app.services.connection_manager import connection_manager
 from app.services.name_change import WomNameChangeService
@@ -201,6 +201,7 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
+app.include_router(assets.router)
 app.include_router(auth.router)
 app.include_router(clan.router)
 app.include_router(config.router)
