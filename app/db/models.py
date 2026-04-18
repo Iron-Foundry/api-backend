@@ -6,9 +6,12 @@ the single source of truth for alembic autogenerate.
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime
+from uuid import UUID
 
-from sqlalchemy import BigInteger, Boolean, Integer, Text, ARRAY, TIMESTAMP
+from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, Text, ARRAY, TIMESTAMP
+from sqlalchemy.dialects import postgresql as pg
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -214,6 +217,64 @@ class Config(Base):
     guild_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     key: Mapped[str] = mapped_column(Text, primary_key=True)
     value: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+
+
+class Badge(Base):
+    __tablename__ = "badges"
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    icon: Mapped[str | None] = mapped_column(Text)          # base64 data URL or SVG string
+    color: Mapped[str] = mapped_column(Text, nullable=False, server_default="'#6366f1'")
+    text_color: Mapped[str] = mapped_column(Text, nullable=False, server_default="'#ffffff'")
+    created_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    created_by: Mapped[int | None] = mapped_column(BigInteger)
+
+
+class UserBadge(Base):
+    __tablename__ = "user_badges"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    badge_id: Mapped[str] = mapped_column(Text, nullable=False)
+    discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    assigned_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    assigned_by: Mapped[int | None] = mapped_column(BigInteger)
+
+
+class ContentCategory(Base):
+    __tablename__ = "content_categories"
+
+    id: Mapped[UUID] = mapped_column(pg.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    page_type: Mapped[str] = mapped_column(Text, nullable=False)
+    parent_id: Mapped[UUID | None] = mapped_column(pg.UUID(as_uuid=True), ForeignKey("content_categories.id", ondelete="CASCADE"), nullable=True)
+    slug: Mapped[str] = mapped_column(Text, nullable=False)
+    label: Mapped[str] = mapped_column(Text, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    created_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    created_by: Mapped[int | None] = mapped_column(BigInteger)
+
+
+class ContentEntry(Base):
+    __tablename__ = "content_entries"
+
+    id: Mapped[UUID] = mapped_column(pg.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    category_id: Mapped[UUID] = mapped_column(pg.UUID(as_uuid=True), ForeignKey("content_categories.id", ondelete="CASCADE"), nullable=False)
+    slug: Mapped[str] = mapped_column(Text, nullable=False)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    created_by: Mapped[int | None] = mapped_column(BigInteger)
+    created_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    updated_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+
+
+class ContentCollaborator(Base):
+    __tablename__ = "content_collaborators"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    entry_id: Mapped[UUID] = mapped_column(pg.UUID(as_uuid=True), ForeignKey("content_entries.id", ondelete="CASCADE"), nullable=False)
+    discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    added_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
 
 
 class RolePanel(Base):

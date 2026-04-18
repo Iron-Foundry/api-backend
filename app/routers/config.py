@@ -101,6 +101,7 @@ async def set_rank_mappings(
 
 class PagePermissionEntry(BaseModel):
     read: list[str] = []
+    create: list[str] = []
     edit: list[str] = []
     delete: list[str] = []
 
