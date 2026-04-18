@@ -23,10 +23,10 @@ def upgrade() -> None:
             size_bytes   BIGINT NOT NULL,
             uploaded_by  BIGINT,
             created_at   TIMESTAMPTZ DEFAULT NOW()
-        );
-        CREATE INDEX ON assets (uploaded_by);
-        CREATE INDEX ON assets (created_at DESC);
+        )
     """)
+    op.execute("CREATE INDEX ON assets (uploaded_by)")
+    op.execute("CREATE INDEX ON assets (created_at DESC)")
 
 
 def downgrade() -> None:
