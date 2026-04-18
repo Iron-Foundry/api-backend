@@ -34,13 +34,19 @@ ALLOWED_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".avif"}
 # ── Public file serving ────────────────────────────────────────────────────────
 
 @router.get("/file/{filename}")
-async def serve_file(filename: str) -> FileResponse:
+async def serve_file(
+    filename: str,
+    session: AsyncSession = Depends(get_session),
+) -> FileResponse:
     if "/" in filename or "\\" in filename or ".." in filename:
         raise HTTPException(400, "Invalid filename")
     file_path = UPLOAD_DIR / filename
     if not file_path.exists():
         raise HTTPException(404, "File not found")
-    return FileResponse(file_path)
+    result = await session.execute(select(Asset).where(Asset.filename == filename))
+    asset = result.scalar_one_or_none()
+    media_type = asset.content_type if asset else None
+    return FileResponse(file_path, media_type=media_type)
 
 
 # ── Auth-gated endpoints ───────────────────────────────────────────────────────
