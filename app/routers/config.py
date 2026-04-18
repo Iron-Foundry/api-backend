@@ -10,12 +10,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Config
 from app.dependencies import get_current_user, get_session
-from app.routers.surveys import _get_roles, _has_min_rank
+from app.routers.surveys import _has_min_rank
+from app.services.rank_mappings import get_effective_roles
 
 router = APIRouter(prefix="/config", tags=["config"])
 
 _GLOBAL_GUILD_ID = 0
+_RANK_MAPPINGS_KEY = "clan_rank_mappings"
+_PAGE_PERMISSIONS_KEY = "page_permissions"
 
+
+# ── Shared helpers ────────────────────────────────────────────────────────────
 
 async def _get_config_value(key: str, session: AsyncSession) -> dict:
     result = await session.execute(
@@ -40,10 +45,20 @@ async def _set_config_value(key: str, value: dict, session: AsyncSession) -> Non
     await session.commit()
 
 
+async def _require_rank(
+    min_rank: str,
+    current_user: dict,
+    session: AsyncSession,
+) -> None:
+    discord_user_id = int(current_user["sub"])
+    roles = await get_effective_roles(discord_user_id, session)
+    if not _has_min_rank(roles, min_rank):
+        raise HTTPException(
+            status_code=403, detail=f"Requires {min_rank} or higher."
+        )
+
+
 # ── Rank mappings ─────────────────────────────────────────────────────────────
-
-_RANK_MAPPINGS_KEY = "clan_rank_mappings"
-
 
 class RankMapping(BaseModel):
     clan_rank: str
@@ -60,10 +75,7 @@ async def get_rank_mappings(
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     """Return current clan-rank → Discord-role mappings. Requires Mentor or higher."""
-    roles = await _get_roles(current_user, session)
-    if not _has_min_rank(roles, "Mentor"):
-        raise HTTPException(status_code=403, detail="Requires Mentor or higher.")
-
+    await _require_rank("Mentor", current_user, session)
     data = await _get_config_value(_RANK_MAPPINGS_KEY, session)
     return {"mappings": data.get("mappings", [])}
 
@@ -75,10 +87,47 @@ async def set_rank_mappings(
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     """Update clan-rank → Discord-role mappings. Requires Senior Moderator or higher."""
-    roles = await _get_roles(current_user, session)
-    if not _has_min_rank(roles, "Senior Moderator"):
-        raise HTTPException(status_code=403, detail="Requires Senior Moderator or higher.")
-
-    mappings = [m.model_dump() for m in body.mappings if m.clan_rank.strip() and m.discord_role.strip()]
+    await _require_rank("Senior Moderator", current_user, session)
+    mappings = [
+        m.model_dump()
+        for m in body.mappings
+        if m.clan_rank.strip() and m.discord_role.strip()
+    ]
     await _set_config_value(_RANK_MAPPINGS_KEY, {"mappings": mappings}, session)
     return {"mappings": mappings}
+
+
+# ── Page permissions ──────────────────────────────────────────────────────────
+
+class PagePermissionEntry(BaseModel):
+    read: list[str] = []
+    edit: list[str] = []
+    delete: list[str] = []
+
+
+class PagePermissionsBody(BaseModel):
+    pages: dict[str, PagePermissionEntry]
+
+
+@router.get("/page-permissions")
+async def get_page_permissions(
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Return page permission config. Requires Mentor or higher."""
+    await _require_rank("Mentor", current_user, session)
+    data = await _get_config_value(_PAGE_PERMISSIONS_KEY, session)
+    return {"pages": data.get("pages", {})}
+
+
+@router.put("/page-permissions")
+async def set_page_permissions(
+    body: PagePermissionsBody,
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Update page permission config. Requires Senior Moderator or higher."""
+    await _require_rank("Senior Moderator", current_user, session)
+    pages = {k: v.model_dump() for k, v in body.pages.items()}
+    await _set_config_value(_PAGE_PERMISSIONS_KEY, {"pages": pages}, session)
+    return {"pages": pages}

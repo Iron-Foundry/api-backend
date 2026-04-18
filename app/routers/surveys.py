@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import SurveyActive, SurveyResponse, SurveyTemplate, Ticket, User, WebSurveySubmission
 from app.dependencies import get_current_user, get_session
+from app.services.rank_mappings import get_effective_roles
 
 router = APIRouter(prefix="/surveys", tags=["surveys"])
 
@@ -55,11 +56,7 @@ def _has_min_rank(discord_roles: list[str], min_role: str) -> bool:
 
 async def _get_roles(current_user: dict, session: AsyncSession) -> list[str]:
     discord_user_id = int(current_user["sub"])
-    result = await session.execute(
-        select(User.discord_roles).where(User.discord_user_id == discord_user_id)
-    )
-    roles = result.scalar_one_or_none()
-    return roles or []
+    return await get_effective_roles(discord_user_id, session)
 
 
 def _extract_fields(raw: list | dict) -> list[dict]:

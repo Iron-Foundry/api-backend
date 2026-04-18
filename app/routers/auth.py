@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_session
 from app.db.models import Ticket, User
+from app.services.rank_mappings import get_effective_roles
 
 DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "")
 DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", "")
@@ -318,13 +319,16 @@ async def me(
         ).where(User.discord_user_id == discord_user_id)
     )
     row = result.one_or_none()
+    discord_roles: list[str] = row.discord_roles if row else []
+    effective_roles = await get_effective_roles(discord_user_id, session)
     return {
         "discord_user_id": current_user["sub"],
         "username": current_user.get("username"),
         "avatar": current_user.get("avatar"),
         "rsn": row.rsn if row else None,
         "clan_rank": row.clan_rank if row else None,
-        "discord_roles": row.discord_roles if row else [],
+        "discord_roles": discord_roles,
+        "effective_roles": effective_roles,
         "stats_opt_out": row.stats_opt_out if row else False,
         "hide_presence_notifications": row.hide_presence_notifications if row else False,
     }
