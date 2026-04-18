@@ -222,7 +222,7 @@ class Config(Base):
 class Badge(Base):
     __tablename__ = "badges"
 
-    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    id: Mapped[UUID] = mapped_column(pg.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
     icon: Mapped[str | None] = mapped_column(Text)          # base64 data URL or SVG string
@@ -236,7 +236,7 @@ class UserBadge(Base):
     __tablename__ = "user_badges"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    badge_id: Mapped[str] = mapped_column(Text, nullable=False)
+    badge_id: Mapped[UUID] = mapped_column(pg.UUID(as_uuid=True), ForeignKey("badges.id", ondelete="CASCADE"), nullable=False)
     discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     assigned_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     assigned_by: Mapped[int | None] = mapped_column(BigInteger)

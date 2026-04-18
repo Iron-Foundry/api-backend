@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timezone
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -51,7 +53,7 @@ async def list_badges(
     result = await session.execute(select(Badge).order_by(Badge.name))
     return [
         {
-            "id": b.id,
+            "id": str(b.id),
             "name": b.name,
             "description": b.description,
             "icon": b.icon,
@@ -71,9 +73,8 @@ async def create_badge(
 ) -> dict:
     """Create a badge. Requires Mentor or higher."""
     await _require_mentor(current_user, session)
-    import uuid as _uuid
     badge = Badge(
-        id=_uuid.uuid4().hex,
+        id=uuid.uuid4(),
         name=body.name.strip(),
         description=body.description.strip(),
         icon=body.icon,
@@ -85,7 +86,7 @@ async def create_badge(
     session.add(badge)
     await session.commit()
     return {
-        "id": badge.id,
+        "id": str(badge.id),
         "name": badge.name,
         "description": badge.description,
         "icon": badge.icon,
@@ -97,7 +98,7 @@ async def create_badge(
 
 @router.put("/{badge_id}")
 async def update_badge(
-    badge_id: str,
+    badge_id: UUID,
     body: BadgeBody,
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
@@ -115,7 +116,7 @@ async def update_badge(
     badge.text_color = body.text_color
     await session.commit()
     return {
-        "id": badge.id,
+        "id": str(badge.id),
         "name": badge.name,
         "description": badge.description,
         "icon": badge.icon,
@@ -127,7 +128,7 @@ async def update_badge(
 
 @router.delete("/{badge_id}")
 async def delete_badge(
-    badge_id: str,
+    badge_id: UUID,
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
@@ -150,7 +151,7 @@ class AssignBody(BaseModel):
 
 @router.get("/{badge_id}/members")
 async def badge_members(
-    badge_id: str,
+    badge_id: UUID,
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[dict]:
@@ -175,7 +176,7 @@ async def badge_members(
 
 @router.post("/{badge_id}/assign")
 async def assign_badge(
-    badge_id: str,
+    badge_id: UUID,
     body: AssignBody,
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
@@ -203,7 +204,7 @@ async def assign_badge(
 
 @router.delete("/{badge_id}/assign/{discord_user_id}")
 async def revoke_badge(
-    badge_id: str,
+    badge_id: UUID,
     discord_user_id: int,
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
@@ -237,7 +238,7 @@ async def my_badges(
     )
     return [
         {
-            "id": b.id,
+            "id": str(b.id),
             "name": b.name,
             "description": b.description,
             "icon": b.icon,
