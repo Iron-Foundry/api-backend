@@ -442,6 +442,7 @@ class UpdateEntryBody(BaseModel):
     slug: str | None = None
     body: str | None = None
     sort_order: int | None = None
+    expected_updated_at: datetime | None = None
 
 
 @router.put("/{page_type}/entries/{entry_id}")
@@ -462,6 +463,13 @@ async def update_entry(
         raise HTTPException(404, "Entry not found.")
 
     fields = body.model_fields_set
+
+    content_fields_check = fields - {"sort_order", "expected_updated_at"}
+    if content_fields_check and body.expected_updated_at is not None and entry.updated_at is not None:
+        def _to_utc(dt: datetime) -> datetime:
+            return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+        if _to_utc(body.expected_updated_at).replace(microsecond=0) != _to_utc(entry.updated_at).replace(microsecond=0):
+            raise HTTPException(409, "edit_conflict")
 
     if "title" in fields and body.title is not None:
         title = body.title.strip()
@@ -488,7 +496,7 @@ async def update_entry(
         entry.sort_order = body.sort_order
 
     # Only update timestamp and track collaborator for content changes, not reordering
-    content_fields = fields - {"sort_order"}
+    content_fields = fields - {"sort_order", "expected_updated_at"}
     if content_fields:
         uid = int(current_user["sub"])
         now = datetime.now(timezone.utc)
