@@ -10,11 +10,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import ContentCategory, ContentCollaborator, ContentEntry, User
+from app.db.models import ContentCategory, ContentCollaborator, ContentEntry, ContentEntryVersion, User
 from app.dependencies import get_current_user, get_session
 from app.routers.surveys import _has_min_rank
 from app.services.rank_mappings import get_effective_roles
@@ -88,7 +88,7 @@ async def get_categories(
     cat_ids = [c.id for c in all_cats]
     entries_result = await session.execute(
         select(ContentEntry.id, ContentEntry.title, ContentEntry.slug, ContentEntry.category_id, ContentEntry.sort_order)
-        .where(ContentEntry.category_id.in_(cat_ids))
+        .where(ContentEntry.category_id.in_(cat_ids), ContentEntry.deprecated == False)  # noqa: E712
         .order_by(ContentEntry.sort_order, ContentEntry.title)
     )
     entries_by_cat: dict = defaultdict(list)
@@ -128,7 +128,11 @@ async def get_entry_by_slug(
         select(ContentEntry, User)
         .join(ContentCategory, ContentEntry.category_id == ContentCategory.id)
         .join(User, User.discord_user_id == ContentEntry.created_by, isouter=True)
-        .where(ContentCategory.page_type == page_type, ContentEntry.slug == slug)
+        .where(
+            ContentCategory.page_type == page_type,
+            ContentEntry.slug == slug,
+            ContentEntry.deprecated == False,  # noqa: E712
+        )
     )
     row = result.one_or_none()
     if row is None:
@@ -179,7 +183,7 @@ async def get_entry(
     result = await session.execute(
         select(ContentEntry, User)
         .join(User, User.discord_user_id == ContentEntry.created_by, isouter=True)
-        .where(ContentEntry.id == entry_id)
+        .where(ContentEntry.id == entry_id, ContentEntry.deprecated == False)  # noqa: E712
     )
     row = result.one_or_none()
     if row is None:
@@ -486,15 +490,35 @@ async def update_entry(
     # Only update timestamp and track collaborator for content changes, not reordering
     content_fields = fields - {"sort_order"}
     if content_fields:
-        entry.updated_at = datetime.now(timezone.utc)
-        discord_user_id = int(current_user["sub"])
-        if entry.created_by != discord_user_id:
+        uid = int(current_user["sub"])
+        now = datetime.now(timezone.utc)
+        entry.updated_at = now
+
+        # Compute next version number
+        max_ver_result = await session.execute(
+            select(func.max(ContentEntryVersion.version_number))
+            .where(ContentEntryVersion.entry_id == entry_id)
+        )
+        max_ver = max_ver_result.scalar_one_or_none()
+        next_ver = (max_ver or 0) + 1
+
+        version = ContentEntryVersion(
+            entry_id=entry.id,
+            version_number=next_ver,
+            title=entry.title,
+            body=entry.body,
+            edited_by=uid,
+            created_at=now,
+        )
+        session.add(version)
+
+        if entry.created_by != uid:
             collab_stmt = (
                 pg_insert(ContentCollaborator)
                 .values(
                     entry_id=entry.id,
-                    discord_user_id=discord_user_id,
-                    added_at=datetime.now(timezone.utc),
+                    discord_user_id=uid,
+                    added_at=now,
                 )
                 .on_conflict_do_nothing()
             )
@@ -512,6 +536,236 @@ async def update_entry(
 
 @router.delete("/{page_type}/entries/{entry_id}")
 async def delete_entry(
+    page_type: str,
+    entry_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Soft-delete: marks entry as deprecated."""
+    _validate_page_type(page_type)
+    await _require_mentor(current_user, session)
+
+    entry = (await session.execute(
+        select(ContentEntry).where(ContentEntry.id == entry_id)
+    )).scalar_one_or_none()
+    if entry is None:
+        raise HTTPException(404, "Entry not found.")
+
+    uid = int(current_user["sub"])
+    now = datetime.now(timezone.utc)
+    entry.deprecated = True
+    entry.deprecated_at = now
+    entry.deprecated_by = uid
+    await session.commit()
+    return {"ok": True}
+
+
+# ── Staff: version history ─────────────────────────────────────────────────────
+
+@router.get("/{page_type}/entries/{entry_id}/versions")
+async def list_entry_versions(
+    page_type: str,
+    entry_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[dict]:
+    _validate_page_type(page_type)
+    await _require_mentor(current_user, session)
+
+    result = await session.execute(
+        select(ContentEntryVersion, User)
+        .join(User, User.discord_user_id == ContentEntryVersion.edited_by, isouter=True)
+        .where(ContentEntryVersion.entry_id == entry_id)
+        .order_by(ContentEntryVersion.version_number.desc())
+    )
+    rows = result.all()
+
+    return [
+        {
+            "id": v.id,
+            "version_number": v.version_number,
+            "title": v.title,
+            "created_at": v.created_at.isoformat(),
+            "edited_by": {
+                "discord_user_id": u.discord_user_id,
+                "discord_username": u.discord_username,
+                "rsn": u.rsn,
+                "avatar": u.discord_avatar_url,
+            } if u else None,
+        }
+        for v, u in rows
+    ]
+
+
+@router.get("/{page_type}/entries/{entry_id}/versions/{version_id}")
+async def get_entry_version(
+    page_type: str,
+    entry_id: UUID,
+    version_id: int,
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    _validate_page_type(page_type)
+    await _require_mentor(current_user, session)
+
+    result = await session.execute(
+        select(ContentEntryVersion, User)
+        .join(User, User.discord_user_id == ContentEntryVersion.edited_by, isouter=True)
+        .where(ContentEntryVersion.id == version_id, ContentEntryVersion.entry_id == entry_id)
+    )
+    row = result.one_or_none()
+    if row is None:
+        raise HTTPException(404, "Version not found.")
+    v, u = row
+
+    return {
+        "id": v.id,
+        "version_number": v.version_number,
+        "title": v.title,
+        "body": v.body,
+        "created_at": v.created_at.isoformat(),
+        "edited_by": {
+            "discord_user_id": u.discord_user_id,
+            "discord_username": u.discord_username,
+            "rsn": u.rsn,
+            "avatar": u.discord_avatar_url,
+        } if u else None,
+    }
+
+
+@router.post("/{page_type}/entries/{entry_id}/revert/{version_id}")
+async def revert_entry_to_version(
+    page_type: str,
+    entry_id: UUID,
+    version_id: int,
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    _validate_page_type(page_type)
+    await _require_mentor(current_user, session)
+
+    entry = (await session.execute(
+        select(ContentEntry).where(ContentEntry.id == entry_id)
+    )).scalar_one_or_none()
+    if entry is None:
+        raise HTTPException(404, "Entry not found.")
+
+    ver = (await session.execute(
+        select(ContentEntryVersion).where(
+            ContentEntryVersion.id == version_id,
+            ContentEntryVersion.entry_id == entry_id,
+        )
+    )).scalar_one_or_none()
+    if ver is None:
+        raise HTTPException(404, "Version not found.")
+
+    uid = int(current_user["sub"])
+    now = datetime.now(timezone.utc)
+
+    entry.title = ver.title
+    entry.body = ver.body
+    entry.updated_at = now
+
+    max_ver_result = await session.execute(
+        select(func.max(ContentEntryVersion.version_number))
+        .where(ContentEntryVersion.entry_id == entry_id)
+    )
+    max_ver = max_ver_result.scalar_one_or_none()
+    next_ver = (max_ver or 0) + 1
+
+    new_version = ContentEntryVersion(
+        entry_id=entry.id,
+        version_number=next_ver,
+        title=entry.title,
+        body=entry.body,
+        edited_by=uid,
+        created_at=now,
+    )
+    session.add(new_version)
+
+    if entry.created_by != uid:
+        collab_stmt = (
+            pg_insert(ContentCollaborator)
+            .values(
+                entry_id=entry.id,
+                discord_user_id=uid,
+                added_at=now,
+            )
+            .on_conflict_do_nothing()
+        )
+        await session.execute(collab_stmt)
+
+    await session.commit()
+
+    return {
+        "id": str(entry.id),
+        "title": entry.title,
+        "slug": entry.slug,
+        "updated_at": entry.updated_at.isoformat() if entry.updated_at else None,
+    }
+
+
+# ── Staff: deprecated entries ─────────────────────────────────────────────────
+
+@router.get("/deprecated-entries")
+async def get_deprecated_entries(
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[dict]:
+    await _require_senior_mod(current_user, session)
+
+    result = await session.execute(
+        select(ContentEntry, ContentCategory, User)
+        .join(ContentCategory, ContentEntry.category_id == ContentCategory.id)
+        .join(User, User.discord_user_id == ContentEntry.deprecated_by, isouter=True)
+        .where(ContentEntry.deprecated == True)  # noqa: E712
+        .order_by(ContentEntry.deprecated_at.desc())
+    )
+    rows = result.all()
+
+    return [
+        {
+            "id": str(e.id),
+            "title": e.title,
+            "slug": e.slug,
+            "page_type": cat.page_type,
+            "deprecated_at": e.deprecated_at.isoformat() if e.deprecated_at else None,
+            "deprecated_by": {
+                "discord_user_id": u.discord_user_id,
+                "discord_username": u.discord_username,
+                "rsn": u.rsn,
+                "avatar": u.discord_avatar_url,
+            } if u else None,
+        }
+        for e, cat, u in rows
+    ]
+
+
+@router.post("/{page_type}/entries/{entry_id}/restore")
+async def restore_entry(
+    page_type: str,
+    entry_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    _validate_page_type(page_type)
+    await _require_mentor(current_user, session)
+
+    entry = (await session.execute(
+        select(ContentEntry).where(ContentEntry.id == entry_id)
+    )).scalar_one_or_none()
+    if entry is None:
+        raise HTTPException(404, "Entry not found.")
+
+    entry.deprecated = False
+    entry.deprecated_at = None
+    entry.deprecated_by = None
+    await session.commit()
+    return {"ok": True}
+
+
+@router.delete("/{page_type}/entries/{entry_id}/permanent")
+async def permanent_delete_entry(
     page_type: str,
     entry_id: UUID,
     current_user: dict = Depends(get_current_user),

@@ -267,6 +267,9 @@ class ContentEntry(Base):
     created_by: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     updated_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    deprecated: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    deprecated_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    deprecated_by: Mapped[int | None] = mapped_column(BigInteger)
 
 
 class ContentCollaborator(Base):
@@ -276,6 +279,18 @@ class ContentCollaborator(Base):
     entry_id: Mapped[UUID] = mapped_column(pg.UUID(as_uuid=True), ForeignKey("content_entries.id", ondelete="CASCADE"), nullable=False)
     discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     added_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+
+
+class ContentEntryVersion(Base):
+    __tablename__ = "content_entry_versions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    entry_id: Mapped[UUID] = mapped_column(pg.UUID(as_uuid=True), ForeignKey("content_entries.id", ondelete="CASCADE"), nullable=False)
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    edited_by: Mapped[int | None] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
 
 
 class Asset(Base):
