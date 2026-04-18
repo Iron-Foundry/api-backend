@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -23,6 +24,22 @@ _DISCORD_ROLE_ORDER = [
 
 # Valid values for the response_visibility (responses-readable-by) setting
 _VISIBILITY_OPTIONS = ["Mentor", "Event Team", "Moderator", "Senior Moderator"]
+
+
+def _normalize_visibility(raw: str | list | None) -> list[str] | None:
+    """Normalize visibility to a list of allowed roles (or None = senior staff only).
+
+    Handles three stored formats:
+    - None  → staff only
+    - str   → legacy single min-rank (convert to one-item list for display, but
+               callers that need the old min-rank semantic keep the raw value)
+    - list  → new explicit-roles format
+    """
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        return [raw]
+    return raw
 
 
 def _has_min_rank(discord_roles: list[str], min_role: str) -> bool:
@@ -108,11 +125,11 @@ async def _list_templates(
         raw = row.questions or {}
         if isinstance(raw, list):
             row_category = "survey"
-            visibility: str | None = None
+            visibility: list[str] | None = None
             description = None
         else:
             row_category = raw.get("category", "survey")
-            visibility = raw.get("visibility")
+            visibility = _normalize_visibility(raw.get("visibility"))
             description = raw.get("description")
 
         if row_category != category:
@@ -184,11 +201,11 @@ async def get_template(
 
     raw = row.questions or {}
     if isinstance(raw, list):
-        visibility: str | None = None
+        visibility: list[str] | None = None
         description = None
         category = "survey"
     else:
-        visibility = raw.get("visibility")
+        visibility = _normalize_visibility(raw.get("visibility"))
         description = raw.get("description")
         category = raw.get("category", "survey")
 
@@ -247,12 +264,26 @@ async def get_template_responses(
         raise HTTPException(status_code=404, detail="Template not found.")
 
     raw = row.questions or {}
-    response_visibility = None if isinstance(raw, list) else raw.get("visibility")
-    min_rank = response_visibility or "Mentor"
-    if not _has_min_rank(roles, min_rank):
-        raise HTTPException(
-            status_code=403, detail=f"Requires {min_rank} or higher to view responses."
-        )
+    raw_visibility = None if isinstance(raw, list) else raw.get("visibility")
+
+    if raw_visibility is None:
+        # No visibility set — Senior Moderator+ only
+        if not _has_min_rank(roles, "Senior Moderator"):
+            raise HTTPException(status_code=403, detail="Requires Senior Moderator or higher.")
+    elif isinstance(raw_visibility, str):
+        # Legacy single min-rank string — preserve old hierarchy behaviour
+        if not _has_min_rank(roles, raw_visibility):
+            raise HTTPException(
+                status_code=403, detail=f"Requires {raw_visibility} or higher to view responses."
+            )
+    else:
+        # New explicit-roles list — Senior Mod+ always allowed, otherwise role must be listed
+        allowed: set[str] = set(raw_visibility)
+        if not (_has_min_rank(roles, "Senior Moderator") or any(r in allowed for r in roles)):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Requires one of the following roles: {', '.join(sorted(allowed))}.",
+            )
 
     # Web submissions
     web_result = await session.execute(
@@ -398,8 +429,8 @@ async def set_open(
 
 
 class VisibilityUpdate(BaseModel):
-    """Controls which minimum rank can read responses for this template."""
-    visibility: str | None
+    """Controls which roles can read responses for this template (null = Senior Moderator+ only)."""
+    visibility: list[str] | None
 
 
 @router.patch("/{template_id}/visibility")
@@ -416,11 +447,16 @@ async def set_visibility(
             status_code=403, detail="Requires Senior Moderator or higher."
         )
 
-    if body.visibility is not None and body.visibility not in _VISIBILITY_OPTIONS:
-        raise HTTPException(
-            status_code=422,
-            detail=f"visibility must be one of {_VISIBILITY_OPTIONS} or null.",
-        )
+    if body.visibility is not None:
+        invalid = [v for v in body.visibility if v not in _VISIBILITY_OPTIONS]
+        if invalid:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid roles: {invalid}. Must be from {_VISIBILITY_OPTIONS}.",
+            )
+        # Treat empty list same as null (staff only)
+        if len(body.visibility) == 0:
+            body.visibility = None
 
     result = await session.execute(
         select(SurveyTemplate).where(SurveyTemplate.template_id == template_id)
@@ -443,3 +479,117 @@ async def set_visibility(
     await session.commit()
 
     return {"template_id": template_id, "visibility": body.visibility}
+
+
+# ── Template creation / editing ───────────────────────────────────────────────
+
+class TemplateFieldBody(BaseModel):
+    id: str
+    type: str
+    label: str
+    description: str | None = None
+    required: bool = False
+    options: list[str] = []
+    max_choices: int = 1
+
+
+class TemplateBody(BaseModel):
+    title: str
+    category: str = "survey"
+    description: str | None = None
+    fields: list[TemplateFieldBody] = []
+
+
+@router.post("", status_code=201)
+async def create_template(
+    body: TemplateBody,
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Create a new survey/application template. Requires Senior Moderator or higher."""
+    roles = await _get_roles(current_user, session)
+    if not _has_min_rank(roles, "Senior Moderator"):
+        raise HTTPException(
+            status_code=403, detail="Requires Senior Moderator or higher."
+        )
+
+    template_id = uuid.uuid4().hex[:16]
+    questions: dict = {
+        "category": body.category,
+        "description": body.description,
+        "fields": [f.model_dump() for f in body.fields],
+        "is_open": False,
+        "visibility": None,
+    }
+    now = datetime.now(timezone.utc)
+    row = SurveyTemplate(
+        template_id=template_id,
+        title=body.title,
+        questions=questions,
+        created_at=now,
+    )
+    session.add(row)
+    await session.commit()
+
+    return {
+        "template_id": template_id,
+        "title": body.title,
+        "category": body.category,
+        "description": body.description,
+        "is_open": False,
+        "visibility": None,
+        "is_active": False,
+        "response_count": 0,
+        "web_response_count": 0,
+        "user_submitted": False,
+        "created_at": now.isoformat(),
+    }
+
+
+@router.put("/{template_id}")
+async def update_template(
+    template_id: str,
+    body: TemplateBody,
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Update a template's title, category, description, and fields. Requires Senior Moderator or higher."""
+    roles = await _get_roles(current_user, session)
+    if not _has_min_rank(roles, "Senior Moderator"):
+        raise HTTPException(
+            status_code=403, detail="Requires Senior Moderator or higher."
+        )
+
+    result = await session.execute(
+        select(SurveyTemplate).where(SurveyTemplate.template_id == template_id)
+    )
+    row = result.scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Template not found.")
+
+    raw = row.questions or {}
+    is_open = _extract_is_open(raw)
+    visibility = None if isinstance(raw, list) else raw.get("visibility")
+
+    updated: dict = {
+        "category": body.category,
+        "description": body.description,
+        "fields": [f.model_dump() for f in body.fields],
+        "is_open": is_open,
+        "visibility": visibility,
+    }
+    await session.execute(
+        update(SurveyTemplate)
+        .where(SurveyTemplate.template_id == template_id)
+        .values(title=body.title, questions=updated)
+    )
+    await session.commit()
+
+    return {
+        "template_id": template_id,
+        "title": body.title,
+        "category": body.category,
+        "description": body.description,
+        "is_open": is_open,
+        "visibility": visibility,
+    }
