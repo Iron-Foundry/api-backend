@@ -307,6 +307,7 @@ async def delete_category(
 
 class CreateEntryBody(BaseModel):
     title: str
+    slug: str | None = None
     body: str = ""
 
 
@@ -333,7 +334,13 @@ async def create_entry(
     title = body.title.strip()
     if not title:
         raise HTTPException(422, "Title must not be empty.")
-    slug = _slugify(title)
+
+    if body.slug and body.slug.strip():
+        slug = _slugify(body.slug)
+        if not slug:
+            raise HTTPException(422, "Slug contains no valid characters.")
+    else:
+        slug = _slugify(title)
 
     existing = (await session.execute(
         select(ContentEntry).where(
@@ -342,7 +349,7 @@ async def create_entry(
         )
     )).scalar_one_or_none()
     if existing is not None:
-        raise HTTPException(409, f"Entry with slug '{slug}' already exists in this category.")
+        raise HTTPException(409, f"An entry with slug '{slug}' already exists in this category.")
 
     now = datetime.now(timezone.utc)
     entry = ContentEntry(
@@ -367,6 +374,7 @@ async def create_entry(
 
 class UpdateEntryBody(BaseModel):
     title: str | None = None
+    slug: str | None = None
     body: str | None = None
 
 
@@ -394,7 +402,25 @@ async def update_entry(
         if not title:
             raise HTTPException(422, "Title must not be empty.")
         entry.title = title
-        entry.slug = _slugify(title)
+        # Only auto-update slug from title if no explicit slug is being set
+        if "slug" not in fields:
+            entry.slug = _slugify(title)
+
+    if "slug" in fields and body.slug is not None:
+        new_slug = _slugify(body.slug.strip())
+        if not new_slug:
+            raise HTTPException(422, "Slug contains no valid characters.")
+        if new_slug != entry.slug:
+            conflict = (await session.execute(
+                select(ContentEntry).where(
+                    ContentEntry.category_id == entry.category_id,
+                    ContentEntry.slug == new_slug,
+                    ContentEntry.id != entry.id,
+                )
+            )).scalar_one_or_none()
+            if conflict is not None:
+                raise HTTPException(409, f"An entry with slug '{new_slug}' already exists in this category.")
+            entry.slug = new_slug
 
     if "body" in fields and body.body is not None:
         entry.body = body.body
