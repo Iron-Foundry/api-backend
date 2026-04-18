@@ -105,26 +105,32 @@ async def staff_overview(
 async def staff_members(
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
+    search: str | None = None,
 ) -> list[dict]:
     """Return all member profiles. Requires Moderator or higher."""
     await _require_rank("Moderator", current_user, session)
-    result = await session.execute(
-        select(
-            User.discord_user_id,
-            User.discord_username,
-            User.discord_avatar_url,
-            User.rsn,
-            User.clan_rank,
-            User.discord_roles,
-            User.stats_opt_out,
-            User.join_date,
-            User.created_at,
-            User.total_loot_value,
-            User.collection_log_slots,
-            User.recruited_by,
-            User.key_is_active,
-        ).order_by(User.join_date.asc().nulls_last())
+    stmt = select(
+        User.discord_user_id,
+        User.discord_username,
+        User.discord_avatar_url,
+        User.rsn,
+        User.clan_rank,
+        User.discord_roles,
+        User.stats_opt_out,
+        User.join_date,
+        User.created_at,
+        User.total_loot_value,
+        User.collection_log_slots,
+        User.recruited_by,
+        User.key_is_active,
     )
+    if search:
+        pattern = f"%{search}%"
+        stmt = stmt.where(
+            User.rsn.ilike(pattern) | User.discord_username.ilike(pattern)
+        )
+    stmt = stmt.order_by(User.join_date.asc().nulls_last())
+    result = await session.execute(stmt)
     members: list[dict] = []
     for row in result:
         members.append({
