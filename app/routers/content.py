@@ -39,6 +39,21 @@ async def _require_mentor(current_user: dict, session: AsyncSession) -> None:
         raise HTTPException(403, "Requires Mentor or higher.")
 
 
+async def _slug_exists_in_page_type(
+    slug: str, page_type: str, session: AsyncSession, exclude_entry_id: UUID | None = None
+) -> bool:
+    """Return True if any entry with this slug exists under page_type (excluding a specific entry)."""
+    stmt = (
+        select(ContentEntry.id)
+        .join(ContentCategory, ContentEntry.category_id == ContentCategory.id)
+        .where(ContentCategory.page_type == page_type, ContentEntry.slug == slug)
+    )
+    if exclude_entry_id is not None:
+        stmt = stmt.where(ContentEntry.id != exclude_entry_id)
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none() is not None
+
+
 async def _require_senior_mod(current_user: dict, session: AsyncSession) -> None:
     uid = int(current_user["sub"])
     roles = await get_effective_roles(uid, session)
@@ -99,6 +114,58 @@ async def get_categories(
             cat_map[c.parent_id]["children"].append(node)
 
     return roots
+
+
+@router.get("/{page_type}/entries/by-slug/{slug}")
+async def get_entry_by_slug(
+    page_type: str,
+    slug: str,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    _validate_page_type(page_type)
+
+    result = await session.execute(
+        select(ContentEntry, User)
+        .join(ContentCategory, ContentEntry.category_id == ContentCategory.id)
+        .join(User, User.discord_user_id == ContentEntry.created_by, isouter=True)
+        .where(ContentCategory.page_type == page_type, ContentEntry.slug == slug)
+    )
+    row = result.one_or_none()
+    if row is None:
+        raise HTTPException(404, "Entry not found.")
+    entry, author = row
+
+    collab_result = await session.execute(
+        select(ContentCollaborator, User)
+        .join(User, User.discord_user_id == ContentCollaborator.discord_user_id, isouter=True)
+        .where(ContentCollaborator.entry_id == entry.id)
+        .order_by(ContentCollaborator.added_at)
+    )
+    collaborators = [
+        {
+            "discord_user_id": c.discord_user_id,
+            "discord_username": u.discord_username if u else None,
+            "rsn": u.rsn if u else None,
+            "avatar": u.discord_avatar_url if u else None,
+        }
+        for c, u in collab_result
+    ]
+
+    return {
+        "id": str(entry.id),
+        "title": entry.title,
+        "slug": entry.slug,
+        "body": entry.body,
+        "created_at": entry.created_at.isoformat() if entry.created_at else None,
+        "updated_at": entry.updated_at.isoformat() if entry.updated_at else None,
+        "author": {
+            "discord_user_id": author.discord_user_id if author else None,
+            "discord_username": author.discord_username if author else None,
+            "rsn": author.rsn if author else None,
+            "avatar": author.discord_avatar_url if author else None,
+        } if author else None,
+        "collaborators": collaborators,
+    }
 
 
 @router.get("/{page_type}/entries/{entry_id}")
@@ -342,14 +409,8 @@ async def create_entry(
     else:
         slug = _slugify(title)
 
-    existing = (await session.execute(
-        select(ContentEntry).where(
-            ContentEntry.category_id == category_id,
-            ContentEntry.slug == slug,
-        )
-    )).scalar_one_or_none()
-    if existing is not None:
-        raise HTTPException(409, f"An entry with slug '{slug}' already exists in this category.")
+    if await _slug_exists_in_page_type(slug, page_type, session):
+        raise HTTPException(409, f"An entry with slug '{slug}' already exists under {page_type}.")
 
     now = datetime.now(timezone.utc)
     entry = ContentEntry(
@@ -411,15 +472,8 @@ async def update_entry(
         if not new_slug:
             raise HTTPException(422, "Slug contains no valid characters.")
         if new_slug != entry.slug:
-            conflict = (await session.execute(
-                select(ContentEntry).where(
-                    ContentEntry.category_id == entry.category_id,
-                    ContentEntry.slug == new_slug,
-                    ContentEntry.id != entry.id,
-                )
-            )).scalar_one_or_none()
-            if conflict is not None:
-                raise HTTPException(409, f"An entry with slug '{new_slug}' already exists in this category.")
+            if await _slug_exists_in_page_type(new_slug, page_type, session, exclude_entry_id=entry_id):
+                raise HTTPException(409, f"An entry with slug '{new_slug}' already exists under {page_type}.")
             entry.slug = new_slug
 
     if "body" in fields and body.body is not None:
