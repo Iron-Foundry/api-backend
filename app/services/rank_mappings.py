@@ -35,11 +35,9 @@ async def get_effective_roles(discord_user_id: int, session: AsyncSession) -> li
     cfg = cfg_result.scalar_one_or_none() or {}
     mappings: list[dict] = cfg.get("mappings", [])
 
-    mapped: list[str] = (
-        [m["discord_role"] for m in mappings if m.get("clan_rank") == clan_rank]
-        if clan_rank
-        else []
-    )
+    mapped: list[str] = [
+        m["discord_role"] for m in mappings if m.get("clan_rank") == clan_rank
+    ]
 
     seen: set[str] = set()
     effective: list[str] = []
