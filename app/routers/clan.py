@@ -207,7 +207,7 @@ async def _build_kc_cache(valkey: Valkey) -> None:
 
 
 async def _build_leagues_cache(valkey: Valkey) -> None:
-    """Paginate WOM group hiscores for league_points and cache the ranked list."""
+    """Paginate WOM group hiscores for clue_scrolls_all and cache the ranked list."""
     acquired = await valkey.set(_LEAGUES_LOCK_KEY, "1", ex=_LEAGUES_LOCK_TTL, nx=True)
     if not acquired:
         return
@@ -221,7 +221,7 @@ async def _build_leagues_cache(valkey: Valkey) -> None:
                 try:
                     resp = await client.get(
                         f"https://api.wiseoldman.net/v2/groups/{_WOM_GROUP_ID}/hiscores",
-                        params={"metric": "league_points", "limit": limit, "offset": offset},
+                        params={"metric": "clue_scrolls_all", "limit": limit, "offset": offset},
                         headers={"User-Agent": "IronFoundry/1.0"},
                     )
                 except Exception:
@@ -498,7 +498,7 @@ async def leagues_leaderboard(
     background_tasks: BackgroundTasks,
     valkey: Valkey = Depends(get_valkey),
 ) -> list[dict]:
-    """Return clan members ranked by Leagues Points, served from cache.
+    """Return clan members ranked by total Clue Scrolls completed, served from cache.
 
     Same stale-while-revalidate pattern as killcounts: fresh for 15 min,
     stale fallback for 48 h while a background refresh runs.
