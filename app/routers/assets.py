@@ -17,7 +17,8 @@ from app.services.rank_mappings import get_effective_roles
 router = APIRouter(prefix="/assets", tags=["assets"])
 
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "/app/uploads"))
-MAX_BYTES = 10 * 1024 * 1024  # 10 MB
+MAX_IMAGE_BYTES = 10 * 1024 * 1024   # 10 MB
+MAX_VIDEO_BYTES = 100 * 1024 * 1024  # 100 MB
 
 ALLOWED_TYPES = {
     "image/jpeg",
@@ -26,9 +27,12 @@ ALLOWED_TYPES = {
     "image/webp",
     "image/svg+xml",
     "image/avif",
+    "video/mp4",
+    "video/webm",
+    "video/ogg",
 }
 
-ALLOWED_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".avif"}
+ALLOWED_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".avif", ".mp4", ".webm", ".ogg"}
 
 
 # ── Public file serving ────────────────────────────────────────────────────────
@@ -99,9 +103,12 @@ async def upload_asset(
     if ext not in ALLOWED_EXTS:
         raise HTTPException(400, f"Extension {ext!r} not allowed")
 
-    data = await file.read(MAX_BYTES + 1)
-    if len(data) > MAX_BYTES:
-        raise HTTPException(400, "File exceeds 10 MB limit")
+    is_video = file.content_type.startswith("video/")
+    max_bytes = MAX_VIDEO_BYTES if is_video else MAX_IMAGE_BYTES
+    data = await file.read(max_bytes + 1)
+    if len(data) > max_bytes:
+        limit_str = "100 MB" if is_video else "10 MB"
+        raise HTTPException(400, f"File exceeds {limit_str} limit")
 
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     stored_name = f"{uuid.uuid4()}{ext}"
