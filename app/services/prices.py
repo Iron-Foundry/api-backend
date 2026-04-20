@@ -36,7 +36,6 @@ async def resolve_prices(items: list[LootItem]) -> list[LootItem]:
         price_data = data.get(str(item.item_id))
         if not price_data:
             continue
-        # Prefer the low (sell) price as a conservative estimate; fall back to high
         ge_price: int | None = price_data.get("low") or price_data.get("high")
         if ge_price:
             item.ge_price = ge_price

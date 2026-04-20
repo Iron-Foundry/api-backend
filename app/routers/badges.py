@@ -34,13 +34,11 @@ async def _require_senior_mod(current_user: dict, session: AsyncSession) -> None
         raise HTTPException(403, "Requires Senior Moderator or higher.")
 
 
-# ── Badge CRUD ────────────────────────────────────────────────────────────────
-
 class BadgeBody(BaseModel):
     name: str
     description: str = ""
-    icon: str | None = None       # base64 data URL or raw SVG string
-    color: str = "#6366f1"        # CSS color or gradient expression
+    icon: str | None = None
+    color: str = "#6366f1"
     text_color: str = "#ffffff"
 
 
@@ -143,8 +141,6 @@ async def delete_badge(
     return {"ok": True}
 
 
-# ── Assignment ────────────────────────────────────────────────────────────────
-
 class AssignBody(BaseModel):
     discord_user_id: int
 
@@ -183,7 +179,6 @@ async def assign_badge(
 ) -> dict:
     """Assign a badge to a member. Requires Mentor or higher."""
     await _require_mentor(current_user, session)
-    # verify badge exists
     badge = (await session.execute(select(Badge).where(Badge.id == badge_id))).scalar_one_or_none()
     if not badge:
         raise HTTPException(404, "Badge not found.")
@@ -220,8 +215,6 @@ async def revoke_badge(
     await session.commit()
     return {"ok": True}
 
-
-# ── Current user's badges ─────────────────────────────────────────────────────
 
 @router.get("/me")
 async def my_badges(

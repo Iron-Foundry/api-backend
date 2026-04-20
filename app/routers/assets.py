@@ -17,8 +17,8 @@ from app.services.rank_mappings import get_effective_roles
 router = APIRouter(prefix="/assets", tags=["assets"])
 
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "/app/uploads"))
-MAX_IMAGE_BYTES = 10 * 1024 * 1024   # 10 MB
-MAX_VIDEO_BYTES = 100 * 1024 * 1024  # 100 MB
+MAX_IMAGE_BYTES = 10 * 1024 * 1024
+MAX_VIDEO_BYTES = 100 * 1024 * 1024
 
 ALLOWED_TYPES = {
     "image/jpeg",
@@ -35,8 +35,6 @@ ALLOWED_TYPES = {
 ALLOWED_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".avif", ".mp4", ".webm", ".ogg"}
 
 
-# ── Public file serving ────────────────────────────────────────────────────────
-
 @router.get("/file/{filename}")
 async def serve_file(
     filename: str,
@@ -52,8 +50,6 @@ async def serve_file(
     media_type = asset.content_type if asset else None
     return FileResponse(file_path, media_type=media_type)
 
-
-# ── Auth-gated endpoints ───────────────────────────────────────────────────────
 
 @router.get("")
 async def list_assets(

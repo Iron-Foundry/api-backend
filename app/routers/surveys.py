@@ -23,7 +23,6 @@ _DISCORD_ROLE_ORDER = [
     "Senior Moderator", "Deputy Owner", "Co-owner",
 ]
 
-# Valid values for the response_visibility (responses-readable-by) setting
 _VISIBILITY_OPTIONS = ["Mentor", "Event Team", "Moderator", "Senior Moderator"]
 
 
@@ -61,7 +60,6 @@ async def _get_roles(current_user: dict, session: AsyncSession) -> list[str]:
 
 def _extract_fields(raw: list | dict) -> list[dict]:
     fields: list[dict] = raw if isinstance(raw, list) else raw.get("fields", [])
-    # Legacy templates used "text" instead of "label" — normalise in place
     return [
         {**f, "label": f["text"]} if "label" not in f and "text" in f else f
         for f in fields
@@ -80,7 +78,6 @@ def _extract_is_open(raw: list | dict) -> bool:
         return False  # legacy list-only format — treat as closed
     if "is_open" in raw:
         return bool(raw["is_open"])
-    # Fallback: pre-is_open templates with visibility set were "open"
     return raw.get("visibility") is not None
 
 
@@ -134,7 +131,6 @@ async def _list_templates(
 
         is_open = _extract_is_open(raw)
 
-        # Non-staff: show open surveys (anyone can respond) + closed ones with prior submission
         if not is_staff:
             has_submission = row.template_id in submitted_set
             if not is_open and not has_submission:
@@ -216,7 +212,6 @@ async def get_template(
     )
     prior_sub = sub_result.scalar_one_or_none()
 
-    # Non-staff: must be open (anyone can view an open survey) OR have a prior submission
     if not is_staff:
         if not is_open and prior_sub is None:
             raise HTTPException(status_code=403, detail="Not authorized to view this template.")
@@ -264,17 +259,14 @@ async def get_template_responses(
     raw_visibility = None if isinstance(raw, list) else raw.get("visibility")
 
     if raw_visibility is None:
-        # No visibility set — Senior Moderator+ only
         if not _has_min_rank(roles, "Senior Moderator"):
             raise HTTPException(status_code=403, detail="Requires Senior Moderator or higher.")
     elif isinstance(raw_visibility, str):
-        # Legacy single min-rank string — preserve old hierarchy behaviour
         if not _has_min_rank(roles, raw_visibility):
             raise HTTPException(
                 status_code=403, detail=f"Requires {raw_visibility} or higher to view responses."
             )
     else:
-        # New explicit-roles list — Senior Mod+ always allowed, otherwise role must be listed
         allowed: set[str] = set(raw_visibility)
         if not (_has_min_rank(roles, "Senior Moderator") or any(r in allowed for r in roles)):
             raise HTTPException(
@@ -282,7 +274,6 @@ async def get_template_responses(
                 detail=f"Requires one of the following roles: {', '.join(sorted(allowed))}.",
             )
 
-    # Web submissions
     web_result = await session.execute(
         select(WebSurveySubmission, User)
         .join(User, User.discord_user_id == WebSurveySubmission.discord_user_id, isouter=True)
@@ -301,7 +292,6 @@ async def get_template_responses(
             "submitted_at": sub.submitted_at.isoformat() if sub.submitted_at else None,
         })
 
-    # Discord (ticket-based) submissions
     discord_result = await session.execute(
         select(SurveyResponse, Ticket, User)
         .join(Ticket, Ticket.ticket_id == SurveyResponse.ticket_id)
@@ -310,8 +300,6 @@ async def get_template_responses(
     )
     for resp, ticket, user in discord_result:
         raw_resp: dict = resp.responses or {}
-        # New format: full SurveyResponse model dump — answers are nested
-        # Legacy format: flat {field_id: value} dict
         if "ticket_id" in raw_resp:
             answers = raw_resp.get("answers") or {}
         else:
@@ -451,7 +439,6 @@ async def set_visibility(
                 status_code=422,
                 detail=f"Invalid roles: {invalid}. Must be from {_VISIBILITY_OPTIONS}.",
             )
-        # Treat empty list same as null (staff only)
         if len(body.visibility) == 0:
             body.visibility = None
 
@@ -477,8 +464,6 @@ async def set_visibility(
 
     return {"template_id": template_id, "visibility": body.visibility}
 
-
-# ── Template creation / editing ───────────────────────────────────────────────
 
 class TemplateFieldBody(BaseModel):
     id: str

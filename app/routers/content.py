@@ -66,7 +66,6 @@ def _validate_page_type(page_type: str) -> None:
         raise HTTPException(404, f"Unknown page type '{page_type}'.")
 
 
-# ── Public: read ──────────────────────────────────────────────────────────────
 
 @router.get("/{page_type}/categories")
 async def get_categories(
@@ -222,7 +221,6 @@ async def get_entry(
     }
 
 
-# ── Staff: categories ─────────────────────────────────────────────────────────
 
 class CreateCategoryBody(BaseModel):
     label: str
@@ -374,7 +372,6 @@ async def delete_category(
     return {"ok": True}
 
 
-# ── Staff: entries ────────────────────────────────────────────────────────────
 
 class CreateEntryBody(BaseModel):
     title: str
@@ -476,7 +473,6 @@ async def update_entry(
         if not title:
             raise HTTPException(422, "Title must not be empty.")
         entry.title = title
-        # Only auto-update slug from title if no explicit slug is being set
         if "slug" not in fields:
             entry.slug = _slugify(title)
 
@@ -495,14 +491,12 @@ async def update_entry(
     if "sort_order" in fields and body.sort_order is not None:
         entry.sort_order = body.sort_order
 
-    # Only update timestamp and track collaborator for content changes, not reordering
     content_fields = fields - {"sort_order", "expected_updated_at"}
     if content_fields:
         uid = int(current_user["sub"])
         now = datetime.now(timezone.utc)
         entry.updated_at = now
 
-        # Compute next version number
         max_ver_result = await session.execute(
             select(func.max(ContentEntryVersion.version_number))
             .where(ContentEntryVersion.entry_id == entry_id)
@@ -568,7 +562,6 @@ async def delete_entry(
     return {"ok": True}
 
 
-# ── Staff: version history ─────────────────────────────────────────────────────
 
 @router.get("/{page_type}/entries/{entry_id}/versions")
 async def list_entry_versions(
@@ -713,7 +706,6 @@ async def revert_entry_to_version(
     }
 
 
-# ── Staff: deprecated entries ─────────────────────────────────────────────────
 
 @router.get("/deprecated-entries")
 async def get_deprecated_entries(

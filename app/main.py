@@ -47,7 +47,6 @@ async def _discord_chat_subscriber(valkey_uri: str, session_factory) -> None:  #
                     )
                     try:
                         data = json.loads(raw["data"])
-                        # Support both guild_id (int) and guild_name (legacy str)
                         guild_id: int = int(
                             data.get("guild_id") or data.get("guild_name", 0)
                         )
@@ -151,7 +150,6 @@ async def _discord_chat_subscriber(valkey_uri: str, session_factory) -> None:  #
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # ── PostgreSQL ────────────────────────────────────────────────────────────
     if DATABASE_URL:
         logger.info("Connecting to PostgreSQL...")
         engine = create_engine(DATABASE_URL)

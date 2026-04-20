@@ -41,7 +41,7 @@ def split_message(text: str, max_len: int = 78) -> list[str]:
         return [text]
     chunks: list[str] = []
     remaining = text
-    content_max = max_len - 2  # reserve 2 chars for "->"
+    content_max = max_len - 2
     while len(remaining) > max_len:
         split_at = content_max
         if split_at < len(remaining) and remaining[split_at] not in (" ", "\t"):

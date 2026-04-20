@@ -19,9 +19,8 @@ router = APIRouter(prefix="/clan", tags=["clan"])
 
 _WOM_GROUP_ID = os.getenv("WOM_GROUP_ID", "9403")
 _WOM_CACHE_KEY = "clan:wom_stats"
-_WOM_TTL = 5 * 60  # 5 minutes
+_WOM_TTL = 5 * 60
 
-# Raid metric slugs on WOM (mirror OSRS hiscores activity names)
 _RAID_METRICS = [
     "chambers_of_xeric",
     "chambers_of_xeric_challenge_mode",
@@ -122,9 +121,9 @@ _KC_METRICS: dict[str, str] = {
 _KC_FRESH_KEY  = "clan:kc_fresh"
 _KC_STALE_KEY  = "clan:kc_stale"
 _KC_LOCK_KEY   = "clan:kc_lock"
-_KC_FRESH_TTL  = 15 * 60        # 15 minutes
-_KC_STALE_TTL  = 48 * 60 * 60  # 48 hours
-_KC_LOCK_TTL   = 300            # max time we expect the full refresh to take
+_KC_FRESH_TTL  = 15 * 60
+_KC_STALE_TTL  = 48 * 60 * 60
+_KC_LOCK_TTL   = 300
 
 _LEAGUES_FRESH_KEY = "clan:leagues_fresh"
 _LEAGUES_STALE_KEY = "clan:leagues_stale"
@@ -161,7 +160,6 @@ async def _fetch_kc_metric(
         if not resp.is_success:
             return None
 
-        # Throttle proactively before the next request
         remaining = int(resp.headers.get("X-RateLimit-Remaining", "100"))
         if remaining <= 5:
             reset_in = float(resp.headers.get("X-RateLimit-Reset", "2"))
@@ -173,7 +171,7 @@ async def _fetch_kc_metric(
             if (e.get("data", {}).get("kills") or 0) > 0
         ]
 
-    return None  # both attempts exhausted
+    return None
 
 
 async def _build_kc_cache(valkey: Valkey) -> None:
@@ -184,7 +182,7 @@ async def _build_kc_cache(valkey: Valkey) -> None:
     """
     acquired = await valkey.set(_KC_LOCK_KEY, "1", ex=_KC_LOCK_TTL, nx=True)
     if not acquired:
-        return  # another refresh is already running
+        return
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -262,9 +260,9 @@ async def _build_leagues_cache(valkey: Valkey) -> None:
         await valkey.delete(_LEAGUES_LOCK_KEY)
 
 
-_DROP_MIN_VALUE = 2_000_000      # 2M gp
-_XP_MIN_MILESTONE = 15_000_000   # 15M xp
-_XP_STEP = 5_000_000             # every 5M xp
+_DROP_MIN_VALUE = 2_000_000
+_XP_MIN_MILESTONE = 15_000_000
+_XP_STEP = 5_000_000
 
 
 @router.get("/wom-stats")
@@ -279,7 +277,6 @@ async def wom_stats(valkey: Valkey = Depends(get_valkey)) -> dict:
         return json.loads(cached)
 
     async with httpx.AsyncClient(timeout=30.0) as client:
-        # Fetch group summary and all raid hiscores concurrently
         group_coro = client.get(
             f"https://api.wiseoldman.net/v2/groups/{_WOM_GROUP_ID}",
             headers={"User-Agent": "IronFoundry/1.0"},
@@ -357,7 +354,6 @@ async def recent_achievements(
     """
     results: list[dict] = []
 
-    # Notable drops
     drop_result = await session.execute(
         select(Event)
         .where(
@@ -378,7 +374,6 @@ async def recent_achievements(
             "timestamp": row.timestamp.isoformat(),
         })
 
-    # 99s and Total Level milestones
     level_result = await session.execute(
         select(Event)
         .where(
@@ -400,7 +395,6 @@ async def recent_achievements(
             "timestamp": row.timestamp.isoformat(),
         })
 
-    # Also total level events
     total_level_result = await session.execute(
         select(Event)
         .where(
@@ -421,7 +415,6 @@ async def recent_achievements(
             "timestamp": row.timestamp.isoformat(),
         })
 
-    # XP milestones >= 15M (divisible by 5M)
     xp_result = await session.execute(
         select(Event)
         .where(
@@ -485,10 +478,8 @@ async def killcount_leaderboard(
     if fresh:
         return json.loads(fresh)
 
-    # Fresh miss — kick off a background refresh if none is running
     background_tasks.add_task(_build_kc_cache, valkey)
 
-    # Return stale data while the refresh runs; empty list on first ever load
     stale = await valkey.get(_KC_STALE_KEY)
     return json.loads(stale) if stale else []
 
@@ -521,7 +512,6 @@ async def collection_log_leaderboard(session: AsyncSession = Depends(get_session
     highest log_slots value ever seen is used (events are monotonically increasing).
     Players who have opted out of stats tracking are excluded.
     """
-    # Opt-out list — keyed by lower-case RSN
     opt_out_result = await session.execute(
         select(func.lower(User.rsn)).where(
             User.stats_opt_out.is_(True), User.rsn.is_not(None)
@@ -529,7 +519,6 @@ async def collection_log_leaderboard(session: AsyncSession = Depends(get_session
     )
     opt_out_rsns: set[str] = {row[0] for row in opt_out_result}
 
-    # Global slots_max — the single highest value seen across all clog events
     global_max_result = await session.execute(
         select(func.max(Event.data["log_slots_max"].as_integer())).where(
             Event.type == "collection_log",

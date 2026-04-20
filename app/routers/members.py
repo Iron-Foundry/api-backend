@@ -20,9 +20,6 @@ router = APIRouter(prefix="/members", tags=["members"])
 _RSN_RE = re.compile(r"^[A-Za-z0-9 _-]{1,12}$")
 
 
-# ── request bodies ─────────────────────────────────────────────────────────
-
-
 class PrivacyUpdate(BaseModel):
     stats_opt_out: bool | None = None
     hide_presence_notifications: bool | None = None
@@ -30,9 +27,6 @@ class PrivacyUpdate(BaseModel):
 
 class RsnUpdate(BaseModel):
     rsn: str
-
-
-# ── endpoints ──────────────────────────────────────────────────────────────
 
 
 @router.patch("/me/privacy")
@@ -76,7 +70,6 @@ async def update_rsn(
 
     discord_user_id = int(current_user["sub"])
 
-    # Check the RSN isn't already claimed by a different user.
     existing_result = await session.execute(
         select(User.discord_user_id).where(
             func.lower(User.rsn) == rsn.lower()
@@ -94,7 +87,6 @@ async def update_rsn(
     )
     logger.info("members/rsn: user {} linked RSN {!r}", discord_user_id, rsn)
 
-    # ── Backfill from events table ──────────────────────────────────────────
     user_result = await session.execute(
         select(User.clan_rank, User.total_loot_value, User.collection_log_slots)
         .where(User.discord_user_id == discord_user_id)
@@ -102,7 +94,6 @@ async def update_rsn(
     user_row = user_result.one_or_none()
     backfill: dict = {}
 
-    # clan_rank — from most recent event if not already set
     if not user_row or not user_row.clan_rank:
         rank_result = await session.execute(
             select(Event.data["rank"].as_string())
@@ -123,7 +114,6 @@ async def update_rsn(
                 discord_user_id,
             )
 
-    # total_loot_value — sum of loot/loot_key/clue_item coin_value from events
     if not user_row or user_row.total_loot_value == 0:
         loot_result = await session.execute(
             select(
@@ -139,7 +129,6 @@ async def update_rsn(
         if total_loot:
             backfill["total_loot_value"] = total_loot
 
-    # collection_log_slots — max slots from events
     if not user_row or user_row.collection_log_slots == 0:
         cl_result = await session.execute(
             select(
@@ -153,7 +142,6 @@ async def update_rsn(
         if cl_slots:
             backfill["collection_log_slots"] = cl_slots
 
-    # ticket_ids — sync from tickets table
     ticket_result = await session.execute(
         select(Ticket.ticket_id).where(Ticket.creator_id == discord_user_id)
     )
@@ -174,7 +162,6 @@ async def update_rsn(
             discord_user_id,
         )
 
-    # Stamp user_id on all events whose player_name matches this RSN
     event_result = await session.execute(
         update(Event)
         .where(func.lower(Event.player_name) == rsn.lower())
@@ -221,7 +208,6 @@ async def member_feed(
     )
     rows = events_result.scalars().all()
 
-    # Also fetch PK events where player is the loser
     pk_result = await session.execute(
         select(Event)
         .where(
@@ -357,9 +343,6 @@ async def member_ticket_transcript(
     raw = tr.entries
     entries = raw.get("entries", []) if isinstance(raw, dict) else (raw or [])
     return {"ticket_id": tr.ticket_id, "entries": entries}
-
-
-# ── API key management ──────────────────────────────────────────────────────
 
 
 @router.get("/me/api-key")

@@ -4,7 +4,7 @@ import json
 from valkey.asyncio import Valkey
 
 STREAM_KEY = "foundry:clan_events"
-_DEDUP_TTL = 60  # seconds
+_DEDUP_TTL = 60
 
 
 async def is_duplicate(
@@ -15,15 +15,13 @@ async def is_duplicate(
     key2 = f"foundry:dedup:client:{hashlib.sha256(f'{verification_code}:{sender}:{message}'.encode()).hexdigest()}"
     key1 = f"foundry:dedup:content:{fp}"
 
-    # Same client already sent this within TTL → duplicate
     if await valkey.set(key2, "1", nx=True, ex=_DEDUP_TTL) is None:
         return True
 
-    # Different client already processed this content within TTL → duplicate
     if await valkey.set(key1, "1", nx=True, ex=_DEDUP_TTL) is None:
         return True
 
-    return False  # First time seen
+    return False
 
 
 async def publish(valkey: Valkey, event_type: str, data: dict) -> None:

@@ -20,7 +20,6 @@ from app.services.parser import BroadcastType
 
 router = APIRouter(tags=["clan"])
 
-# Maps broadcast types that carry a single player_name to their parser.
 _PLAYER_NAME_PARSERS: dict[BroadcastType, Callable[[str], Any]] = {
     BroadcastType.LOOT: parser.parse_loot,
     BroadcastType.LEVEL_UP: parser.parse_level_up,
@@ -294,7 +293,6 @@ async def _handle_broadcast(
                 raw_message=payload.message,
                 data=data,
             )
-            # Update collection log slots on user (keep max)
             await session.execute(
                 update(User)
                 .where(
@@ -307,7 +305,6 @@ async def _handle_broadcast(
                     updated_at=now,
                 )
             )
-            # Increment total_clogs metric
             await session.execute(
                 pg_insert(Metric)
                 .values(id="total_clogs", count=1, last_updated=now)
@@ -424,7 +421,6 @@ async def _handle_broadcast(
                 raw_message=payload.message,
                 data=data,
             )
-            # Upsert leaderboard — keep fastest time
             lb_stmt = (
                 pg_insert(Leaderboard)
                 .values(
@@ -544,7 +540,6 @@ async def _handle_broadcast(
             )
 
     else:
-        # Store unknown broadcasts so no data is silently lost
         await _insert_event(
             session,
             type="unknown",
@@ -593,7 +588,6 @@ async def ingest_chat(
             }
             await publish(valkey, "chat", dispatch_data)
 
-    # Stamp user_id on any events inserted this transaction
     await session.execute(
         text(
             """

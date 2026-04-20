@@ -12,7 +12,6 @@ class ClientConnection:
 
 class ConnectionManager:
     def __init__(self) -> None:
-        # guild_id (int) -> {conn_id: ClientConnection}
         self._connections: dict[int, dict[UUID, ClientConnection]] = {}
 
     def connect(self, ws: WebSocket, guild_id: int, verification_code: str) -> UUID:

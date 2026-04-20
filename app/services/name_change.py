@@ -25,7 +25,6 @@ class WomNameChangeService:
         self._group_key = group_key
         self._clan_name = clan_name
         self._task: asyncio.Task | None = None
-        # In-memory cursor — survives only the process lifetime (acceptable)
         self._last_id: int = 0
 
     async def start(self) -> None:
@@ -87,7 +86,6 @@ class WomNameChangeService:
             old = change["oldName"]
             new = change["newName"]
 
-            # Check if any user has this RSN
             from sqlalchemy import func, select
 
             from app.db.models import User

@@ -25,7 +25,6 @@ _DISCORD_ROLE_ORDER = [
     "Senior Moderator", "Deputy Owner", "Co-owner",
 ]
 
-# Ticket types grouped by the minimum Discord role required to view them.
 _TICKET_TYPE_MIN_RANK: dict[str, str] = {
     "contact_mentor":   "Mentor",
     "general":          "Moderator",
@@ -72,8 +71,6 @@ async def _require_rank(
     if not _has_min_rank(roles, min_role):
         raise HTTPException(status_code=403, detail=f"Requires {min_role} or higher.")
 
-
-# ── Endpoints ──────────────────────────────────────────────────────────────
 
 
 @router.get("/overview")
@@ -175,14 +172,12 @@ async def update_member_rsn(
     if new_rsn == "":
         new_rsn = None
 
-    # validate format when setting a value
     if new_rsn and not _RSN_RE.match(new_rsn):
         raise HTTPException(
             status_code=422,
             detail="RSN must be 1–12 characters: letters, numbers, spaces, hyphens, underscores.",
         )
 
-    # fetch current state for this user
     user_result = await session.execute(
         select(
             User.discord_user_id,
@@ -199,7 +194,6 @@ async def update_member_rsn(
     old_rsn: str | None = user_row.rsn
     now = datetime.now(timezone.utc)
 
-    # ── Clearing the RSN ──────────────────────────────────────────────────
     if new_rsn is None:
         await session.execute(
             update(User)
@@ -207,7 +201,6 @@ async def update_member_rsn(
             .values(rsn=None, updated_at=now)
         )
         if old_rsn:
-            # unlink events that were linked via this RSN
             await session.execute(
                 update(Event)
                 .where(
@@ -220,8 +213,6 @@ async def update_member_rsn(
         logger.info("staff/rsn: cleared RSN for user {}", discord_user_id)
         return {"discord_user_id": str(discord_user_id), "rsn": None}
 
-    # ── Setting / changing the RSN ────────────────────────────────────────
-    # check uniqueness (case-insensitive, excluding self)
     conflict = await session.execute(
         select(User.discord_user_id).where(
             func.lower(User.rsn) == new_rsn.lower(),
@@ -231,7 +222,6 @@ async def update_member_rsn(
     if conflict.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="RSN already linked to another account.")
 
-    # if this is a rename, cascade old_rsn → new_rsn across all tables
     if old_rsn and old_rsn.lower() != new_rsn.lower():
         await session.execute(
             update(Event)
@@ -272,7 +262,6 @@ async def update_member_rsn(
             old_rsn, new_rsn, discord_user_id,
         )
 
-    # update the RSN on the user record
     await session.execute(
         update(User)
         .where(User.discord_user_id == discord_user_id)
@@ -280,7 +269,6 @@ async def update_member_rsn(
     )
     logger.info("staff/rsn: user {} set RSN {!r}", discord_user_id, new_rsn)
 
-    # ── Backfill (same as self-service endpoint) ──────────────────────────
     backfill: dict = {}
 
     if not user_row.clan_rank:
@@ -339,7 +327,6 @@ async def update_member_rsn(
             list(backfill.keys()), discord_user_id,
         )
 
-    # stamp user_id on all events matching the new RSN
     event_result = await session.execute(
         update(Event)
         .where(func.lower(Event.player_name) == new_rsn.lower())

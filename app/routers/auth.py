@@ -36,9 +36,6 @@ _DISCORD_API = "https://discord.com/api"
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-# ── helpers ────────────────────────────────────────────────────────────────
-
-
 def _issue_jwt(
     discord_user_id: str,
     username: str,
@@ -114,7 +111,6 @@ async def _fetch_discord_roles(discord_user_id: int) -> list[str]:
                 role_names,
             )
 
-            # Guild owner has no explicit role — inject Co-owner.
             guild_resp = await client.get(
                 f"{_DISCORD_API}/guilds/{GUILD_ID}", headers=bot_headers
             )
@@ -136,9 +132,6 @@ async def _fetch_discord_roles(discord_user_id: int) -> list[str]:
     except Exception as exc:
         logger.warning("discord_roles: unexpected error: {}", exc)
         return []
-
-
-# ── OAuth2 endpoints ───────────────────────────────────────────────────────
 
 
 @router.get("/login")
@@ -214,7 +207,6 @@ async def callback(
     discord_roles = await _fetch_discord_roles(discord_user_id)
     now = datetime.now(timezone.utc)
 
-    # Upsert user — create minimal row on first login, update identity + roles always.
     stmt = (
         pg_insert(User)
         .values(
@@ -236,7 +228,6 @@ async def callback(
     )
     await session.execute(stmt)
 
-    # Sync ticket_ids from the tickets table.
     ticket_result = await session.execute(
         select(Ticket.ticket_id).where(Ticket.creator_id == discord_user_id)
     )
@@ -262,9 +253,6 @@ async def callback(
     )
     logger.info("auth/callback: issued JWT for user {}", discord_user_id)
     return RedirectResponse(f"{FRONTEND_URL}/auth/callback?token={token}")
-
-
-# ── API-key login ──────────────────────────────────────────────────────────
 
 
 class ApiKeyRequest(BaseModel):
@@ -293,9 +281,6 @@ async def token(
     )
     logger.info("auth/token: issued JWT for user {}", user.discord_user_id)
     return {"token": issued}
-
-
-# ── Current-user endpoint ──────────────────────────────────────────────────
 
 
 @router.get("/me")

@@ -17,19 +17,16 @@ async def cascade_rsn_change(
     """
     now = datetime.now(timezone.utc)
 
-    # users table
     await session.execute(
         update(User).where(User.rsn == old_rsn).values(rsn=new_rsn, updated_at=now)
     )
 
-    # events table — player_name column
     await session.execute(
         update(Event)
         .where(func.lower(Event.player_name) == old_rsn.lower())
         .values(player_name=new_rsn)
     )
 
-    # events table — pk winner/loser inside data JSONB
     await session.execute(
         text(
             "UPDATE events SET data = jsonb_set(data, '{winner}', to_jsonb(:new::text))"
@@ -45,21 +42,18 @@ async def cascade_rsn_change(
         {"old": old_rsn, "new": new_rsn},
     )
 
-    # coffer_events
     await session.execute(
         update(CofferEvent)
         .where(func.lower(CofferEvent.player_name) == old_rsn.lower())
         .values(player_name=new_rsn)
     )
 
-    # membership_events
     await session.execute(
         update(MembershipEvent)
         .where(func.lower(MembershipEvent.player_name) == old_rsn.lower())
         .values(player_name=new_rsn)
     )
 
-    # leaderboards
     await session.execute(
         update(Leaderboard)
         .where(func.lower(Leaderboard.player_name) == old_rsn.lower())

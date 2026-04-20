@@ -136,133 +136,90 @@ class ParsedHcimDeath:
     player_name: str
 
 
-# ---------------------------------------------------------------------------
-# Patterns
-# ---------------------------------------------------------------------------
-
-# "PlayerX received a drop: Dragon claws (75,432,000 coins)."
-# "PlayerX received a drop: Dragon claws (75,432,000 coins) from Cerberus."
-# "PlayerX received a drop: 3 x Dragon dart (50 coins) from Vorkath."
-# Value and source are both optional per upstream spec.
 _LOOT_PATTERN = re.compile(
     r"^(?P<player>.+?) received a drop: (?:(?P<quantity>[\d,]+) x )?(?P<item>.+?)"
     r"(?: \((?P<value>[\d,]+) coins\))?(?: from (?P<source>.+?))?\.?$"
 )
 
-# "PlayerX received special loot from a raid: Twisted bow."
 _RAID_LOOT_PATTERN = re.compile(
     r"^(?P<player>.+?) received special loot from a raid: (?P<item>.+?)\.?$"
 )
 
-# "PlayerX has reached level 85 in Attack."
-# "PlayerX has reached the highest level in Slayer."
-# "PlayerX has reached the highest possible level in Slayer."
 _LEVEL_IN_PATTERN = re.compile(
     r"^(?P<player>.+?) has reached (?:level (?P<level>\d+)|the highest(?: possible)? level) in (?P<skill>.+?)\.?$"
 )
 
-# "PlayerX has reached Defence level 70."
-# "PlayerX has reached combat level 104."
-# "PlayerX has reached a total level of 2225."
-# "PlayerX has reached the highest possible combat level of 126!"
-# "PlayerX has reached the highest possible total level of 2277!"
 _LEVEL_OF_PATTERN = re.compile(
     r"^(?P<player>.+?) has reached (?:a )?(?:the highest possible )?(?P<skill>.+?) level(?: of)? (?P<level>\d+)[!.]"
 )
 
-# "PlayerX has reached 78,000,000 XP in Fishing."
 _XP_MILESTONE_PATTERN = re.compile(
     r"^(?P<player>.+?) has reached (?P<xp>[\d,]+) XP in (?P<skill>.+?)[!.]?$"
 )
 
-# "PlayerX has completed a quest: Dragon Slayer II"
 _QUEST_PATTERN = re.compile(
     r"^(?P<player>.+?) has completed a quest: (?P<name>.+?)\.?$"
 )
 
-# "PlayerX has completed the Ardougne Easy diary."
 _DIARY_PATTERN = re.compile(
     r"^(?P<player>.+?) has completed the (?P<name>.+? diary)\.?$"
 )
 
-# "PlayerX has completed the combat achievement: Ghommal's Hilt 6."
-# "PlayerX has completed a medium combat task: Shellbane Veteran."
 _COMBAT_ACH_PATTERN = re.compile(
     r"^(?P<player>.+?) has completed (?:the combat achievement|a (?:easy|medium|hard|elite|master|grandmaster) combat task): (?P<name>.+?)\.?$"
 )
 
-# "PlayerX has a funny feeling like they're being followed."
-# "PlayerX feels something weird sneaking into their backpack."
-# Also matches older his/her pronoun variants from upstream.
 _PET_PATTERNS = [
     re.compile(r"^(?P<player>.+?) has a funny feeling like they'?re being followed"),
     re.compile(r"^(?P<player>.+?) feels something weird sneaking into (?:their|his|her) backpack"),
 ]
 
-# "PlayerX has been invited into the clan by Inviter."
 _NEW_MEMBER_PATTERN = re.compile(
     r"^(?P<player>.+?) has been invited into the clan by (?P<inviter>.+?)\.?$"
 )
 
-# "PlayerX received a new collection log item: Twisted bow (1/585)"
 _COLLECTION_LOG_PATTERN = re.compile(
     r"^(?P<player>.+?) received a new collection log item: (?P<item>.+?) \((?P<slots>\d+)/(?P<max>\d+)\)"
 )
 
-# "PlayerX has opened a loot key worth 1,148,040 coins!"
 _LOOT_KEY_PATTERN = re.compile(
     r"^(?P<player>.+?) has opened a loot key worth (?P<value>[\d,]+) coins[!.]"
 )
 
-# "PlayerX received a clue item: Ranger boots (50,000 coins)."
 _CLUE_ITEM_PATTERN = re.compile(
     r"^(?P<player>.+?) received a clue item: (?P<item>.+?)(?: \((?P<value>[\d,]+) coins\))?\.?$"
 )
 
-# "PlayerX has defeated PlayerY and received (972,728 coins) worth of loot!"
 _PK_WINNER_PATTERN = re.compile(
     r"^(?P<winner>.+?) has defeated (?P<loser>.+?) and received \((?P<gp>[\d,]+) coins\) worth of loot[!.]"
 )
 
-# "PlayerX has been defeated by PlayerY in The Wilderness and lost (953,005 coins) worth of loot."
-# "PlayerX has been defeated by PlayerY in The Wilderness."
 _PK_LOSER_PATTERN = re.compile(
     r"^(?P<loser>.+?) has been defeated by (?P<winner>.+?)"
     r"(?:(?: in .+?)?(?: and lost \((?P<gp>[\d,]+) coins\) worth of loot)?)[!.]"
 )
 
-# "PlayerX has achieved a new Vorkath personal best: 2:28"
-# "PlayerX has achieved a new Chambers of Xeric (Team size: Solo) personal best: 25:14.40"
 _PERSONAL_BEST_PATTERN = re.compile(
     r"^(?P<player>.+?) has achieved a new (?P<activity>.+?) personal best: (?P<time>[\d:]+(?:\.\d{2})?)$"
 )
 
-# "PlayerX has left the clan."
 _LEFT_CLAN_PATTERN = re.compile(
     r"^(?P<player>.+?) has left the clan\.$"
 )
 
-# "ModX has expelled PlayerX from the clan."
 _EXPELLED_PATTERN = re.compile(
     r"^(?P<mod>.+?) has expelled (?P<player>.+?) from the clan\.$"
 )
 
-# "PlayerX has deposited 500,000 coins into the coffer."
-# "PlayerX has withdrawn 200,000 coins from the coffer."
 _COFFER_PATTERN = re.compile(
     r"^(?P<player>.+?) has (?P<action>deposited|withdrawn) (?P<gp>[\d,]+) coins (?:into|from) the coffer\."
 )
 
 
-# "PlayerX has died and lost their Hardcore Ironman status."
 _HCIM_DEATH_PATTERN = re.compile(
     r"^(?P<player>.+?) has died and lost their Hardcore Ironman status\.$"
 )
 
-
-# ---------------------------------------------------------------------------
-# Helper
-# ---------------------------------------------------------------------------
 
 def _parse_osrs_time(time_str: str) -> float:
     """Convert an OSRS time string (``MM:SS`` or ``H:MM:SS``, optional ``.ss``) to seconds."""
@@ -275,10 +232,6 @@ def _parse_osrs_time(time_str: str) -> float:
         return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2]) + sub_seconds
     return 0.0
 
-
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
 
 def classify(message: str) -> BroadcastType:
     """Return the broadcast type for a clan broadcast (sender == clan name)."""
