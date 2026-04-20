@@ -154,6 +154,25 @@ async def get_entry_by_slug(
         for c, u in collab_result
     ]
 
+    latest_version_result = await session.execute(
+        select(ContentEntryVersion, User)
+        .join(User, User.discord_user_id == ContentEntryVersion.edited_by, isouter=True)
+        .where(ContentEntryVersion.entry_id == entry.id)
+        .order_by(ContentEntryVersion.version_number.desc())
+        .limit(1)
+    )
+    latest_version_row = latest_version_result.one_or_none()
+    last_updated_by = None
+    if latest_version_row:
+        _, editor = latest_version_row
+        if editor:
+            last_updated_by = {
+                "discord_user_id": editor.discord_user_id,
+                "discord_username": editor.discord_username,
+                "rsn": editor.rsn,
+                "avatar": editor.discord_avatar_url,
+            }
+
     return {
         "id": str(entry.id),
         "title": entry.title,
@@ -168,6 +187,7 @@ async def get_entry_by_slug(
             "avatar": author.discord_avatar_url if author else None,
         } if author else None,
         "collaborators": collaborators,
+        "last_updated_by": last_updated_by,
     }
 
 
