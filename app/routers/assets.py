@@ -88,8 +88,8 @@ async def upload_asset(
 ) -> dict:
     uid = int(current_user["sub"])
     roles = await get_effective_roles(uid, session)
-    if not _has_min_rank(roles, "Mentor"):
-        raise HTTPException(403, "Mentor+ required to upload assets")
+    if not _has_min_rank(roles, "Foundry Mentors"):
+        raise HTTPException(403, "Foundry Mentors+ required to upload assets")
 
     if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(400, f"File type {file.content_type!r} not allowed. Allowed: {', '.join(sorted(ALLOWED_TYPES))}")

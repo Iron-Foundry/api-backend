@@ -75,7 +75,7 @@ async def get_rank_mappings(
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     """Return current clan-rank → Discord-role mappings. Requires Mentor or higher."""
-    await _require_rank("Mentor", current_user, session)
+    await _require_rank("Foundry Mentors", current_user, session)
     data = await _get_config_value(_RANK_MAPPINGS_KEY, session)
     return {"mappings": data.get("mappings", [])}
 
@@ -116,7 +116,7 @@ async def get_page_permissions(
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     """Return page permission config. Requires Mentor or higher."""
-    await _require_rank("Mentor", current_user, session)
+    await _require_rank("Foundry Mentors", current_user, session)
     data = await _get_config_value(_PAGE_PERMISSIONS_KEY, session)
     return {"pages": data.get("pages", {})}
 

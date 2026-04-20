@@ -35,8 +35,8 @@ def _slugify(label: str) -> str:
 async def _require_mentor(current_user: dict, session: AsyncSession) -> None:
     uid = int(current_user["sub"])
     roles = await get_effective_roles(uid, session)
-    if not _has_min_rank(roles, "Mentor"):
-        raise HTTPException(403, "Requires Mentor or higher.")
+    if not _has_min_rank(roles, "Foundry Mentors"):
+        raise HTTPException(403, "Requires Foundry Mentors or higher.")
 
 
 async def _slug_exists_in_page_type(

@@ -19,11 +19,11 @@ router = APIRouter(prefix="/surveys", tags=["surveys"])
 _DISCORD_ROLE_ORDER = [
     "Guest", "Achiever", "Sapphire", "Emerald", "Ruby",
     "Diamond", "Dragonstone", "Onyx", "Zenyte",
-    "Ex-Moderator", "Mentor", "Event Team", "Moderator",
+    "Ex-Moderator", "Foundry Mentors", "Event Team", "Moderator",
     "Senior Moderator", "Deputy Owner", "Co-owner",
 ]
 
-_VISIBILITY_OPTIONS = ["Mentor", "Event Team", "Moderator", "Senior Moderator"]
+_VISIBILITY_OPTIONS = ["Foundry Mentors", "Event Team", "Moderator", "Senior Moderator"]
 
 
 def _normalize_visibility(raw: str | list | None) -> list[str] | None:
@@ -84,7 +84,7 @@ def _extract_is_open(raw: list | dict) -> bool:
 async def _list_templates(
     category: str, roles: list[str], discord_user_id: int, session: AsyncSession
 ) -> list[dict]:
-    is_staff = _has_min_rank(roles, "Mentor")
+    is_staff = _has_min_rank(roles, "Foundry Mentors")
 
     active_result = await session.execute(select(SurveyActive))
     active_row = active_result.scalar_one_or_none()
@@ -183,7 +183,7 @@ async def get_template(
 ) -> dict:
     discord_user_id = int(current_user["sub"])
     roles = await _get_roles(current_user, session)
-    is_staff = _has_min_rank(roles, "Mentor")
+    is_staff = _has_min_rank(roles, "Foundry Mentors")
 
     result = await session.execute(
         select(SurveyTemplate).where(SurveyTemplate.template_id == template_id)

@@ -23,7 +23,7 @@ router = APIRouter(prefix="/badges", tags=["badges"])
 async def _require_mentor(current_user: dict, session: AsyncSession) -> None:
     uid = int(current_user["sub"])
     roles = await get_effective_roles(uid, session)
-    if not _has_min_rank(roles, "Mentor"):
+    if not _has_min_rank(roles, "Foundry Mentors"):
         raise HTTPException(403, "Requires Mentor or higher.")
 
 

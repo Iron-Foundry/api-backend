@@ -21,12 +21,12 @@ router = APIRouter(prefix="/staff", tags=["staff"])
 _DISCORD_ROLE_ORDER = [
     "Guest", "Achiever", "Sapphire", "Emerald", "Ruby",
     "Diamond", "Dragonstone", "Onyx", "Zenyte",
-    "Ex-Moderator", "Mentor", "Event Team", "Moderator",
+    "Ex-Moderator", "Foundry Mentors", "Event Team", "Moderator",
     "Senior Moderator", "Deputy Owner", "Co-owner",
 ]
 
 _TICKET_TYPE_MIN_RANK: dict[str, str] = {
-    "contact_mentor":   "Mentor",
+    "contact_mentor":   "Foundry Mentors",
     "general":          "Moderator",
     "rankup":           "Moderator",
     "join_cc":          "Moderator",
@@ -79,7 +79,7 @@ async def staff_overview(
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     """High-level clan stats. Requires Mentor or higher."""
-    await _require_rank("Mentor", current_user, session)
+    await _require_rank("Foundry Mentors", current_user, session)
 
     total_members = (await session.execute(select(func.count()).select_from(User))).scalar_one()
     open_tickets = (
@@ -351,7 +351,7 @@ async def staff_tickets(
 ) -> list[dict]:
     """Return tickets visible to the caller based on their rank."""
     roles = await _get_roles(current_user, session)
-    if not _has_min_rank(roles, "Mentor"):
+    if not _has_min_rank(roles, "Foundry Mentors"):
         raise HTTPException(status_code=403, detail="Requires Mentor or higher.")
     allowed = _allowed_ticket_types(roles)
     if not allowed:
@@ -398,7 +398,7 @@ async def staff_ticket_transcript(
 ) -> dict:
     """Return the full transcript for a ticket the caller is authorised to view."""
     roles = await _get_roles(current_user, session)
-    if not _has_min_rank(roles, "Mentor"):
+    if not _has_min_rank(roles, "Foundry Mentors"):
         raise HTTPException(status_code=403, detail="Requires Mentor or higher.")
     allowed = _allowed_ticket_types(roles)
 
