@@ -82,15 +82,16 @@ async def check_page_permission(
     matching for backwards compatibility with configs that still use role names.
     """
     bypass_roles = await get_admin_bypass_roles(session)
+
+    # Bypass roles override ALL actions — bypass users can never be locked out.
+    if bypass_roles and any(r in bypass_roles for r in roles):
+        return True
+
     pages = await _get_page_perms_config(session)
     config = pages.get(page_id, {})
     allowed: list[str] = config.get(action, [])
 
     if action == "read" and not allowed:
-        return True
-
-    # Bypass check (ID-based)
-    if action != "read" and any(r in bypass_roles for r in roles):
         return True
 
     if not allowed:
@@ -100,16 +101,12 @@ async def check_page_permission(
     if any(r in allowed for r in roles):
         return True
 
-    # Label-based fallback: resolve role IDs to labels and re-check
-    # Handles transition period where allowed list still has role names
+    # Label-based fallback: resolve role IDs to labels and re-check.
+    # Handles configs saved before role IDs were used as values.
     mappings = await _get_rank_mappings(session)
     role_labels = {m["discord_role_id"]: m.get("label", "") for m in mappings if "discord_role_id" in m}
     role_names = {role_labels.get(r, r) for r in roles}
     if role_names & set(allowed):
-        return True
-
-    # Also check label-based bypass (transition: bypass_roles may be empty)
-    if action != "read" and role_names & set(_DEFAULT_BYPASS_LABELS):
         return True
 
     return False
