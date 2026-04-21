@@ -10,22 +10,12 @@ from pydantic import BaseModel
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import SurveyActive, SurveyResponse, SurveyTemplate, Ticket, User, WebSurveySubmission
+from app.db.models import Config, SurveyActive, SurveyResponse, SurveyTemplate, Ticket, User, WebSurveySubmission
 from app.dependencies import get_current_user, get_session
-from app.services.page_permissions import check_page_permission
+from app.services.page_permissions import check_page_permission, get_admin_bypass_roles
 from app.services.rank_mappings import get_effective_roles
 
 router = APIRouter(prefix="/surveys", tags=["surveys"])
-
-_DISCORD_ROLE_ORDER = [
-    "Guest", "Achiever", "Sapphire", "Emerald", "Ruby",
-    "Diamond", "Dragonstone", "Onyx", "Zenyte",
-    "Ex-Moderator", "Foundry Mentors", "Event Team", "Moderator",
-    "Senior Moderator", "Deputy Owner", "Co-owner",
-]
-
-_VISIBILITY_OPTIONS = ["Foundry Mentors", "Event Team", "Moderator", "Senior Moderator"]
-
 
 def _normalize_visibility(raw: str | list | None) -> list[str] | None:
     """Normalize visibility to a list of allowed roles (or None = senior staff only).
@@ -41,17 +31,6 @@ def _normalize_visibility(raw: str | list | None) -> list[str] | None:
     if isinstance(raw, str):
         return [raw]
     return raw
-
-
-def _has_min_rank(discord_roles: list[str], min_role: str) -> bool:
-    try:
-        min_idx = _DISCORD_ROLE_ORDER.index(min_role)
-    except ValueError:
-        return False
-    for role in discord_roles:
-        if role in _DISCORD_ROLE_ORDER and _DISCORD_ROLE_ORDER.index(role) >= min_idx:
-            return True
-    return False
 
 
 async def _get_roles(current_user: dict, session: AsyncSession) -> list[str]:
@@ -259,22 +238,31 @@ async def get_template_responses(
     raw = row.questions or {}
     raw_visibility = None if isinstance(raw, list) else raw.get("visibility")
 
+    # Resolve role IDs to labels for visibility checks (handles both new ID-based
+    # and legacy name-based visibility values stored in survey templates).
+    bypass_roles = await get_admin_bypass_roles(session)
+    is_bypass = any(r in bypass_roles for r in roles)
+
+    if not is_bypass:
+        cfg_result = await session.execute(
+            select(Config.value).where(Config.guild_id == 0, Config.key == "clan_rank_mappings")
+        )
+        cfg = cfg_result.scalar_one_or_none() or {}
+        mappings: list[dict] = cfg.get("mappings", [])
+        id_to_label = {m["discord_role_id"]: m.get("label", "") for m in mappings if "discord_role_id" in m}
+        # Each role is either an ID (resolve to label) or already a label (legacy discord_roles)
+        role_labels = {id_to_label.get(r, r) for r in roles}
+
     if raw_visibility is None:
-        if not await check_page_permission("staff.surveys", "edit", roles, session):
+        if not (is_bypass or await check_page_permission("staff.surveys", "edit", roles, session)):
             raise HTTPException(status_code=403, detail="Requires Senior Moderator or higher.")
-    elif isinstance(raw_visibility, str):
-        # Legacy single-role visibility: check if caller holds that role or is bypass
-        if not (await check_page_permission("staff.surveys", "edit", roles, session) or raw_visibility in roles or _has_min_rank(roles, raw_visibility)):
-            raise HTTPException(
-                status_code=403, detail=f"Requires {raw_visibility} or higher to view responses."
-            )
     else:
-        allowed: set[str] = set(raw_visibility)
-        can_bypass = await check_page_permission("staff.surveys", "edit", roles, session)
-        if not (can_bypass or any(r in allowed for r in roles)):
+        # visibility is either a legacy name string or a list of IDs/names
+        allowed_set: set[str] = {raw_visibility} if isinstance(raw_visibility, str) else set(raw_visibility)
+        if not (is_bypass or any(r in allowed_set for r in roles) or (not is_bypass and role_labels & allowed_set)):
             raise HTTPException(
                 status_code=403,
-                detail=f"Requires one of the following roles: {', '.join(sorted(allowed))}.",
+                detail="You do not have permission to view responses for this survey.",
             )
 
     web_result = await session.execute(

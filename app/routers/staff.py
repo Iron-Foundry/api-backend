@@ -11,9 +11,9 @@ from pydantic import BaseModel
 from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import CofferEvent, Event, Leaderboard, MembershipEvent, Ticket, Transcript, User
+from app.db.models import Config, CofferEvent, Event, Leaderboard, MembershipEvent, Ticket, Transcript, User
 from app.dependencies import get_current_user, get_session
-from app.services.page_permissions import check_page_permission
+from app.services.page_permissions import check_page_permission, get_admin_bypass_roles
 from app.services.rank_mappings import get_effective_roles
 
 _RSN_RE = re.compile(r"^[A-Za-z0-9 _-]{1,12}$")
@@ -40,20 +40,21 @@ _TICKET_TYPE_MIN_RANK: dict[str, str] = {
 }
 
 
-def _has_min_rank(discord_roles: list[str], min_role: str) -> bool:
+def _has_min_rank_by_label(role_labels: list[str], min_role: str) -> bool:
+    """Check minimum rank using resolved label names."""
     try:
         min_idx = _DISCORD_ROLE_ORDER.index(min_role)
     except ValueError:
         return False
-    for role in discord_roles:
-        if role in _DISCORD_ROLE_ORDER and _DISCORD_ROLE_ORDER.index(role) >= min_idx:
+    for label in role_labels:
+        if label in _DISCORD_ROLE_ORDER and _DISCORD_ROLE_ORDER.index(label) >= min_idx:
             return True
     return False
 
 
-def _allowed_ticket_types(discord_roles: list[str]) -> list[str]:
-    """Return ticket type identifiers the caller is authorised to view."""
-    return [t for t, min_r in _TICKET_TYPE_MIN_RANK.items() if _has_min_rank(discord_roles, min_r)]
+def _allowed_ticket_types(role_labels: list[str]) -> list[str]:
+    """Return ticket type identifiers the caller is authorised to view (by resolved labels)."""
+    return [t for t, min_r in _TICKET_TYPE_MIN_RANK.items() if _has_min_rank_by_label(role_labels, min_r)]
 
 
 async def _get_roles(current_user: dict, session: AsyncSession) -> list[str]:
@@ -351,7 +352,21 @@ async def staff_tickets(
     roles = await _get_roles(current_user, session)
     if not await check_page_permission("staff.all-tickets", "read", roles, session):
         raise HTTPException(status_code=403, detail="Requires Mentor or higher.")
-    allowed = _allowed_ticket_types(roles)
+
+    # Bypass users see all ticket types; others are filtered by label-based rank check.
+    bypass_roles = await get_admin_bypass_roles(session)
+    if any(r in bypass_roles for r in roles):
+        allowed = list(_TICKET_TYPE_MIN_RANK.keys())
+    else:
+        cfg_result = await session.execute(
+            select(Config.value).where(Config.guild_id == 0, Config.key == "clan_rank_mappings")
+        )
+        cfg = cfg_result.scalar_one_or_none() or {}
+        mappings: list[dict] = cfg.get("mappings", [])
+        id_to_label = {m["discord_role_id"]: m.get("label", "") for m in mappings if "discord_role_id" in m}
+        role_labels = [id_to_label.get(r, r) for r in roles]
+        allowed = _allowed_ticket_types(role_labels)
+
     if not allowed:
         return []
 
@@ -398,7 +413,19 @@ async def staff_ticket_transcript(
     roles = await _get_roles(current_user, session)
     if not await check_page_permission("staff.all-tickets", "read", roles, session):
         raise HTTPException(status_code=403, detail="Requires Mentor or higher.")
-    allowed = _allowed_ticket_types(roles)
+
+    bypass_roles = await get_admin_bypass_roles(session)
+    if any(r in bypass_roles for r in roles):
+        allowed = list(_TICKET_TYPE_MIN_RANK.keys())
+    else:
+        cfg_result = await session.execute(
+            select(Config.value).where(Config.guild_id == 0, Config.key == "clan_rank_mappings")
+        )
+        cfg = cfg_result.scalar_one_or_none() or {}
+        mappings = cfg.get("mappings", [])
+        id_to_label = {m["discord_role_id"]: m.get("label", "") for m in mappings if "discord_role_id" in m}
+        role_labels = [id_to_label.get(r, r) for r in roles]
+        allowed = _allowed_ticket_types(role_labels)
 
     ticket_result = await session.execute(
         select(Ticket.ticket_type).where(

@@ -141,7 +141,7 @@ async def delete_asset(
 ) -> dict:
     uid = int(current_user["sub"])
     roles = await get_effective_roles(uid, session)
-    is_senior_mod = _has_min_rank(roles, "Senior Moderator")
+    is_senior_mod = await check_page_permission("resources", "delete", roles, session)
 
     asset = await session.get(Asset, asset_id)
     if not asset:
