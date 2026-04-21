@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Badge, User, UserBadge
 from app.dependencies import get_current_user, get_session
-from app.routers.surveys import _has_min_rank
+from app.services.page_permissions import check_page_permission
 from app.services.rank_mappings import get_effective_roles
 
 router = APIRouter(prefix="/badges", tags=["badges"])
@@ -23,14 +23,14 @@ router = APIRouter(prefix="/badges", tags=["badges"])
 async def _require_mentor(current_user: dict, session: AsyncSession) -> None:
     uid = int(current_user["sub"])
     roles = await get_effective_roles(uid, session)
-    if not _has_min_rank(roles, "Foundry Mentors"):
+    if not await check_page_permission("staff.badges", "create", roles, session):
         raise HTTPException(403, "Requires Mentor or higher.")
 
 
 async def _require_senior_mod(current_user: dict, session: AsyncSession) -> None:
     uid = int(current_user["sub"])
     roles = await get_effective_roles(uid, session)
-    if not _has_min_rank(roles, "Senior Moderator"):
+    if not await check_page_permission("staff.badges", "delete", roles, session):
         raise HTTPException(403, "Requires Senior Moderator or higher.")
 
 

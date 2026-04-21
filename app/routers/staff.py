@@ -13,6 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import CofferEvent, Event, Leaderboard, MembershipEvent, Ticket, Transcript, User
 from app.dependencies import get_current_user, get_session
+from app.services.page_permissions import check_page_permission
+from app.services.rank_mappings import get_effective_roles
 
 _RSN_RE = re.compile(r"^[A-Za-z0-9 _-]{1,12}$")
 
@@ -56,20 +58,16 @@ def _allowed_ticket_types(discord_roles: list[str]) -> list[str]:
 
 async def _get_roles(current_user: dict, session: AsyncSession) -> list[str]:
     discord_user_id = int(current_user["sub"])
-    result = await session.execute(
-        select(User.discord_roles).where(User.discord_user_id == discord_user_id)
-    )
-    roles = result.scalar_one_or_none()
-    return roles or []
+    return await get_effective_roles(discord_user_id, session)
 
 
 async def _require_rank(
-    min_role: str, current_user: dict, session: AsyncSession
+    page_id: str, action: str, current_user: dict, session: AsyncSession
 ) -> None:
-    """Raise HTTP 403 if the user doesn't hold at least min_role."""
+    """Raise HTTP 403 if the user lacks page permission."""
     roles = await _get_roles(current_user, session)
-    if not _has_min_rank(roles, min_role):
-        raise HTTPException(status_code=403, detail=f"Requires {min_role} or higher.")
+    if not await check_page_permission(page_id, action, roles, session):
+        raise HTTPException(status_code=403, detail="Permission denied.")
 
 
 
@@ -79,7 +77,7 @@ async def staff_overview(
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     """High-level clan stats. Requires Mentor or higher."""
-    await _require_rank("Foundry Mentors", current_user, session)
+    await _require_rank("staff.home", "read", current_user, session)
 
     total_members = (await session.execute(select(func.count()).select_from(User))).scalar_one()
     open_tickets = (
@@ -104,8 +102,8 @@ async def staff_members(
     session: AsyncSession = Depends(get_session),
     search: str | None = None,
 ) -> list[dict]:
-    """Return all member profiles. Requires Moderator or higher."""
-    await _require_rank("Moderator", current_user, session)
+    """Return all member profiles. Requires staff.members read permission."""
+    await _require_rank("staff.members", "read", current_user, session)
     stmt = select(
         User.discord_user_id,
         User.discord_username,
@@ -159,14 +157,14 @@ async def update_member_rsn(
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Set, change, or clear a member's RSN. Requires Moderator or higher.
+    """Set, change, or clear a member's RSN.
 
     Performs the same backfill and event-linking as the self-service
     PATCH /members/me/rsn endpoint. When the user already has an RSN the
     old name is cascaded across all player_name columns before the new one
     is applied.
     """
-    await _require_rank("Moderator", current_user, session)
+    await _require_rank("staff.members", "edit", current_user, session)
 
     new_rsn = body.rsn.strip() if body.rsn else None
     if new_rsn == "":
@@ -351,7 +349,7 @@ async def staff_tickets(
 ) -> list[dict]:
     """Return tickets visible to the caller based on their rank."""
     roles = await _get_roles(current_user, session)
-    if not _has_min_rank(roles, "Foundry Mentors"):
+    if not await check_page_permission("staff.all-tickets", "read", roles, session):
         raise HTTPException(status_code=403, detail="Requires Mentor or higher.")
     allowed = _allowed_ticket_types(roles)
     if not allowed:
@@ -398,7 +396,7 @@ async def staff_ticket_transcript(
 ) -> dict:
     """Return the full transcript for a ticket the caller is authorised to view."""
     roles = await _get_roles(current_user, session)
-    if not _has_min_rank(roles, "Foundry Mentors"):
+    if not await check_page_permission("staff.all-tickets", "read", roles, session):
         raise HTTPException(status_code=403, detail="Requires Mentor or higher.")
     allowed = _allowed_ticket_types(roles)
 

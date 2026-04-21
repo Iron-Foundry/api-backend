@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Asset, User
 from app.dependencies import get_current_user, get_session
-from app.routers.surveys import _has_min_rank
+from app.services.page_permissions import check_page_permission
 from app.services.rank_mappings import get_effective_roles
 
 router = APIRouter(prefix="/assets", tags=["assets"])
@@ -88,7 +88,7 @@ async def upload_asset(
 ) -> dict:
     uid = int(current_user["sub"])
     roles = await get_effective_roles(uid, session)
-    if not _has_min_rank(roles, "Foundry Mentors"):
+    if not await check_page_permission("resources", "create", roles, session):
         raise HTTPException(403, "Foundry Mentors+ required to upload assets")
 
     if file.content_type not in ALLOWED_TYPES:

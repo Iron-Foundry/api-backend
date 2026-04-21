@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import SurveyActive, SurveyResponse, SurveyTemplate, Ticket, User, WebSurveySubmission
 from app.dependencies import get_current_user, get_session
+from app.services.page_permissions import check_page_permission
 from app.services.rank_mappings import get_effective_roles
 
 router = APIRouter(prefix="/surveys", tags=["surveys"])
@@ -84,7 +85,7 @@ def _extract_is_open(raw: list | dict) -> bool:
 async def _list_templates(
     category: str, roles: list[str], discord_user_id: int, session: AsyncSession
 ) -> list[dict]:
-    is_staff = _has_min_rank(roles, "Foundry Mentors")
+    is_staff = await check_page_permission("staff.surveys", "read", roles, session)
 
     active_result = await session.execute(select(SurveyActive))
     active_row = active_result.scalar_one_or_none()
@@ -183,7 +184,7 @@ async def get_template(
 ) -> dict:
     discord_user_id = int(current_user["sub"])
     roles = await _get_roles(current_user, session)
-    is_staff = _has_min_rank(roles, "Foundry Mentors")
+    is_staff = await check_page_permission("staff.surveys", "read", roles, session)
 
     result = await session.execute(
         select(SurveyTemplate).where(SurveyTemplate.template_id == template_id)
@@ -259,16 +260,18 @@ async def get_template_responses(
     raw_visibility = None if isinstance(raw, list) else raw.get("visibility")
 
     if raw_visibility is None:
-        if not _has_min_rank(roles, "Senior Moderator"):
+        if not await check_page_permission("staff.surveys", "edit", roles, session):
             raise HTTPException(status_code=403, detail="Requires Senior Moderator or higher.")
     elif isinstance(raw_visibility, str):
-        if not _has_min_rank(roles, raw_visibility):
+        # Legacy single-role visibility: check if caller holds that role or is bypass
+        if not (await check_page_permission("staff.surveys", "edit", roles, session) or raw_visibility in roles or _has_min_rank(roles, raw_visibility)):
             raise HTTPException(
                 status_code=403, detail=f"Requires {raw_visibility} or higher to view responses."
             )
     else:
         allowed: set[str] = set(raw_visibility)
-        if not (_has_min_rank(roles, "Senior Moderator") or any(r in allowed for r in roles)):
+        can_bypass = await check_page_permission("staff.surveys", "edit", roles, session)
+        if not (can_bypass or any(r in allowed for r in roles)):
             raise HTTPException(
                 status_code=403,
                 detail=f"Requires one of the following roles: {', '.join(sorted(allowed))}.",
@@ -385,7 +388,7 @@ async def set_open(
 ) -> dict:
     """Publish or close a survey. Requires Senior Moderator or higher."""
     roles = await _get_roles(current_user, session)
-    if not _has_min_rank(roles, "Senior Moderator"):
+    if not await check_page_permission("staff.surveys", "edit", roles, session):
         raise HTTPException(
             status_code=403, detail="Requires Senior Moderator or higher."
         )
@@ -425,22 +428,15 @@ async def set_visibility(
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Set which minimum staff rank can read responses. Requires Senior Moderator or higher."""
+    """Set which roles can read responses. Requires Senior Moderator or higher."""
     roles = await _get_roles(current_user, session)
-    if not _has_min_rank(roles, "Senior Moderator"):
+    if not await check_page_permission("staff.surveys", "edit", roles, session):
         raise HTTPException(
             status_code=403, detail="Requires Senior Moderator or higher."
         )
 
-    if body.visibility is not None:
-        invalid = [v for v in body.visibility if v not in _VISIBILITY_OPTIONS]
-        if invalid:
-            raise HTTPException(
-                status_code=422,
-                detail=f"Invalid roles: {invalid}. Must be from {_VISIBILITY_OPTIONS}.",
-            )
-        if len(body.visibility) == 0:
-            body.visibility = None
+    if body.visibility is not None and len(body.visibility) == 0:
+        body.visibility = None
 
     result = await session.execute(
         select(SurveyTemplate).where(SurveyTemplate.template_id == template_id)
@@ -490,7 +486,7 @@ async def create_template(
 ) -> dict:
     """Create a new survey/application template. Requires Senior Moderator or higher."""
     roles = await _get_roles(current_user, session)
-    if not _has_min_rank(roles, "Senior Moderator"):
+    if not await check_page_permission("staff.surveys", "create", roles, session):
         raise HTTPException(
             status_code=403, detail="Requires Senior Moderator or higher."
         )
@@ -537,7 +533,7 @@ async def update_template(
 ) -> dict:
     """Update a template's title, category, description, and fields. Requires Senior Moderator or higher."""
     roles = await _get_roles(current_user, session)
-    if not _has_min_rank(roles, "Senior Moderator"):
+    if not await check_page_permission("staff.surveys", "edit", roles, session):
         raise HTTPException(
             status_code=403, detail="Requires Senior Moderator or higher."
         )

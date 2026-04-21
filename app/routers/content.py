@@ -14,9 +14,9 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import ContentCategory, ContentCollaborator, ContentEntry, ContentEntryVersion, User
-from app.dependencies import get_current_user, get_session
-from app.routers.surveys import _has_min_rank
+from app.db.models import ContentCategory, ContentCollaborator, ContentEntry, ContentEntryReaction, ContentEntryVersion, User
+from app.dependencies import get_current_user, get_optional_user, get_session
+from app.services.page_permissions import check_page_permission
 from app.services.rank_mappings import get_effective_roles
 
 router = APIRouter(prefix="/content", tags=["content"])
@@ -32,10 +32,11 @@ def _slugify(label: str) -> str:
     return s.strip("-") or "category"
 
 
-async def _require_mentor(current_user: dict, session: AsyncSession) -> None:
+async def _require_mentor(current_user: dict, session: AsyncSession, page_type: str = "resource") -> None:
     uid = int(current_user["sub"])
     roles = await get_effective_roles(uid, session)
-    if not _has_min_rank(roles, "Foundry Mentors"):
+    page_id = "resources" if page_type == "resource" else "plugins"
+    if not await check_page_permission(page_id, "create", roles, session):
         raise HTTPException(403, "Requires Foundry Mentors or higher.")
 
 
@@ -54,10 +55,11 @@ async def _slug_exists_in_page_type(
     return result.scalar_one_or_none() is not None
 
 
-async def _require_senior_mod(current_user: dict, session: AsyncSession) -> None:
+async def _require_senior_mod(current_user: dict, session: AsyncSession, page_type: str = "resource") -> None:
     uid = int(current_user["sub"])
     roles = await get_effective_roles(uid, session)
-    if not _has_min_rank(roles, "Senior Moderator"):
+    page_id = "resources" if page_type == "resource" else "plugins"
+    if not await check_page_permission(page_id, "delete", roles, session):
         raise HTTPException(403, "Requires Senior Moderator or higher.")
 
 
@@ -120,6 +122,7 @@ async def get_entry_by_slug(
     page_type: str,
     slug: str,
     session: AsyncSession = Depends(get_session),
+    current_user: dict | None = Depends(get_optional_user),
 ) -> dict:
     _validate_page_type(page_type)
 
@@ -173,6 +176,22 @@ async def get_entry_by_slug(
                 "avatar": editor.discord_avatar_url,
             }
 
+    # Reaction count + user_has_reacted
+    reaction_count_result = await session.execute(
+        select(func.count()).select_from(ContentEntryReaction).where(ContentEntryReaction.entry_id == entry.id)
+    )
+    reaction_count = reaction_count_result.scalar_one()
+    user_has_reacted = False
+    if current_user:
+        uid = int(current_user["sub"])
+        user_react_result = await session.execute(
+            select(ContentEntryReaction).where(
+                ContentEntryReaction.entry_id == entry.id,
+                ContentEntryReaction.discord_user_id == uid,
+            )
+        )
+        user_has_reacted = user_react_result.scalar_one_or_none() is not None
+
     return {
         "id": str(entry.id),
         "title": entry.title,
@@ -188,6 +207,8 @@ async def get_entry_by_slug(
         } if author else None,
         "collaborators": collaborators,
         "last_updated_by": last_updated_by,
+        "reaction_count": reaction_count,
+        "user_has_reacted": user_has_reacted,
     }
 
 
@@ -792,7 +813,7 @@ async def permanent_delete_entry(
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     _validate_page_type(page_type)
-    await _require_senior_mod(current_user, session)
+    await _require_senior_mod(current_user, session, page_type)
 
     entry = (await session.execute(
         select(ContentEntry).where(ContentEntry.id == entry_id)
@@ -803,3 +824,38 @@ async def permanent_delete_entry(
     await session.delete(entry)
     await session.commit()
     return {"ok": True}
+
+
+@router.post("/{page_type}/entries/{entry_id}/react")
+async def toggle_reaction(
+    page_type: str,
+    entry_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Toggle a heart reaction on a content entry. Returns updated reacted state and count."""
+    _validate_page_type(page_type)
+    uid = int(current_user["sub"])
+    now = datetime.now(timezone.utc)
+
+    existing = (await session.execute(
+        select(ContentEntryReaction).where(
+            ContentEntryReaction.entry_id == entry_id,
+            ContentEntryReaction.discord_user_id == uid,
+        )
+    )).scalar_one_or_none()
+
+    if existing:
+        await session.delete(existing)
+        reacted = False
+    else:
+        session.add(ContentEntryReaction(entry_id=entry_id, discord_user_id=uid, created_at=now))
+        reacted = True
+
+    await session.commit()
+
+    count_result = await session.execute(
+        select(func.count()).select_from(ContentEntryReaction).where(ContentEntryReaction.entry_id == entry_id)
+    )
+    count = count_result.scalar_one()
+    return {"reacted": reacted, "count": count}

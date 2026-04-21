@@ -1,5 +1,6 @@
 import os
 from collections.abc import AsyncGenerator
+from typing import Optional
 
 from fastapi import Depends, Header, HTTPException, Request
 from jose import JWTError, jwt
@@ -35,6 +36,17 @@ async def get_current_user(authorization: str = Header(...)) -> dict:
         return jwt.decode(token, JWT_SECRET, algorithms=[_ALGORITHM])
     except JWTError as exc:
         raise HTTPException(status_code=401, detail="Invalid token") from exc
+
+
+async def get_optional_user(authorization: Optional[str] = Header(default=None)) -> dict | None:
+    """Decode a Bearer JWT if present; return None if no token provided."""
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    token = authorization[len("Bearer "):]
+    try:
+        return jwt.decode(token, JWT_SECRET, algorithms=[_ALGORITHM])
+    except JWTError:
+        return None
 
 
 async def verify_clan(

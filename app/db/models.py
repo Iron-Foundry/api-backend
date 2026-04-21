@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, Text, ARRAY, TIMESTAMP
+from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, Text, ARRAY, TIMESTAMP, UniqueConstraint
 from sqlalchemy.dialects import postgresql as pg
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -64,6 +64,7 @@ class User(Base):
     temp_vc_member_limit: Mapped[int | None] = mapped_column(Integer)
     temp_vc_bitrate: Mapped[int | None] = mapped_column(Integer)
     join_date: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    roles_fetched_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
 
@@ -318,3 +319,15 @@ class RolePanel(Base):
     roles: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+
+
+class ContentEntryReaction(Base):
+    __tablename__ = "content_entry_reactions"
+    __table_args__ = (
+        UniqueConstraint("entry_id", "discord_user_id", name="uq_content_entry_reaction"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    entry_id: Mapped[UUID] = mapped_column(pg.UUID(as_uuid=True), ForeignKey("content_entries.id", ondelete="CASCADE"), nullable=False, index=True)
+    discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)

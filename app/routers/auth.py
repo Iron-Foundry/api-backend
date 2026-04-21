@@ -17,7 +17,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_session
-from app.db.models import Ticket, User
+from app.db.models import Config, Ticket, User
 from app.services.rank_mappings import get_effective_roles
 
 DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "")
@@ -32,6 +32,7 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").split(",")[0].
 
 _ALGORITHM = "HS256"
 _DISCORD_API = "https://discord.com/api"
+ROLES_REFRESH_TTL = timedelta(seconds=60)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -57,10 +58,10 @@ def _issue_jwt(
 
 
 async def _fetch_discord_roles(discord_user_id: int) -> list[str]:
-    """Return the member's Discord role names using the bot token.
+    """Return the member's Discord role IDs using the bot token.
 
-    Returns an empty list if DISCORD_BOT_TOKEN or GUILD_ID is not configured,
-    or if the Discord API call fails for any reason.
+    Stores stable snowflake IDs (not names) so that Discord role renames
+    do not break permission checks. Returns an empty list on any failure.
     """
     if not DISCORD_BOT_TOKEN:
         logger.warning("discord_roles: DISCORD_SERVER_TOKEN not set — skipping role fetch")
@@ -84,6 +85,7 @@ async def _fetch_discord_roles(discord_user_id: int) -> list[str]:
                     roles_resp.text,
                 )
                 return []
+            # id → name map (for logging and owner injection)
             role_map: dict[str, str] = {r["id"]: r["name"] for r in roles_resp.json()}
             logger.debug("discord_roles: guild has {} roles", len(role_map))
 
@@ -103,12 +105,13 @@ async def _fetch_discord_roles(discord_user_id: int) -> list[str]:
 
             member_data = member_resp.json()
             member_role_ids: list[str] = member_data.get("roles", [])
-            role_names = [role_map[rid] for rid in member_role_ids if rid in role_map]
+            # Store IDs (filtered to known guild roles)
+            role_ids = [rid for rid in member_role_ids if rid in role_map]
             logger.info(
-                "discord_roles: user {} has role IDs {} → names {}",
+                "discord_roles: user {} has role IDs {} (names: {})",
                 discord_user_id,
-                member_role_ids,
-                role_names,
+                role_ids,
+                [role_map[rid] for rid in role_ids],
             )
 
             guild_resp = await client.get(
@@ -122,13 +125,19 @@ async def _fetch_discord_roles(discord_user_id: int) -> list[str]:
                 )
             elif guild_resp.json().get("owner_id") == str(discord_user_id):
                 logger.info(
-                    "discord_roles: user {} is guild owner — injecting Co-owner",
+                    "discord_roles: user {} is guild owner — injecting Co-owner role ID",
                     discord_user_id,
                 )
-                if "Co-owner" not in role_names:
-                    role_names.append("Co-owner")
+                # Inject Co-owner role ID if it exists in the guild
+                co_owner_id = next(
+                    (rid for rid, name in role_map.items() if name == "Co-owner"), None
+                )
+                if co_owner_id and co_owner_id not in role_ids:
+                    role_ids.append(co_owner_id)
+                elif not co_owner_id and "__owner__" not in role_ids:
+                    role_ids.append("__owner__")
 
-            return role_names
+            return role_ids
     except Exception as exc:
         logger.warning("discord_roles: unexpected error: {}", exc)
         return []
@@ -213,6 +222,7 @@ async def callback(
             discord_user_id=discord_user_id,
             discord_username=me.get("username", ""),
             discord_roles=discord_roles,
+            roles_fetched_at=now,
             guild_id=int(GUILD_ID) if GUILD_ID else 0,
             created_at=now,
             updated_at=now,
@@ -222,6 +232,7 @@ async def callback(
             set_={
                 "discord_username": me.get("username", ""),
                 "discord_roles": discord_roles,
+                "roles_fetched_at": now,
                 "updated_at": now,
             },
         )
@@ -290,8 +301,8 @@ async def me(
 ) -> dict:
     """Return the authenticated user's profile, read fresh from the database.
 
-    Mutable fields (rsn, clan_rank, discord_roles, stats_opt_out) are always
-    fetched from PostgreSQL so changes are visible without re-login.
+    Discord roles are auto-refreshed if stale (60-second TTL) so members
+    do not need to log out to pick up Discord role changes.
     """
     discord_user_id = int(current_user["sub"])
     result = await session.execute(
@@ -301,11 +312,45 @@ async def me(
             User.discord_roles,
             User.stats_opt_out,
             User.hide_presence_notifications,
+            User.roles_fetched_at,
         ).where(User.discord_user_id == discord_user_id)
     )
     row = result.one_or_none()
-    discord_roles: list[str] = row.discord_roles if row else []
+    discord_roles: list[str] = (row.discord_roles if row else None) or []
+
+    # Auto-refresh roles if stale
+    stale = (
+        row is None
+        or row.roles_fetched_at is None
+        or datetime.now(timezone.utc) - row.roles_fetched_at > ROLES_REFRESH_TTL
+    )
+    if stale:
+        fresh_roles = await _fetch_discord_roles(discord_user_id)
+        now = datetime.now(timezone.utc)
+        await session.execute(
+            update(User)
+            .where(User.discord_user_id == discord_user_id)
+            .values(discord_roles=fresh_roles, roles_fetched_at=now)
+        )
+        await session.commit()
+        discord_roles = fresh_roles
+
     effective_roles = await get_effective_roles(discord_user_id, session)
+
+    # Build role_labels map from rank-mappings config
+    cfg_result = await session.execute(
+        select(Config.value).where(
+            Config.guild_id == 0, Config.key == "clan_rank_mappings"
+        )
+    )
+    cfg = cfg_result.scalar_one_or_none() or {}
+    mappings: list[dict] = cfg.get("mappings", [])
+    role_labels: dict[str, str] = {
+        m["discord_role_id"]: m.get("label", m["discord_role_id"])
+        for m in mappings
+        if "discord_role_id" in m
+    }
+
     return {
         "discord_user_id": current_user["sub"],
         "username": current_user.get("username"),
@@ -314,6 +359,7 @@ async def me(
         "clan_rank": row.clan_rank if row else None,
         "discord_roles": discord_roles,
         "effective_roles": effective_roles,
+        "role_labels": role_labels,
         "stats_opt_out": row.stats_opt_out if row else False,
         "hide_presence_notifications": row.hide_presence_notifications if row else False,
     }
