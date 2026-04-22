@@ -29,17 +29,17 @@ async def cascade_rsn_change(
 
     await session.execute(
         text(
-            "UPDATE events SET data = jsonb_set(data, '{winner}', to_jsonb(:new::text))"
-            " WHERE type = 'pk' AND lower(data->>'winner') = lower(:old)"
+            "UPDATE events SET data = jsonb_set(data, '{winner}', to_jsonb(CAST(:new_rsn AS text)))"
+            " WHERE type = 'pk' AND lower(data->>'winner') = lower(:old_rsn)"
         ),
-        {"old": old_rsn, "new": new_rsn},
+        {"old_rsn": old_rsn, "new_rsn": new_rsn},
     )
     await session.execute(
         text(
-            "UPDATE events SET data = jsonb_set(data, '{loser}', to_jsonb(:new::text))"
-            " WHERE type = 'pk' AND lower(data->>'loser') = lower(:old)"
+            "UPDATE events SET data = jsonb_set(data, '{loser}', to_jsonb(CAST(:new_rsn AS text)))"
+            " WHERE type = 'pk' AND lower(data->>'loser') = lower(:old_rsn)"
         ),
-        {"old": old_rsn, "new": new_rsn},
+        {"old_rsn": old_rsn, "new_rsn": new_rsn},
     )
 
     await session.execute(

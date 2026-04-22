@@ -116,6 +116,13 @@ _LEAGUES_LOCK_TTL  = 60
 _NAME_CHANGES_CACHE_KEY = "clan:name_changes"
 _NAME_CHANGES_TTL = 15 * 60
 
+_COMPS_FRESH_KEY = "clan:competitions_fresh"
+_COMPS_STALE_KEY = "clan:competitions_stale"
+_COMPS_LOCK_KEY  = "clan:competitions_lock"
+_COMPS_FRESH_TTL = 5 * 60
+_COMPS_STALE_TTL = 2 * 60 * 60
+_COMPS_LOCK_TTL  = 120
+
 
 async def _build_kc_cache(valkey: Valkey) -> None:
     """Sequential, rate-limit-aware population of the KC leaderboard cache."""
@@ -512,21 +519,42 @@ async def collection_log_leaderboard(session: AsyncSession = Depends(get_session
     ]
 
 
-@router.get("/competitions")
-async def list_competitions() -> list[dict]:
-    """Return all group competitions with derived status and WOM urls."""
-    wom = WiseOldManHandler(
-        api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT
-    )
+async def _build_competitions_cache(valkey: Valkey) -> None:
+    """Fetch all group competitions from WOM and write to Valkey cache."""
+    acquired = await valkey.set(_COMPS_LOCK_KEY, "1", ex=_COMPS_LOCK_TTL, nx=True)
+    if not acquired:
+        return
     try:
-        return await wom.get_all_group_competitions(_WOM_GROUP_ID)
-    except httpx.HTTPStatusError as exc:
-        if exc.response.status_code == 429:
-            raise HTTPException(
-                status_code=429,
-                detail="WiseOldMan rate limit reached — try again shortly.",
-            )
-        raise HTTPException(status_code=502, detail="Failed to fetch competitions.")
+        wom = WiseOldManHandler(api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT)
+        comps = await wom.get_all_group_competitions(_WOM_GROUP_ID)
+        if comps:
+            payload = json.dumps(comps)
+            await valkey.setex(_COMPS_FRESH_KEY, _COMPS_FRESH_TTL, payload)
+            await valkey.setex(_COMPS_STALE_KEY, _COMPS_STALE_TTL, payload)
+    except Exception:
+        pass
+    finally:
+        await valkey.delete(_COMPS_LOCK_KEY)
+
+
+@router.get("/competitions")
+async def list_competitions(
+    background_tasks: BackgroundTasks,
+    valkey: Valkey = Depends(get_valkey),
+) -> list[dict]:
+    """Return all group competitions with derived status and WOM urls.
+
+    Stale-while-revalidate: fresh for 5 min, stale fallback for 2 h while a
+    background refresh runs. Never blocks the response on a WOM round-trip.
+    """
+    fresh = await valkey.get(_COMPS_FRESH_KEY)
+    if fresh:
+        return json.loads(fresh)
+
+    background_tasks.add_task(_build_competitions_cache, valkey)
+
+    stale = await valkey.get(_COMPS_STALE_KEY)
+    return json.loads(stale) if stale else []
 
 
 @router.get("/competitions/{comp_id}")
