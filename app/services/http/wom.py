@@ -245,11 +245,23 @@ class WiseOldManHandler(BaseRequestHandler):
 
         return self._comp_cache[comp_id].data
 
-    async def get_all_group_competitions(self, group_id: str | int) -> list[dict]:
-        """Paginate and return all group competitions with derived status + urls."""
+    async def get_all_group_competitions(
+        self,
+        group_id: str | int,
+        *,
+        max_finished: int = 30,
+    ) -> list[dict]:
+        """Fetch recent group competitions with derived status + urls.
+
+        Paginates WOM in pages of 50 (WOM's actual page size) and stops once
+        ``max_finished`` finished competitions have been collected, so we never
+        fetch hundreds of historical pages for active groups.
+        """
         all_comps: list[dict] = []
-        limit = 20
+        limit = 50
         offset = 0
+        finished_seen = 0
+        now = datetime.now(timezone.utc)
         logger.info("wom: fetching group competitions (group={})", group_id)
         while True:
             logger.debug("wom: GET /groups/{}/competitions offset={}", group_id, offset)
@@ -260,10 +272,22 @@ class WiseOldManHandler(BaseRequestHandler):
                 logger.debug("wom: competitions page empty at offset={} — done", offset)
                 break
             all_comps.extend(page)
-            logger.debug("wom: got {} competitions (total so far: {})", len(page), len(all_comps))
+            for comp in page:
+                ends_at = _parse_dt(comp["endsAt"])
+                if now > ends_at:
+                    finished_seen += 1
+            logger.debug(
+                "wom: got {} competitions (total: {}, finished so far: {})",
+                len(page), len(all_comps), finished_seen,
+            )
             if len(page) < limit:
                 break
-            offset += limit
+            if finished_seen >= max_finished:
+                logger.debug(
+                    "wom: hit max_finished={} threshold — stopping pagination", max_finished
+                )
+                break
+            offset += len(page)
 
         logger.info("wom: fetched {} competitions total for group={}", len(all_comps), group_id)
 
