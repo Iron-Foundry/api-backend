@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
+from loguru import logger
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from valkey.asyncio import Valkey
@@ -113,8 +114,12 @@ _LEAGUES_FRESH_TTL = 15 * 60
 _LEAGUES_STALE_TTL = 48 * 60 * 60
 _LEAGUES_LOCK_TTL  = 60
 
-_NAME_CHANGES_CACHE_KEY = "clan:name_changes"
-_NAME_CHANGES_TTL = 15 * 60
+_NC_FRESH_KEY = "clan:name_changes_fresh"
+_NC_STALE_KEY = "clan:name_changes_stale"
+_NC_LOCK_KEY  = "clan:name_changes_lock"
+_NC_FRESH_TTL = 15 * 60
+_NC_STALE_TTL = 6 * 60 * 60
+_NC_LOCK_TTL  = 60
 
 _COMPS_FRESH_KEY = "clan:competitions_fresh"
 _COMPS_STALE_KEY = "clan:competitions_stale"
@@ -250,32 +255,53 @@ async def wom_stats(valkey: Valkey = Depends(get_valkey)) -> dict:
     return result
 
 
-@router.get("/name-changes")
-async def group_name_changes(valkey: Valkey = Depends(get_valkey)) -> list[dict]:
-    """Return recent approved WOM name changes for the clan group, cached 15 min."""
-    cached = await valkey.get(_NAME_CHANGES_CACHE_KEY)
-    if cached:
-        return json.loads(cached)
+async def _build_name_changes_cache(valkey: Valkey) -> None:
+    """Fetch approved WOM name changes and write to Valkey cache."""
+    acquired = await valkey.set(_NC_LOCK_KEY, "1", ex=_NC_LOCK_TTL, nx=True)
+    if not acquired:
+        logger.debug("name-changes cache: lock held, skipping")
+        return
 
-    wom = WiseOldManHandler(api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT)
+    logger.info("name-changes cache: hydrating from WOM (group={})", _WOM_GROUP_ID)
     try:
+        wom = WiseOldManHandler(api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT)
         changes = await wom.get_group_name_changes(_WOM_GROUP_ID, limit=50)
-    except httpx.HTTPStatusError as exc:
-        if exc.response.status_code == 429:
-            raise HTTPException(status_code=429, detail="WiseOldMan rate limit reached.")
-        raise HTTPException(status_code=502, detail="Failed to fetch name changes.")
+        result = [
+            {
+                "old_name": c["oldName"],
+                "new_name": c["newName"],
+                "resolved_at": c.get("resolvedAt"),
+            }
+            for c in changes
+            if c.get("status") == "approved"
+        ]
+        payload = json.dumps(result)
+        await valkey.setex(_NC_FRESH_KEY, _NC_FRESH_TTL, payload)
+        await valkey.setex(_NC_STALE_KEY, _NC_STALE_TTL, payload)
+        logger.info("name-changes cache: wrote {} approved changes", len(result))
+    except Exception as exc:
+        logger.error("name-changes cache: hydration failed — {}", exc)
+    finally:
+        await valkey.delete(_NC_LOCK_KEY)
 
-    result = [
-        {
-            "old_name": c["oldName"],
-            "new_name": c["newName"],
-            "resolved_at": c.get("resolvedAt"),
-        }
-        for c in changes
-        if c.get("status") == "approved"
-    ]
-    await valkey.setex(_NAME_CHANGES_CACHE_KEY, _NAME_CHANGES_TTL, json.dumps(result))
-    return result
+
+@router.get("/name-changes")
+async def group_name_changes(
+    background_tasks: BackgroundTasks,
+    valkey: Valkey = Depends(get_valkey),
+) -> list[dict]:
+    """Return recent approved WOM name changes for the clan group.
+
+    Stale-while-revalidate: fresh for 15 min, stale fallback for 6 h.
+    """
+    fresh = await valkey.get(_NC_FRESH_KEY)
+    if fresh:
+        return json.loads(fresh)
+
+    background_tasks.add_task(_build_name_changes_cache, valkey)
+
+    stale = await valkey.get(_NC_STALE_KEY)
+    return json.loads(stale) if stale else []
 
 
 @router.get("/stats")
@@ -523,7 +549,10 @@ async def _build_competitions_cache(valkey: Valkey) -> None:
     """Fetch all group competitions from WOM and write to Valkey cache."""
     acquired = await valkey.set(_COMPS_LOCK_KEY, "1", ex=_COMPS_LOCK_TTL, nx=True)
     if not acquired:
+        logger.debug("competitions cache: lock held by another worker, skipping")
         return
+
+    logger.info("competitions cache: hydrating from WOM (group={})", _WOM_GROUP_ID)
     try:
         wom = WiseOldManHandler(api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT)
         comps = await wom.get_all_group_competitions(_WOM_GROUP_ID)
@@ -531,8 +560,18 @@ async def _build_competitions_cache(valkey: Valkey) -> None:
             payload = json.dumps(comps)
             await valkey.setex(_COMPS_FRESH_KEY, _COMPS_FRESH_TTL, payload)
             await valkey.setex(_COMPS_STALE_KEY, _COMPS_STALE_TTL, payload)
-    except Exception:
-        pass
+            statuses = {c["status"]: 0 for c in comps}
+            for c in comps:
+                statuses[c["status"]] += 1
+            logger.info(
+                "competitions cache: wrote {} competitions ({})",
+                len(comps),
+                ", ".join(f"{v} {k}" for k, v in statuses.items()),
+            )
+        else:
+            logger.warning("competitions cache: WOM returned empty list — cache not updated")
+    except Exception as exc:
+        logger.error("competitions cache: hydration failed — {}", exc)
     finally:
         await valkey.delete(_COMPS_LOCK_KEY)
 
@@ -549,12 +588,19 @@ async def list_competitions(
     """
     fresh = await valkey.get(_COMPS_FRESH_KEY)
     if fresh:
+        logger.debug("competitions: serving from fresh cache")
         return json.loads(fresh)
 
+    logger.info("competitions: fresh cache miss — scheduling background hydration")
     background_tasks.add_task(_build_competitions_cache, valkey)
 
     stale = await valkey.get(_COMPS_STALE_KEY)
-    return json.loads(stale) if stale else []
+    if stale:
+        logger.info("competitions: serving stale cache while refresh runs")
+        return json.loads(stale)
+
+    logger.warning("competitions: no cache at all — returning empty list")
+    return []
 
 
 @router.get("/competitions/{comp_id}")

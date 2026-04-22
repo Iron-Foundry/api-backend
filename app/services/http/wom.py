@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import ClassVar
 
 import httpx
+from loguru import logger
 
 from app.services.http.base import BaseRequestHandler
 
@@ -95,9 +96,6 @@ class WiseOldManHandler(BaseRequestHandler):
             return resp
         return resp  # type: ignore[return-value]
 
-    # ------------------------------------------------------------------
-    # Core WOM endpoints
-    # ------------------------------------------------------------------
 
     async def get_group(self, group_id: str | int) -> dict:
         resp = await self.get(f"/groups/{group_id}")
@@ -141,6 +139,10 @@ class WiseOldManHandler(BaseRequestHandler):
             params={"limit": limit, "offset": offset},
         )
         if not resp.is_success:
+            logger.warning(
+                "wom: GET /groups/{}/competitions offset={} returned HTTP {}",
+                group_id, offset, resp.status_code,
+            )
             return []
         return resp.json()
 
@@ -152,9 +154,6 @@ class WiseOldManHandler(BaseRequestHandler):
         resp.raise_for_status()
         return resp.json()
 
-    # ------------------------------------------------------------------
-    # Derived helpers (extracted from clan.py)
-    # ------------------------------------------------------------------
 
     async def fetch_metric_total(self, group_id: str | int, metric: str) -> int:
         """Sum kills across all group members for a single WOM metric."""
@@ -251,16 +250,22 @@ class WiseOldManHandler(BaseRequestHandler):
         all_comps: list[dict] = []
         limit = 20
         offset = 0
+        logger.info("wom: fetching group competitions (group={})", group_id)
         while True:
+            logger.debug("wom: GET /groups/{}/competitions offset={}", group_id, offset)
             page = await self.get_group_competitions(
                 group_id, limit=limit, offset=offset
             )
             if not page:
+                logger.debug("wom: competitions page empty at offset={} — done", offset)
                 break
             all_comps.extend(page)
+            logger.debug("wom: got {} competitions (total so far: {})", len(page), len(all_comps))
             if len(page) < limit:
                 break
             offset += limit
+
+        logger.info("wom: fetched {} competitions total for group={}", len(all_comps), group_id)
 
         now = datetime.now(timezone.utc)
         result: list[dict] = []
