@@ -256,12 +256,7 @@ async def wom_stats(valkey: Valkey = Depends(get_valkey)) -> dict:
 
 
 async def _build_name_changes_cache(valkey: Valkey) -> None:
-    """Fetch approved WOM name changes and write to Valkey cache."""
-    acquired = await valkey.set(_NC_LOCK_KEY, "1", ex=_NC_LOCK_TTL, nx=True)
-    if not acquired:
-        logger.debug("name-changes cache: lock held, skipping")
-        return
-
+    """Hydrate name-changes cache. Lock is already held by the scheduling request."""
     logger.info("name-changes cache: hydrating from WOM (group={})", _WOM_GROUP_ID)
     try:
         wom = WiseOldManHandler(api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT)
@@ -290,15 +285,18 @@ async def group_name_changes(
     background_tasks: BackgroundTasks,
     valkey: Valkey = Depends(get_valkey),
 ) -> list[dict]:
-    """Return recent approved WOM name changes for the clan group.
-
-    Stale-while-revalidate: fresh for 15 min, stale fallback for 6 h.
-    """
+    """Return recent approved WOM name changes. Stale-while-revalidate, 15 min fresh / 6 h stale."""
     fresh = await valkey.get(_NC_FRESH_KEY)
     if fresh:
         return json.loads(fresh)
 
-    background_tasks.add_task(_build_name_changes_cache, valkey)
+    # Acquire lock here so only one request ever schedules the background task.
+    # All other cache-miss requests see the lock, skip scheduling, and return stale.
+    if await valkey.set(_NC_LOCK_KEY, "1", ex=_NC_LOCK_TTL, nx=True):
+        logger.info("name-changes: cache miss — scheduling hydration")
+        background_tasks.add_task(_build_name_changes_cache, valkey)
+    else:
+        logger.debug("name-changes: cache miss, hydration already scheduled")
 
     stale = await valkey.get(_NC_STALE_KEY)
     return json.loads(stale) if stale else []
@@ -546,12 +544,7 @@ async def collection_log_leaderboard(session: AsyncSession = Depends(get_session
 
 
 async def _build_competitions_cache(valkey: Valkey) -> None:
-    """Fetch all group competitions from WOM and write to Valkey cache."""
-    acquired = await valkey.set(_COMPS_LOCK_KEY, "1", ex=_COMPS_LOCK_TTL, nx=True)
-    if not acquired:
-        logger.debug("competitions cache: lock held by another worker, skipping")
-        return
-
+    """Fetch all group competitions from WOM and write to Valkey cache. Lock already held by caller."""
     logger.info("competitions cache: hydrating from WOM (group={})", _WOM_GROUP_ID)
     try:
         wom = WiseOldManHandler(api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT)
@@ -560,9 +553,9 @@ async def _build_competitions_cache(valkey: Valkey) -> None:
             payload = json.dumps(comps)
             await valkey.setex(_COMPS_FRESH_KEY, _COMPS_FRESH_TTL, payload)
             await valkey.setex(_COMPS_STALE_KEY, _COMPS_STALE_TTL, payload)
-            statuses = {c["status"]: 0 for c in comps}
+            statuses: dict[str, int] = {}
             for c in comps:
-                statuses[c["status"]] += 1
+                statuses[c["status"]] = statuses.get(c["status"], 0) + 1
             logger.info(
                 "competitions cache: wrote {} competitions ({})",
                 len(comps),
@@ -591,8 +584,12 @@ async def list_competitions(
         logger.debug("competitions: serving from fresh cache")
         return json.loads(fresh)
 
-    logger.info("competitions: fresh cache miss — scheduling background hydration")
-    background_tasks.add_task(_build_competitions_cache, valkey)
+    # Acquire lock here — only one request ever schedules hydration.
+    if await valkey.set(_COMPS_LOCK_KEY, "1", ex=_COMPS_LOCK_TTL, nx=True):
+        logger.info("competitions: cache miss — scheduling hydration")
+        background_tasks.add_task(_build_competitions_cache, valkey)
+    else:
+        logger.debug("competitions: cache miss, hydration already scheduled")
 
     stale = await valkey.get(_COMPS_STALE_KEY)
     if stale:
@@ -604,13 +601,27 @@ async def list_competitions(
 
 
 @router.get("/competitions/{comp_id}")
-async def competition_details(comp_id: int) -> dict:
+async def competition_details(
+    comp_id: int,
+    valkey: Valkey = Depends(get_valkey),
+) -> dict:
     """Return full competition details with participant progress, served from cache."""
+    # Look up metric from the list cache so WOM only returns progress for that metric.
+    metric: str | None = None
+    for cache_key in (_COMPS_FRESH_KEY, _COMPS_STALE_KEY):
+        raw = await valkey.get(cache_key)
+        if raw:
+            comps: list[dict] = json.loads(raw)
+            match = next((c for c in comps if c.get("id") == comp_id), None)
+            if match:
+                metric = match.get("metric") or None
+            break
+
     wom = WiseOldManHandler(
         api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT
     )
     try:
-        data = await wom.get_cached_competition(comp_id)
+        data = await wom.get_cached_competition(comp_id, metric=metric)
     except httpx.HTTPStatusError as exc:
         if exc.response.status_code == 404:
             raise HTTPException(status_code=404, detail="Competition not found.")
