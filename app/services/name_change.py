@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-import re
 
-import httpx
 from loguru import logger
 
+from app.services.http import WiseOldManHandler
 from app.services.rsn_cascade import cascade_rsn_change
 
-WOM_BASE = "https://api.wiseoldman.net/v2"
 POLL_INTERVAL = 1800  # 30 minutes
 
 
@@ -19,11 +17,13 @@ class WomNameChangeService:
         group_id: int,
         group_key: str | None,
         clan_name: str,
+        api_key: str | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._group_id = group_id
         self._group_key = group_key
         self._clan_name = clan_name
+        self._api_key = api_key
         self._task: asyncio.Task | None = None
         self._last_id: int = 0
 
@@ -53,19 +53,8 @@ class WomNameChangeService:
             logger.warning("WomNameChangeService: no session_factory — skipping")
             return
 
-        headers: dict[str, str] = {}
-        if self._group_key:
-            headers["x-wom-group-token"] = self._group_key
-
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                f"{WOM_BASE}/groups/{self._group_id}/name-changes",
-                params={"limit": 50},
-                headers=headers,
-                timeout=30,
-            )
-            resp.raise_for_status()
-            changes: list[dict] = resp.json()
+        wom = WiseOldManHandler(group_key=self._group_key, api_key=self._api_key)
+        changes: list[dict] = await wom.get_group_name_changes(self._group_id)
 
         approved = [
             c

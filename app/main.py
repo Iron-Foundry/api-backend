@@ -19,6 +19,7 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 VALKEY_URI = os.getenv("VALKEY_URI", "redis://localhost:6379")
 WOM_GROUP_ID = os.getenv("WOM_GROUP_ID")
 WOM_GROUP_KEY = os.getenv("WOM_GROUP_KEY")
+WOM_API_KEY = os.getenv("WOM_API_KEY")
 WOM_CLAN_NAME = os.getenv("WOM_CLAN_NAME", "Iron Foundry")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 _ALLOWED_ORIGINS = [o.strip() for o in FRONTEND_URL.split(",") if o.strip()]
@@ -168,7 +169,8 @@ async def lifespan(app: FastAPI):
     )
     if WOM_GROUP_ID:
         wom_service: WomNameChangeService | None = WomNameChangeService(
-            app.state.session_factory, int(WOM_GROUP_ID), WOM_GROUP_KEY, WOM_CLAN_NAME
+            app.state.session_factory, int(WOM_GROUP_ID), WOM_GROUP_KEY, WOM_CLAN_NAME,
+            api_key=WOM_API_KEY,
         )
         await wom_service.start()
     else:

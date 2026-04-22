@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from datetime import datetime, timezone
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
@@ -14,10 +15,13 @@ from valkey.asyncio import Valkey
 
 from app.db.models import Event, Leaderboard, Metric, User
 from app.dependencies import get_current_user, get_session, get_valkey
+from app.services.http import WiseOldManHandler
 
 router = APIRouter(prefix="/clan", tags=["clan"])
 
 _WOM_GROUP_ID = os.getenv("WOM_GROUP_ID", "9403")
+_WOM_API_KEY = os.getenv("WOM_API_KEY")
+_WOM_DISCORD_CONTACT = os.getenv("WOM_DISCORD_CONTACT")
 _WOM_CACHE_KEY = "clan:wom_stats"
 _WOM_TTL = 5 * 60
 
@@ -30,29 +34,6 @@ _RAID_METRICS = [
     "tombs_of_amascut_expert_mode",
 ]
 
-
-async def _fetch_metric_total(client: httpx.AsyncClient, group_id: str, metric: str) -> int:
-    """Sum `data.kills` across all group members for a single WOM metric."""
-    total = 0
-    limit = 50
-    offset = 0
-    while True:
-        resp = await client.get(
-            f"https://api.wiseoldman.net/v2/groups/{group_id}/hiscores",
-            params={"metric": metric, "limit": limit, "offset": offset},
-            headers={"User-Agent": "IronFoundry/1.0"},
-        )
-        if not resp.is_success:
-            break
-        page: list[dict] = resp.json()
-        if not page:
-            break
-        for entry in page:
-            total += entry.get("data", {}).get("kills", 0) or 0
-        if len(page) < limit:
-            break
-        offset += limit
-    return total
 
 _KC_METRICS: dict[str, str] = {
     "abyssal_sire":                     "Abyssal Sire",
@@ -132,63 +113,25 @@ _LEAGUES_FRESH_TTL = 15 * 60
 _LEAGUES_STALE_TTL = 48 * 60 * 60
 _LEAGUES_LOCK_TTL  = 60
 
-
-async def _fetch_kc_metric(
-    client: httpx.AsyncClient, group_id: str, metric: str, top_n: int = 10
-) -> list[dict] | None:
-    """Fetch top `top_n` players for one WOM metric, retrying once on 429.
-
-    Returns None if the metric is unavailable or a non-retryable error occurs.
-    After a successful response the caller should check rate-limit headers and
-    sleep if the remaining quota is low.
-    """
-    for attempt in range(2):
-        try:
-            resp = await client.get(
-                f"https://api.wiseoldman.net/v2/groups/{group_id}/hiscores",
-                params={"metric": metric, "limit": top_n, "offset": 0},
-                headers={"User-Agent": "IronFoundry/1.0"},
-            )
-        except Exception:
-            return None
-
-        if resp.status_code == 429:
-            retry_after = float(resp.headers.get("Retry-After", "10"))
-            await asyncio.sleep(retry_after)
-            continue
-
-        if not resp.is_success:
-            return None
-
-        remaining = int(resp.headers.get("X-RateLimit-Remaining", "100"))
-        if remaining <= 5:
-            reset_in = float(resp.headers.get("X-RateLimit-Reset", "2"))
-            await asyncio.sleep(max(reset_in, 0.5))
-
-        return [
-            {"player_name": e["player"]["displayName"], "kills": e["data"]["kills"]}
-            for e in resp.json()
-            if (e.get("data", {}).get("kills") or 0) > 0
-        ]
-
-    return None
+_NAME_CHANGES_CACHE_KEY = "clan:name_changes"
+_NAME_CHANGES_TTL = 15 * 60
 
 
 async def _build_kc_cache(valkey: Valkey) -> None:
-    """Sequential, rate-limit-aware population of the KC leaderboard cache.
-
-    Uses a Valkey lock so only one refresh runs at a time.
-    On success both fresh (15 min) and stale (48 h) keys are updated.
-    """
+    """Sequential, rate-limit-aware population of the KC leaderboard cache."""
     acquired = await valkey.set(_KC_LOCK_KEY, "1", ex=_KC_LOCK_TTL, nx=True)
     if not acquired:
         return
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with WiseOldManHandler(
+            api_key=_WOM_API_KEY,
+            discord_contact=_WOM_DISCORD_CONTACT,
+            timeout=15.0,
+        ) as wom:
             out: list[dict] = []
             for metric, display_name in _KC_METRICS.items():
-                entries = await _fetch_kc_metric(client, _WOM_GROUP_ID, metric)
+                entries = await wom.fetch_kc_metric(_WOM_GROUP_ID, metric)
                 if entries:
                     out.append({
                         "metric": metric,
@@ -214,28 +157,17 @@ async def _build_leagues_cache(valkey: Valkey) -> None:
         entries: list[dict] = []
         limit = 50
         offset = 0
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with WiseOldManHandler(
+            api_key=_WOM_API_KEY,
+            discord_contact=_WOM_DISCORD_CONTACT,
+            timeout=15.0,
+        ) as wom:
             while True:
-                try:
-                    resp = await client.get(
-                        f"https://api.wiseoldman.net/v2/groups/{_WOM_GROUP_ID}/hiscores",
-                        params={"metric": "clue_scrolls_all", "limit": limit, "offset": offset},
-                        headers={"User-Agent": "IronFoundry/1.0"},
-                    )
-                except Exception:
-                    break
-
-                if resp.status_code == 429:
-                    await asyncio.sleep(float(resp.headers.get("Retry-After", "10")))
-                    continue
-
-                if not resp.is_success:
-                    break
-
-                page: list[dict] = resp.json()
+                page = await wom.get_group_hiscores(
+                    _WOM_GROUP_ID, "clue_scrolls_all", limit=limit, offset=offset
+                )
                 if not page:
                     break
-
                 for e in page:
                     score = (e.get("data") or {}).get("score") or 0
                     if score > 0:
@@ -243,11 +175,6 @@ async def _build_leagues_cache(valkey: Valkey) -> None:
                             "player_name": e["player"]["displayName"],
                             "score": score,
                         })
-
-                remaining = int(resp.headers.get("X-RateLimit-Remaining", "100"))
-                if remaining <= 5:
-                    await asyncio.sleep(float(resp.headers.get("X-RateLimit-Reset", "2")))
-
                 if len(page) < limit:
                     break
                 offset += limit
@@ -276,22 +203,27 @@ async def wom_stats(valkey: Valkey = Depends(get_valkey)) -> dict:
     if cached:
         return json.loads(cached)
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        group_coro = client.get(
-            f"https://api.wiseoldman.net/v2/groups/{_WOM_GROUP_ID}",
-            headers={"User-Agent": "IronFoundry/1.0"},
+    async with WiseOldManHandler(
+        api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT
+    ) as wom:
+        group_data, *raid_totals = await asyncio.gather(
+            wom.get_group(_WOM_GROUP_ID),
+            *[wom.fetch_metric_total(_WOM_GROUP_ID, m) for m in _RAID_METRICS],
+            return_exceptions=True,
         )
-        raid_coros = [
-            _fetch_metric_total(client, _WOM_GROUP_ID, m) for m in _RAID_METRICS
-        ]
-        group_resp, *raid_totals = await asyncio.gather(group_coro, *raid_coros, return_exceptions=True)
 
-    if isinstance(group_resp, Exception) or not group_resp.is_success:
-        if not isinstance(group_resp, Exception) and group_resp.status_code == 429:
-            raise HTTPException(status_code=429, detail="WiseOldMan rate limit reached — try again shortly.")
+    if isinstance(group_data, Exception):
+        if (
+            isinstance(group_data, httpx.HTTPStatusError)
+            and group_data.response.status_code == 429
+        ):
+            raise HTTPException(
+                status_code=429,
+                detail="WiseOldMan rate limit reached — try again shortly.",
+            )
         raise HTTPException(status_code=502, detail="Failed to fetch WiseOldMan data.")
 
-    raw = group_resp.json()
+    raw: dict = group_data
     memberships = raw.get("memberships") or []
 
     def _safe_int(v: object) -> int:
@@ -308,6 +240,34 @@ async def wom_stats(valkey: Valkey = Depends(get_valkey)) -> dict:
         "toa_kc": metric_totals["tombs_of_amascut"] + metric_totals["tombs_of_amascut_expert_mode"],
     }
     await valkey.setex(_WOM_CACHE_KEY, _WOM_TTL, json.dumps(result))
+    return result
+
+
+@router.get("/name-changes")
+async def group_name_changes(valkey: Valkey = Depends(get_valkey)) -> list[dict]:
+    """Return recent approved WOM name changes for the clan group, cached 15 min."""
+    cached = await valkey.get(_NAME_CHANGES_CACHE_KEY)
+    if cached:
+        return json.loads(cached)
+
+    wom = WiseOldManHandler(api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT)
+    try:
+        changes = await wom.get_group_name_changes(_WOM_GROUP_ID, limit=50)
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 429:
+            raise HTTPException(status_code=429, detail="WiseOldMan rate limit reached.")
+        raise HTTPException(status_code=502, detail="Failed to fetch name changes.")
+
+    result = [
+        {
+            "old_name": c["oldName"],
+            "new_name": c["newName"],
+            "resolved_at": c.get("resolvedAt"),
+        }
+        for c in changes
+        if c.get("status") == "approved"
+    ]
+    await valkey.setex(_NAME_CHANGES_CACHE_KEY, _NAME_CHANGES_TTL, json.dumps(result))
     return result
 
 
@@ -550,6 +510,80 @@ async def collection_log_leaderboard(session: AsyncSession = Depends(get_session
         for r in result
         if r.player_name and r.player_name.lower() not in opt_out_rsns
     ]
+
+
+@router.get("/competitions")
+async def list_competitions() -> list[dict]:
+    """Return all group competitions with derived status and WOM urls."""
+    wom = WiseOldManHandler(
+        api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT
+    )
+    try:
+        return await wom.get_all_group_competitions(_WOM_GROUP_ID)
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 429:
+            raise HTTPException(
+                status_code=429,
+                detail="WiseOldMan rate limit reached — try again shortly.",
+            )
+        raise HTTPException(status_code=502, detail="Failed to fetch competitions.")
+
+
+@router.get("/competitions/{comp_id}")
+async def competition_details(comp_id: int) -> dict:
+    """Return full competition details with participant progress, served from cache."""
+    wom = WiseOldManHandler(
+        api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT
+    )
+    try:
+        data = await wom.get_cached_competition(comp_id)
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            raise HTTPException(status_code=404, detail="Competition not found.")
+        if exc.response.status_code == 429:
+            raise HTTPException(
+                status_code=429,
+                detail="WiseOldMan rate limit reached — try again shortly.",
+            )
+        raise HTTPException(status_code=502, detail="Failed to fetch competition details.")
+
+    starts_at = datetime.fromisoformat(data["startsAt"].replace("Z", "+00:00"))
+    ends_at = datetime.fromisoformat(data["endsAt"].replace("Z", "+00:00"))
+    now = datetime.now(timezone.utc)
+
+    if now < starts_at:
+        status = "upcoming"
+    elif now <= ends_at:
+        status = "ongoing"
+    else:
+        status = "finished"
+
+    metric = data.get("metric", "")
+    participations = [
+        {
+            "player_name": p["player"]["displayName"],
+            "team_name": p.get("teamName"),
+            "progress": p.get("progress", {}),
+            "levels": p.get("levels", {}),
+        }
+        for p in data.get("participations", [])
+    ]
+
+    return {
+        "id": data["id"],
+        "title": data["title"],
+        "metric": metric,
+        "type": data.get("type"),
+        "startsAt": data["startsAt"],
+        "endsAt": data["endsAt"],
+        "groupId": data.get("groupId"),
+        "participantCount": len(participations),
+        "score": data.get("score"),
+        "status": status,
+        "competition_url": f"https://wiseoldman.net/competitions/{comp_id}",
+        "metric_url": f"https://wiseoldman.net/competitions/{comp_id}?metric={metric}",
+        "participations": participations,
+    }
 
 
 @router.get("/user-avatar/{user_id}")

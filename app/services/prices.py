@@ -1,12 +1,9 @@
-from typing import Any
+from __future__ import annotations
 
-import httpx
 from loguru import logger
 
 from app.models.events import LootItem
-
-WIKI_PRICES_URL = "https://prices.runescape.wiki/api/v1/osrs/latest"
-_HEADERS = {"User-Agent": "The Foundry Project - clan event tracker"}
+from app.services.http import OsrsWikiHandler
 
 
 async def resolve_prices(items: list[LootItem]) -> list[LootItem]:
@@ -17,17 +14,9 @@ async def resolve_prices(items: list[LootItem]) -> list[LootItem]:
     if not items:
         return items
 
-    ids = ",".join(str(item.item_id) for item in items)
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                WIKI_PRICES_URL,
-                params={"id": ids},
-                headers=_HEADERS,
-                timeout=5.0,
-            )
-            response.raise_for_status()
-            data: dict[str, Any] = response.json().get("data", {})
+        wiki = OsrsWikiHandler()
+        data = await wiki.get_latest_prices([item.item_id for item in items])
     except Exception as exc:
         logger.warning("Failed to fetch GE prices from wiki: {}", exc)
         return items
