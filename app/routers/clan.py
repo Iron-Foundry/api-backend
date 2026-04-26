@@ -10,21 +10,22 @@ from datetime import datetime, timezone
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from loguru import logger
+from pydantic import BaseModel
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from valkey.asyncio import Valkey
 
-from app.db.models import Event, Leaderboard, Metric, User
+from app.db.models import ClanStats, Config, Event, Leaderboard, Metric, User
 from app.dependencies import get_current_user, get_session, get_valkey
 from app.services.http import WiseOldManHandler
+from app.services.page_permissions import require_page_permission
 
 router = APIRouter(prefix="/clan", tags=["clan"])
 
 _WOM_GROUP_ID = os.getenv("WOM_GROUP_ID", "9403")
 _WOM_API_KEY = os.getenv("WOM_API_KEY")
 _WOM_DISCORD_CONTACT = os.getenv("WOM_DISCORD_CONTACT")
-_WOM_CACHE_KEY = "clan:wom_stats"
-_WOM_TTL = 5 * 60
 
 _RAID_METRICS = [
     "chambers_of_xeric",
@@ -128,6 +129,29 @@ _COMPS_FRESH_TTL = 5 * 60
 _COMPS_STALE_TTL = 2 * 60 * 60
 _COMPS_LOCK_TTL = 120
 
+_COMP_METRIC_MAP_KEY = "competition_metric_map"
+_GLOBAL_GUILD_ID = 0
+
+# Per-(comp_id, metric) cache: TTLs vary by competition status
+_COMP_METRIC_ONGOING_FRESH_TTL = 5 * 60
+_COMP_METRIC_UPCOMING_FRESH_TTL = 15 * 60
+_COMP_METRIC_FINISHED_FRESH_TTL = 60 * 60
+_COMP_METRIC_STALE_TTL = 2 * 60 * 60
+_COMP_METRIC_LOCK_TTL = 60
+
+
+def _comp_metric_keys(comp_id: int, metric: str) -> tuple[str, str, str]:
+    base = f"clan:comp:{comp_id}:metric:{metric}"
+    return f"{base}:fresh", f"{base}:stale", f"{base}:lock"
+
+
+def _comp_metric_fresh_ttl(status: str) -> int:
+    if status == "ongoing":
+        return _COMP_METRIC_ONGOING_FRESH_TTL
+    if status == "upcoming":
+        return _COMP_METRIC_UPCOMING_FRESH_TTL
+    return _COMP_METRIC_FINISHED_FRESH_TTL
+
 
 async def _build_kc_cache(valkey: Valkey) -> None:
     """Sequential, rate-limit-aware population of the KC leaderboard cache."""
@@ -209,60 +233,29 @@ _XP_STEP = 5_000_000
 
 
 @router.get("/wom-stats")
-async def wom_stats(valkey: Valkey = Depends(get_valkey)) -> dict:
-    """Return WiseOldMan group summary (member count, total XP, total EHB).
-
-    Cached in Valkey for 5 minutes to avoid hitting WOM's rate limit on every
-    page load.
-    """
-    cached = await valkey.get(_WOM_CACHE_KEY)
-    if cached:
-        return json.loads(cached)
-
-    async with WiseOldManHandler(
-        api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT
-    ) as wom:
-        group_data, *raid_totals = await asyncio.gather(
-            wom.get_group(_WOM_GROUP_ID),
-            *[wom.fetch_metric_total(_WOM_GROUP_ID, m) for m in _RAID_METRICS],
-            return_exceptions=True,
-        )
-
-    if isinstance(group_data, Exception):
-        if (
-            isinstance(group_data, httpx.HTTPStatusError)
-            and group_data.response.status_code == 429
-        ):
-            raise HTTPException(
-                status_code=429,
-                detail="WiseOldMan rate limit reached — try again shortly.",
-            )
-        raise HTTPException(status_code=502, detail="Failed to fetch WiseOldMan data.")
-
-    assert isinstance(group_data, dict)
-    raw: dict = group_data
-    memberships = raw.get("memberships") or []
-
-    def _safe_int(v: object) -> int:
-        return v if isinstance(v, int) else 0
-
-    metric_totals = {m: _safe_int(t) for m, t in zip(_RAID_METRICS, raid_totals)}
-
-    result = {
-        "member_count": raw.get("memberCount", 0),
-        "total_xp": sum(m.get("player", {}).get("exp", 0) for m in memberships),
-        "total_ehb": round(
-            sum(m.get("player", {}).get("ehb", 0.0) for m in memberships)
-        ),
-        "cox_kc": metric_totals["chambers_of_xeric"]
-        + metric_totals["chambers_of_xeric_challenge_mode"],
-        "tob_kc": metric_totals["theatre_of_blood"]
-        + metric_totals["theatre_of_blood_hard_mode"],
-        "toa_kc": metric_totals["tombs_of_amascut"]
-        + metric_totals["tombs_of_amascut_expert_mode"],
+async def wom_stats(session: AsyncSession = Depends(get_session)) -> dict:
+    """Return the latest WOM clan stat snapshot written by ClanStatsService."""
+    result = await session.execute(select(ClanStats).where(ClanStats.id == 1))
+    row = result.scalar_one_or_none()
+    if row is None:
+        return {
+            "member_count": 0,
+            "total_xp": 0,
+            "total_ehb": 0,
+            "cox_kc": 0,
+            "tob_kc": 0,
+            "toa_kc": 0,
+            "updated_at": None,
+        }
+    return {
+        "member_count": row.member_count or 0,
+        "total_xp": row.total_xp or 0,
+        "total_ehb": row.total_ehb or 0,
+        "cox_kc": row.cox_kc or 0,
+        "tob_kc": row.tob_kc or 0,
+        "toa_kc": row.toa_kc or 0,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
-    await valkey.setex(_WOM_CACHE_KEY, _WOM_TTL, json.dumps(result))
-    return result
 
 
 async def _build_name_changes_cache(valkey: Valkey) -> None:
@@ -563,6 +556,80 @@ async def collection_log_leaderboard(
     ]
 
 
+async def _build_metric_detail_cache(
+    comp_id: int, metric: str, status: str, valkey: Valkey
+) -> None:
+    """Fetch competition details for a specific metric and write to Valkey cache."""
+    fresh_key, stale_key, lock_key = _comp_metric_keys(comp_id, metric)
+    logger.info(
+        "comp metric cache: hydrating comp={} metric={}", comp_id, metric
+    )
+    try:
+        async with WiseOldManHandler(
+            api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT
+        ) as wom:
+            data = await wom.get_competition_details(comp_id, metric=metric)
+
+        starts_at = datetime.fromisoformat(data["startsAt"].replace("Z", "+00:00"))
+        ends_at = datetime.fromisoformat(data["endsAt"].replace("Z", "+00:00"))
+        now = datetime.now(timezone.utc)
+
+        if now < starts_at:
+            status = "upcoming"
+        elif now <= ends_at:
+            status = "ongoing"
+        else:
+            status = "finished"
+
+        def _safe_num(v: object) -> int | float:
+            return v if isinstance(v, (int, float)) else 0
+
+        raw_parts: list[dict] = []
+        for p in data.get("participations", []):
+            progress = p.get("progress") or {}
+            raw_parts.append(
+                {
+                    "player_name": p["player"]["displayName"],
+                    "team_name": p.get("teamName"),
+                    "gained": _safe_num(progress.get("gained")),
+                    "start": _safe_num(progress.get("start")),
+                    "end": _safe_num(progress.get("end")),
+                }
+            )
+
+        raw_parts.sort(key=lambda x: x["gained"], reverse=True)
+        for i, part in enumerate(raw_parts, 1):
+            part["rank"] = i
+
+        payload = json.dumps(
+            {
+                "id": data["id"],
+                "title": data["title"],
+                "metric": metric,
+                "type": data.get("type", "classic"),
+                "status": status,
+                "startsAt": data["startsAt"],
+                "endsAt": data["endsAt"],
+                "participations": raw_parts,
+            }
+        )
+        fresh_ttl = _comp_metric_fresh_ttl(status)
+        await valkey.setex(fresh_key, fresh_ttl, payload)
+        await valkey.setex(stale_key, _COMP_METRIC_STALE_TTL, payload)
+        logger.info(
+            "comp metric cache: wrote comp={} metric={} participants={}",
+            comp_id,
+            metric,
+            len(raw_parts),
+        )
+    except Exception as exc:
+        logger.error(
+            "comp metric cache: hydration failed comp={} metric={} — {}", comp_id, metric, exc
+        )
+    finally:
+        await valkey.delete(lock_key)
+
+
 async def _build_competitions_cache(valkey: Valkey) -> None:
     """Fetch all group competitions from WOM and write to Valkey cache. Lock already held by caller."""
     logger.info("competitions cache: hydrating from WOM (group={})", _WOM_GROUP_ID)
@@ -622,6 +689,100 @@ async def list_competitions(
 
     logger.warning("competitions: no cache at all — returning empty list")
     return []
+
+
+class CompetitionMetricMapBody(BaseModel):
+    competition_id: int
+    metrics: list[str]
+
+
+@router.get("/competitions/metric-map")
+async def get_competition_metric_map(
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Return the staff-configured metric map: {comp_id: [metric, ...], ...}."""
+    result = await session.execute(
+        select(Config.value).where(
+            Config.guild_id == _GLOBAL_GUILD_ID,
+            Config.key == _COMP_METRIC_MAP_KEY,
+        )
+    )
+    return result.scalar_one_or_none() or {}
+
+
+@router.post(
+    "/competitions/metric-map",
+    dependencies=[Depends(require_page_permission("staff.competitions", "edit"))],
+)
+async def set_competition_metric_map(
+    body: CompetitionMetricMapBody,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Upsert the metric list for a competition. Senior staff only."""
+    result = await session.execute(
+        select(Config.value).where(
+            Config.guild_id == _GLOBAL_GUILD_ID,
+            Config.key == _COMP_METRIC_MAP_KEY,
+        )
+    )
+    current: dict = result.scalar_one_or_none() or {}
+    current[str(body.competition_id)] = body.metrics
+
+    stmt = (
+        pg_insert(Config)
+        .values(guild_id=_GLOBAL_GUILD_ID, key=_COMP_METRIC_MAP_KEY, value=current)
+        .on_conflict_do_update(
+            index_elements=["guild_id", "key"],
+            set_={"value": current},
+        )
+    )
+    await session.execute(stmt)
+    await session.commit()
+    return current
+
+
+@router.get("/competitions/{comp_id}/metric-detail")
+async def competition_metric_detail(
+    comp_id: int,
+    metric: str = Query(..., description="WOM metric key, e.g. 'woodcutting'"),
+    background_tasks: BackgroundTasks,
+    valkey: Valkey = Depends(get_valkey),
+) -> dict:
+    """Return competition participant data for a specific metric, with stale-while-revalidate caching."""
+    fresh_key, stale_key, lock_key = _comp_metric_keys(comp_id, metric)
+
+    # Determine competition status for fresh TTL calculation
+    status = "ongoing"
+    for cache_key in (_COMPS_FRESH_KEY, _COMPS_STALE_KEY):
+        raw = await valkey.get(cache_key)
+        if raw:
+            comps: list[dict] = json.loads(raw)
+            match = next((c for c in comps if c.get("id") == comp_id), None)
+            if match:
+                status = match.get("status", "ongoing")
+            break
+
+    fresh = await valkey.get(fresh_key)
+    if fresh:
+        return json.loads(fresh)
+
+    if await valkey.set(lock_key, "1", ex=_COMP_METRIC_LOCK_TTL, nx=True):
+        background_tasks.add_task(_build_metric_detail_cache, comp_id, metric, status, valkey)
+
+    stale = await valkey.get(stale_key)
+    if stale:
+        return json.loads(stale)
+
+    # No cache at all — fetch synchronously so the first request doesn't fail
+    try:
+        await _build_metric_detail_cache(comp_id, metric, status, valkey)
+        fresh = await valkey.get(fresh_key)
+        if fresh:
+            return json.loads(fresh)
+    except Exception as exc:
+        logger.error("comp metric detail: sync fetch failed — {}", exc)
+
+    raise HTTPException(status_code=503, detail="Competition data not yet available.")
 
 
 @router.get("/competitions/{comp_id}")

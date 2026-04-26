@@ -25,6 +25,7 @@ from app.routers import (
 )
 from app.routers.ccdispatch import split_message
 from app.services.connection_manager import connection_manager
+from app.services.clan_stats import ClanStatsService
 from app.services.name_change import WomNameChangeService
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
@@ -179,6 +180,7 @@ async def lifespan(app: FastAPI):
         _discord_chat_subscriber(VALKEY_URI, app.state.session_factory),
         name="discord-chat-subscriber",
     )
+    clan_stats_service: ClanStatsService | None = None
     if WOM_GROUP_ID:
         wom_service: WomNameChangeService | None = WomNameChangeService(
             app.state.session_factory,
@@ -188,8 +190,10 @@ async def lifespan(app: FastAPI):
             api_key=WOM_API_KEY,
         )
         await wom_service.start()
+        clan_stats_service = ClanStatsService(app.state.session_factory)
+        await clan_stats_service.start()
     else:
-        logger.warning("WOM_GROUP_ID not set — name change service disabled")
+        logger.warning("WOM_GROUP_ID not set — name change and clan stats services disabled")
         wom_service = None
     yield
     subscriber_task.cancel()
@@ -199,6 +203,8 @@ async def lifespan(app: FastAPI):
         pass
     if wom_service:
         await wom_service.stop()
+    if clan_stats_service:
+        await clan_stats_service.stop()
     if app.state.engine:
         logger.info("Closing PostgreSQL connection...")
         await app.state.engine.dispose()
