@@ -572,6 +572,11 @@ async def _handle_broadcast(
             raw_message=payload.message,
             data={},
         )
+        await publish(
+            valkey,
+            "unknown",
+            _dispatch_doc("unknown", None, {"raw_message": payload.message}),
+        )
         logger.debug("[{}] Unknown broadcast: {}", clan["guild_id"], payload.message)
 
 
