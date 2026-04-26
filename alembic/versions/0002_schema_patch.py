@@ -19,9 +19,7 @@ def upgrade() -> None:
     op.execute(
         "ALTER TABLE tickets ADD COLUMN timeout_frozen BOOLEAN NOT NULL DEFAULT FALSE"
     )
-    op.execute(
-        "ALTER TABLE tickets ADD COLUMN metadata JSONB NOT NULL DEFAULT '{}'"
-    )
+    op.execute("ALTER TABLE tickets ADD COLUMN metadata JSONB NOT NULL DEFAULT '{}'")
 
     # ── events: add discord_user_id (nullable, no FK — RSN changes) ─────────
     op.execute("ALTER TABLE events ADD COLUMN discord_user_id BIGINT")

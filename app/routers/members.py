@@ -9,7 +9,10 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 from pydantic import BaseModel
+from typing import cast
+
 from sqlalchemy import func, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Event, Ticket, User
@@ -71,13 +74,13 @@ async def update_rsn(
     discord_user_id = int(current_user["sub"])
 
     existing_result = await session.execute(
-        select(User.discord_user_id).where(
-            func.lower(User.rsn) == rsn.lower()
-        )
+        select(User.discord_user_id).where(func.lower(User.rsn) == rsn.lower())
     )
     existing = existing_result.scalar_one_or_none()
     if existing and existing != discord_user_id:
-        raise HTTPException(status_code=409, detail="That RSN is linked to another account.")
+        raise HTTPException(
+            status_code=409, detail="That RSN is linked to another account."
+        )
 
     now = datetime.now(timezone.utc)
     await session.execute(
@@ -88,8 +91,9 @@ async def update_rsn(
     logger.info("members/rsn: user {} linked RSN {!r}", discord_user_id, rsn)
 
     user_result = await session.execute(
-        select(User.clan_rank, User.total_loot_value, User.collection_log_slots)
-        .where(User.discord_user_id == discord_user_id)
+        select(User.clan_rank, User.total_loot_value, User.collection_log_slots).where(
+            User.discord_user_id == discord_user_id
+        )
     )
     user_row = user_result.one_or_none()
     backfill: dict = {}
@@ -100,7 +104,16 @@ async def update_rsn(
             .where(
                 func.lower(Event.player_name) == rsn.lower(),
                 Event.data["rank"].as_string().isnot(None),
-                Event.type.in_(["loot", "level", "xp_milestone", "quest", "diary", "combat_achievement"]),
+                Event.type.in_(
+                    [
+                        "loot",
+                        "level",
+                        "xp_milestone",
+                        "quest",
+                        "diary",
+                        "combat_achievement",
+                    ]
+                ),
             )
             .order_by(Event.timestamp.desc())
             .limit(1)
@@ -117,9 +130,7 @@ async def update_rsn(
     if not user_row or user_row.total_loot_value == 0:
         loot_result = await session.execute(
             select(
-                func.coalesce(
-                    func.sum(Event.data["coin_value"].as_integer()), 0
-                )
+                func.coalesce(func.sum(Event.data["coin_value"].as_integer()), 0)
             ).where(
                 func.lower(Event.player_name) == rsn.lower(),
                 Event.type.in_(["loot", "loot_key", "clue_item"]),
@@ -170,7 +181,7 @@ async def update_rsn(
     logger.info(
         "members/rsn: linked user_id {} to {} event rows",
         discord_user_id,
-        event_result.rowcount,
+        cast(CursorResult, event_result).rowcount,
     )
 
     await session.commit()
@@ -229,53 +240,131 @@ async def member_feed(
         t = row.type
 
         if t == "loot":
-            items.append({"type": "drop", "timestamp": ts,
-                          "label": d.get("item_name", ""),
-                          "detail": d.get("source"), "value": d.get("coin_value", 0)})
+            items.append(
+                {
+                    "type": "drop",
+                    "timestamp": ts,
+                    "label": d.get("item_name", ""),
+                    "detail": d.get("source"),
+                    "value": d.get("coin_value", 0),
+                }
+            )
         elif t == "level":
             skill = d.get("skill", "")
-            items.append({"type": "level", "timestamp": ts,
-                          "label": "Total Level" if skill == "total" else skill,
-                          "detail": None, "value": d.get("new_level", 0)})
+            items.append(
+                {
+                    "type": "level",
+                    "timestamp": ts,
+                    "label": "Total Level" if skill == "total" else skill,
+                    "detail": None,
+                    "value": d.get("new_level", 0),
+                }
+            )
         elif t == "xp_milestone":
-            items.append({"type": "xp_milestone", "timestamp": ts,
-                          "label": d.get("skill", ""), "detail": None, "value": d.get("xp", 0)})
+            items.append(
+                {
+                    "type": "xp_milestone",
+                    "timestamp": ts,
+                    "label": d.get("skill", ""),
+                    "detail": None,
+                    "value": d.get("xp", 0),
+                }
+            )
         elif t in ("quest", "diary", "combat_achievement"):
-            items.append({"type": d.get("achievement_type", t), "timestamp": ts,
-                          "label": d.get("name", ""), "detail": None, "value": None})
+            items.append(
+                {
+                    "type": d.get("achievement_type", t),
+                    "timestamp": ts,
+                    "label": d.get("name", ""),
+                    "detail": None,
+                    "value": None,
+                }
+            )
         elif t == "pet":
-            items.append({"type": "pet", "timestamp": ts,
-                          "label": "Pet drop!", "detail": None, "value": None})
+            items.append(
+                {
+                    "type": "pet",
+                    "timestamp": ts,
+                    "label": "Pet drop!",
+                    "detail": None,
+                    "value": None,
+                }
+            )
         elif t == "collection_log":
-            items.append({"type": "collection_log", "timestamp": ts,
-                          "label": d.get("item_name", ""),
-                          "detail": f"Slot {d.get('log_slots')}/{d.get('log_slots_max')}",
-                          "value": None})
+            items.append(
+                {
+                    "type": "collection_log",
+                    "timestamp": ts,
+                    "label": d.get("item_name", ""),
+                    "detail": f"Slot {d.get('log_slots')}/{d.get('log_slots_max')}",
+                    "value": None,
+                }
+            )
         elif t == "clue_item":
-            items.append({"type": "clue", "timestamp": ts,
-                          "label": d.get("item_name", ""), "detail": "Clue scroll",
-                          "value": d.get("coin_value", 0)})
+            items.append(
+                {
+                    "type": "clue",
+                    "timestamp": ts,
+                    "label": d.get("item_name", ""),
+                    "detail": "Clue scroll",
+                    "value": d.get("coin_value", 0),
+                }
+            )
         elif t == "pk":
-            won = row.user_id == discord_user_id and (row.player_name or "").lower() == rsn.lower()
+            won = (
+                row.user_id == discord_user_id
+                and (row.player_name or "").lower() == rsn.lower()
+            )
             other = d.get("loser" if won else "winner", "")
-            items.append({"type": "pk", "timestamp": ts,
-                          "label": f"{'Killed' if won else 'Killed by'} {other}",
-                          "detail": None, "value": d.get("gp_exchanged", 0)})
+            items.append(
+                {
+                    "type": "pk",
+                    "timestamp": ts,
+                    "label": f"{'Killed' if won else 'Killed by'} {other}",
+                    "detail": None,
+                    "value": d.get("gp_exchanged", 0),
+                }
+            )
         elif t == "personal_best":
-            items.append({"type": "personal_best", "timestamp": ts,
-                          "label": d.get("activity", ""), "detail": d.get("variant"),
-                          "value": d.get("time_seconds")})
+            items.append(
+                {
+                    "type": "personal_best",
+                    "timestamp": ts,
+                    "label": d.get("activity", ""),
+                    "detail": d.get("variant"),
+                    "value": d.get("time_seconds"),
+                }
+            )
         elif t == "hcim_death":
-            items.append({"type": "hcim_death", "timestamp": ts,
-                          "label": "Died as HCIM", "detail": None, "value": None})
+            items.append(
+                {
+                    "type": "hcim_death",
+                    "timestamp": ts,
+                    "label": "Died as HCIM",
+                    "detail": None,
+                    "value": None,
+                }
+            )
         elif t == "loot_key":
-            items.append({"type": "loot_key", "timestamp": ts,
-                          "label": "Loot key opened", "detail": None,
-                          "value": d.get("coin_value", 0)})
+            items.append(
+                {
+                    "type": "loot_key",
+                    "timestamp": ts,
+                    "label": "Loot key opened",
+                    "detail": None,
+                    "value": d.get("coin_value", 0),
+                }
+            )
         else:
-            items.append({"type": t, "timestamp": ts,
-                          "label": d.get("name") or d.get("item_name") or t,
-                          "detail": None, "value": None})
+            items.append(
+                {
+                    "type": t,
+                    "timestamp": ts,
+                    "label": d.get("name") or d.get("item_name") or t,
+                    "detail": None,
+                    "value": None,
+                }
+            )
 
     items.sort(key=lambda x: x["timestamp"], reverse=True)
     return items[:limit]
@@ -295,15 +384,19 @@ async def member_tickets(
     )
     tickets: list[dict] = []
     for row in result.scalars():
-        tickets.append({
-            "ticket_id": row.ticket_id,
-            "ticket_type": row.ticket_type,
-            "status": row.status,
-            "created_at": row.created_at.isoformat() if row.created_at else None,
-            "closed_at": row.closed_at.isoformat() if row.closed_at else None,
-            "last_message_at": row.last_message_at.isoformat() if row.last_message_at else None,
-            "close_reason": row.close_reason,
-        })
+        tickets.append(
+            {
+                "ticket_id": row.ticket_id,
+                "ticket_type": row.ticket_type,
+                "status": row.status,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "closed_at": row.closed_at.isoformat() if row.closed_at else None,
+                "last_message_at": row.last_message_at.isoformat()
+                if row.last_message_at
+                else None,
+                "close_reason": row.close_reason,
+            }
+        )
     return tickets
 
 
@@ -353,8 +446,9 @@ async def get_api_key(
     """Return the authenticated user's current API key and metadata."""
     discord_user_id = int(current_user["sub"])
     result = await session.execute(
-        select(User.api_key, User.key_is_active, User.key_created_at)
-        .where(User.discord_user_id == discord_user_id)
+        select(User.api_key, User.key_is_active, User.key_created_at).where(
+            User.discord_user_id == discord_user_id
+        )
     )
     row = result.one_or_none()
     if not row or not row.api_key:

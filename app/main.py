@@ -10,7 +10,19 @@ from loguru import logger
 from valkey.asyncio import Valkey
 
 from app.db import create_engine, create_session_factory
-from app.routers import assets, auth, badges, ccdispatch, clan, config, content, events, members, staff, surveys
+from app.routers import (
+    assets,
+    auth,
+    badges,
+    ccdispatch,
+    clan,
+    config,
+    content,
+    events,
+    members,
+    staff,
+    surveys,
+)
 from app.routers.ccdispatch import split_message
 from app.services.connection_manager import connection_manager
 from app.services.name_change import WomNameChangeService
@@ -169,7 +181,10 @@ async def lifespan(app: FastAPI):
     )
     if WOM_GROUP_ID:
         wom_service: WomNameChangeService | None = WomNameChangeService(
-            app.state.session_factory, int(WOM_GROUP_ID), WOM_GROUP_KEY, WOM_CLAN_NAME,
+            app.state.session_factory,
+            int(WOM_GROUP_ID),
+            WOM_GROUP_KEY,
+            WOM_CLAN_NAME,
             api_key=WOM_API_KEY,
         )
         await wom_service.start()

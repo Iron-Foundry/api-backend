@@ -1,10 +1,12 @@
 """Add badges and user_badges tables."""
+
 from alembic import op
 
 revision = "0009"
 down_revision = "0008"
 branch_labels = None
 depends_on = None
+
 
 def upgrade() -> None:
     op.execute("""
@@ -30,6 +32,7 @@ def upgrade() -> None:
         )
     """)
     op.execute("CREATE INDEX ON user_badges (discord_user_id)")
+
 
 def downgrade() -> None:
     op.execute("DROP TABLE user_badges")

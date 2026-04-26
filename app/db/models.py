@@ -10,7 +10,16 @@ import uuid
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, Text, ARRAY, TIMESTAMP, UniqueConstraint
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    ForeignKey,
+    Integer,
+    Text,
+    ARRAY,
+    TIMESTAMP,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects import postgresql as pg
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -26,7 +35,9 @@ class User(Base):
     discord_user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     discord_username: Mapped[str] = mapped_column(Text, nullable=False)
     discord_avatar_url: Mapped[str | None] = mapped_column(Text)
-    guild_id: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default="0")
+    guild_id: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, server_default="0"
+    )
     rsn: Mapped[str | None] = mapped_column(Text, unique=True)
     clan_rank: Mapped[str | None] = mapped_column(Text)
     discord_roles: Mapped[list] = mapped_column(
@@ -65,8 +76,12 @@ class User(Base):
     temp_vc_bitrate: Mapped[int | None] = mapped_column(Integer)
     join_date: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     roles_fetched_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
 
 
 class Event(Base):
@@ -74,7 +89,9 @@ class Event(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     type: Mapped[str] = mapped_column(Text, nullable=False)
-    timestamp: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    timestamp: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
     player_name: Mapped[str | None] = mapped_column(Text)
     sender: Mapped[str | None] = mapped_column(Text)
     is_league_world: Mapped[bool] = mapped_column(
@@ -89,7 +106,9 @@ class CofferEvent(Base):
     __tablename__ = "coffer_events"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    timestamp: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    timestamp: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
     player_name: Mapped[str] = mapped_column(Text, nullable=False)
     sender: Mapped[str | None] = mapped_column(Text)
     is_league_world: Mapped[bool] = mapped_column(
@@ -104,7 +123,9 @@ class MembershipEvent(Base):
     __tablename__ = "membership_events"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    timestamp: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    timestamp: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
     player_name: Mapped[str] = mapped_column(Text, nullable=False)
     sender: Mapped[str | None] = mapped_column(Text)
     is_league_world: Mapped[bool] = mapped_column(
@@ -136,11 +157,15 @@ class Metric(Base):
 class Ticket(Base):
     __tablename__ = "tickets"
 
-    ticket_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ticket_id: Mapped[int] = mapped_column(
+        Integer, primary_key=True, autoincrement=True
+    )
     guild_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     ticket_type: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="open")
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
     closed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     last_message_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     channel_id: Mapped[int | None] = mapped_column(BigInteger)
@@ -165,7 +190,9 @@ class Ticket(Base):
     timeout_frozen: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="false"
     )
-    extra_metadata: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}", name="metadata")
+    extra_metadata: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default="{}", name="metadata"
+    )
 
 
 class Transcript(Base):
@@ -223,12 +250,16 @@ class Config(Base):
 class Badge(Base):
     __tablename__ = "badges"
 
-    id: Mapped[UUID] = mapped_column(pg.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[UUID] = mapped_column(
+        pg.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     name: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
     icon: Mapped[str | None] = mapped_column(Text)
     color: Mapped[str] = mapped_column(Text, nullable=False, server_default="'#6366f1'")
-    text_color: Mapped[str] = mapped_column(Text, nullable=False, server_default="'#ffffff'")
+    text_color: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default="'#ffffff'"
+    )
     created_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     created_by: Mapped[int | None] = mapped_column(BigInteger)
 
@@ -237,7 +268,11 @@ class UserBadge(Base):
     __tablename__ = "user_badges"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    badge_id: Mapped[UUID] = mapped_column(pg.UUID(as_uuid=True), ForeignKey("badges.id", ondelete="CASCADE"), nullable=False)
+    badge_id: Mapped[UUID] = mapped_column(
+        pg.UUID(as_uuid=True),
+        ForeignKey("badges.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     assigned_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     assigned_by: Mapped[int | None] = mapped_column(BigInteger)
@@ -246,9 +281,15 @@ class UserBadge(Base):
 class ContentCategory(Base):
     __tablename__ = "content_categories"
 
-    id: Mapped[UUID] = mapped_column(pg.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[UUID] = mapped_column(
+        pg.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     page_type: Mapped[str] = mapped_column(Text, nullable=False)
-    parent_id: Mapped[UUID | None] = mapped_column(pg.UUID(as_uuid=True), ForeignKey("content_categories.id", ondelete="CASCADE"), nullable=True)
+    parent_id: Mapped[UUID | None] = mapped_column(
+        pg.UUID(as_uuid=True),
+        ForeignKey("content_categories.id", ondelete="CASCADE"),
+        nullable=True,
+    )
     slug: Mapped[str] = mapped_column(Text, nullable=False)
     label: Mapped[str] = mapped_column(Text, nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
@@ -259,8 +300,14 @@ class ContentCategory(Base):
 class ContentEntry(Base):
     __tablename__ = "content_entries"
 
-    id: Mapped[UUID] = mapped_column(pg.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    category_id: Mapped[UUID] = mapped_column(pg.UUID(as_uuid=True), ForeignKey("content_categories.id", ondelete="CASCADE"), nullable=False)
+    id: Mapped[UUID] = mapped_column(
+        pg.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    category_id: Mapped[UUID] = mapped_column(
+        pg.UUID(as_uuid=True),
+        ForeignKey("content_categories.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     slug: Mapped[str] = mapped_column(Text, nullable=False)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
@@ -268,7 +315,9 @@ class ContentEntry(Base):
     created_by: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     updated_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
-    deprecated: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    deprecated: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
     deprecated_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     deprecated_by: Mapped[int | None] = mapped_column(BigInteger)
 
@@ -277,7 +326,11 @@ class ContentCollaborator(Base):
     __tablename__ = "content_collaborators"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    entry_id: Mapped[UUID] = mapped_column(pg.UUID(as_uuid=True), ForeignKey("content_entries.id", ondelete="CASCADE"), nullable=False)
+    entry_id: Mapped[UUID] = mapped_column(
+        pg.UUID(as_uuid=True),
+        ForeignKey("content_entries.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     added_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
 
@@ -286,18 +339,26 @@ class ContentEntryVersion(Base):
     __tablename__ = "content_entry_versions"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    entry_id: Mapped[UUID] = mapped_column(pg.UUID(as_uuid=True), ForeignKey("content_entries.id", ondelete="CASCADE"), nullable=False)
+    entry_id: Mapped[UUID] = mapped_column(
+        pg.UUID(as_uuid=True),
+        ForeignKey("content_entries.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     version_number: Mapped[int] = mapped_column(Integer, nullable=False)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)
     edited_by: Mapped[int | None] = mapped_column(BigInteger)
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
 
 
 class Asset(Base):
     __tablename__ = "assets"
 
-    id: Mapped[UUID] = mapped_column(pg.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[UUID] = mapped_column(
+        pg.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     filename: Mapped[str] = mapped_column(Text, nullable=False)
     original_name: Mapped[str] = mapped_column(Text, nullable=False)
     content_type: Mapped[str] = mapped_column(Text, nullable=False)
@@ -317,17 +378,30 @@ class RolePanel(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
     max_selectable: Mapped[int | None] = mapped_column(Integer)
     roles: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
 
 
 class ContentEntryReaction(Base):
     __tablename__ = "content_entry_reactions"
     __table_args__ = (
-        UniqueConstraint("entry_id", "discord_user_id", name="uq_content_entry_reaction"),
+        UniqueConstraint(
+            "entry_id", "discord_user_id", name="uq_content_entry_reaction"
+        ),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    entry_id: Mapped[UUID] = mapped_column(pg.UUID(as_uuid=True), ForeignKey("content_entries.id", ondelete="CASCADE"), nullable=False, index=True)
+    entry_id: Mapped[UUID] = mapped_column(
+        pg.UUID(as_uuid=True),
+        ForeignKey("content_entries.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )

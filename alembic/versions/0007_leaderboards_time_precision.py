@@ -14,9 +14,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute(
-        "ALTER TABLE leaderboards ALTER COLUMN time_seconds TYPE NUMERIC(10,3)"
-    )
+    op.execute("ALTER TABLE leaderboards ALTER COLUMN time_seconds TYPE NUMERIC(10,3)")
 
 
 def downgrade() -> None:

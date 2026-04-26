@@ -8,10 +8,22 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 from pydantic import BaseModel
+from typing import cast
+
 from sqlalchemy import func, select, text, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Config, CofferEvent, Event, Leaderboard, MembershipEvent, Ticket, Transcript, User
+from app.db.models import (
+    Config,
+    CofferEvent,
+    Event,
+    Leaderboard,
+    MembershipEvent,
+    Ticket,
+    Transcript,
+    User,
+)
 from app.dependencies import get_current_user, get_session
 from app.services.page_permissions import check_page_permission, get_admin_bypass_roles
 from app.services.rank_mappings import get_effective_roles
@@ -21,22 +33,34 @@ _RSN_RE = re.compile(r"^[A-Za-z0-9 _-]{1,12}$")
 router = APIRouter(prefix="/staff", tags=["staff"])
 
 _DISCORD_ROLE_ORDER = [
-    "Guest", "Achiever", "Sapphire", "Emerald", "Ruby",
-    "Diamond", "Dragonstone", "Onyx", "Zenyte",
-    "Ex-Moderator", "Foundry Mentors", "Event Team", "Moderator",
-    "Senior Moderator", "Deputy Owner", "Co-owner",
+    "Guest",
+    "Achiever",
+    "Sapphire",
+    "Emerald",
+    "Ruby",
+    "Diamond",
+    "Dragonstone",
+    "Onyx",
+    "Zenyte",
+    "Ex-Moderator",
+    "Foundry Mentors",
+    "Event Team",
+    "Moderator",
+    "Senior Moderator",
+    "Deputy Owner",
+    "Co-owner",
 ]
 
 _TICKET_TYPE_MIN_RANK: dict[str, str] = {
-    "contact_mentor":   "Foundry Mentors",
-    "general":          "Moderator",
-    "rankup":           "Moderator",
-    "join_cc":          "Moderator",
-    "apply_staff":      "Senior Moderator",
-    "apply_mentor":     "Senior Moderator",
+    "contact_mentor": "Foundry Mentors",
+    "general": "Moderator",
+    "rankup": "Moderator",
+    "join_cc": "Moderator",
+    "apply_staff": "Senior Moderator",
+    "apply_mentor": "Senior Moderator",
     "apply_event_team": "Senior Moderator",
-    "sensitive":        "Senior Moderator",
-    "survey":           "Senior Moderator",
+    "sensitive": "Senior Moderator",
+    "survey": "Senior Moderator",
 }
 
 
@@ -54,7 +78,11 @@ def _has_min_rank_by_label(role_labels: list[str], min_role: str) -> bool:
 
 def _allowed_ticket_types(role_labels: list[str]) -> list[str]:
     """Return ticket type identifiers the caller is authorised to view (by resolved labels)."""
-    return [t for t, min_r in _TICKET_TYPE_MIN_RANK.items() if _has_min_rank_by_label(role_labels, min_r)]
+    return [
+        t
+        for t, min_r in _TICKET_TYPE_MIN_RANK.items()
+        if _has_min_rank_by_label(role_labels, min_r)
+    ]
 
 
 async def _get_roles(current_user: dict, session: AsyncSession) -> list[str]:
@@ -71,7 +99,6 @@ async def _require_rank(
         raise HTTPException(status_code=403, detail="Permission denied.")
 
 
-
 @router.get("/overview")
 async def staff_overview(
     current_user: dict = Depends(get_current_user),
@@ -80,7 +107,9 @@ async def staff_overview(
     """High-level clan stats. Requires Mentor or higher."""
     await _require_rank("staff.home", "read", current_user, session)
 
-    total_members = (await session.execute(select(func.count()).select_from(User))).scalar_one()
+    total_members = (
+        await session.execute(select(func.count()).select_from(User))
+    ).scalar_one()
     open_tickets = (
         await session.execute(
             select(func.count()).select_from(Ticket).where(Ticket.status == "open")
@@ -129,21 +158,23 @@ async def staff_members(
     result = await session.execute(stmt)
     members: list[dict] = []
     for row in result:
-        members.append({
-            "discord_user_id": str(row.discord_user_id),
-            "discord_username": row.discord_username,
-            "discord_avatar_url": row.discord_avatar_url,
-            "rsn": row.rsn,
-            "clan_rank": row.clan_rank,
-            "discord_roles": row.discord_roles,
-            "stats_opt_out": row.stats_opt_out,
-            "join_date": row.join_date.isoformat() if row.join_date else None,
-            "created_at": row.created_at.isoformat() if row.created_at else None,
-            "total_loot_value": row.total_loot_value,
-            "collection_log_slots": row.collection_log_slots,
-            "recruited_by": str(row.recruited_by) if row.recruited_by else None,
-            "key_is_active": row.key_is_active,
-        })
+        members.append(
+            {
+                "discord_user_id": str(row.discord_user_id),
+                "discord_username": row.discord_username,
+                "discord_avatar_url": row.discord_avatar_url,
+                "rsn": row.rsn,
+                "clan_rank": row.clan_rank,
+                "discord_roles": row.discord_roles,
+                "stats_opt_out": row.stats_opt_out,
+                "join_date": row.join_date.isoformat() if row.join_date else None,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "total_loot_value": row.total_loot_value,
+                "collection_log_slots": row.collection_log_slots,
+                "recruited_by": str(row.recruited_by) if row.recruited_by else None,
+                "key_is_active": row.key_is_active,
+            }
+        )
     return members
 
 
@@ -219,7 +250,9 @@ async def update_member_rsn(
         )
     )
     if conflict.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail="RSN already linked to another account.")
+        raise HTTPException(
+            status_code=409, detail="RSN already linked to another account."
+        )
 
     if old_rsn and old_rsn.lower() != new_rsn.lower():
         await session.execute(
@@ -258,7 +291,9 @@ async def update_member_rsn(
         )
         logger.info(
             "staff/rsn: cascaded rename {!r} → {!r} for user {}",
-            old_rsn, new_rsn, discord_user_id,
+            old_rsn,
+            new_rsn,
+            discord_user_id,
         )
 
     await session.execute(
@@ -276,7 +311,16 @@ async def update_member_rsn(
             .where(
                 func.lower(Event.player_name) == new_rsn.lower(),
                 Event.data["rank"].as_string().isnot(None),
-                Event.type.in_(["loot", "level", "xp_milestone", "quest", "diary", "combat_achievement"]),
+                Event.type.in_(
+                    [
+                        "loot",
+                        "level",
+                        "xp_milestone",
+                        "quest",
+                        "diary",
+                        "combat_achievement",
+                    ]
+                ),
             )
             .order_by(Event.timestamp.desc())
             .limit(1)
@@ -287,7 +331,9 @@ async def update_member_rsn(
 
     if not user_row.total_loot_value:
         loot_result = await session.execute(
-            select(func.coalesce(func.sum(Event.data["coin_value"].as_integer()), 0)).where(
+            select(
+                func.coalesce(func.sum(Event.data["coin_value"].as_integer()), 0)
+            ).where(
                 func.lower(Event.player_name) == new_rsn.lower(),
                 Event.type.in_(["loot", "loot_key", "clue_item"]),
             )
@@ -298,7 +344,9 @@ async def update_member_rsn(
 
     if not user_row.collection_log_slots:
         cl_result = await session.execute(
-            select(func.coalesce(func.max(Event.data["log_slots"].as_integer()), 0)).where(
+            select(
+                func.coalesce(func.max(Event.data["log_slots"].as_integer()), 0)
+            ).where(
                 func.lower(Event.player_name) == new_rsn.lower(),
                 Event.type == "collection_log",
             )
@@ -323,7 +371,8 @@ async def update_member_rsn(
         )
         logger.info(
             "staff/rsn: backfilled {} for user {}",
-            list(backfill.keys()), discord_user_id,
+            list(backfill.keys()),
+            discord_user_id,
         )
 
     event_result = await session.execute(
@@ -333,7 +382,8 @@ async def update_member_rsn(
     )
     logger.info(
         "staff/rsn: linked user_id {} to {} event rows",
-        discord_user_id, event_result.rowcount,
+        discord_user_id,
+        cast(CursorResult, event_result).rowcount,
     )
 
     await session.commit()
@@ -359,11 +409,17 @@ async def staff_tickets(
         allowed = list(_TICKET_TYPE_MIN_RANK.keys())
     else:
         cfg_result = await session.execute(
-            select(Config.value).where(Config.guild_id == 0, Config.key == "clan_rank_mappings")
+            select(Config.value).where(
+                Config.guild_id == 0, Config.key == "clan_rank_mappings"
+            )
         )
         cfg = cfg_result.scalar_one_or_none() or {}
         mappings: list[dict] = cfg.get("mappings", [])
-        id_to_label = {m["discord_role_id"]: m.get("label", "") for m in mappings if "discord_role_id" in m}
+        id_to_label = {
+            m["discord_role_id"]: m.get("label", "")
+            for m in mappings
+            if "discord_role_id" in m
+        }
         role_labels = [id_to_label.get(r, r) for r in roles]
         allowed = _allowed_ticket_types(role_labels)
 
@@ -383,23 +439,27 @@ async def staff_tickets(
     result = await session.execute(stmt)
     tickets: list[dict] = []
     for row in result.scalars():
-        tickets.append({
-            "ticket_id": row.ticket_id,
-            "guild_id": row.guild_id,
-            "ticket_type": row.ticket_type,
-            "status": row.status,
-            "created_at": row.created_at.isoformat() if row.created_at else None,
-            "closed_at": row.closed_at.isoformat() if row.closed_at else None,
-            "last_message_at": row.last_message_at.isoformat() if row.last_message_at else None,
-            "creator": {
-                "id": row.creator_id,
-                "display_name": row.creator_name,
-                "avatar_url": None,
-            },
-            "closed_by_id": row.closed_by_id,
-            "close_reason": row.close_reason,
-            "staff_note": row.staff_note,
-        })
+        tickets.append(
+            {
+                "ticket_id": row.ticket_id,
+                "guild_id": row.guild_id,
+                "ticket_type": row.ticket_type,
+                "status": row.status,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "closed_at": row.closed_at.isoformat() if row.closed_at else None,
+                "last_message_at": row.last_message_at.isoformat()
+                if row.last_message_at
+                else None,
+                "creator": {
+                    "id": row.creator_id,
+                    "display_name": row.creator_name,
+                    "avatar_url": None,
+                },
+                "closed_by_id": row.closed_by_id,
+                "close_reason": row.close_reason,
+                "staff_note": row.staff_note,
+            }
+        )
     return tickets
 
 
@@ -419,11 +479,17 @@ async def staff_ticket_transcript(
         allowed = list(_TICKET_TYPE_MIN_RANK.keys())
     else:
         cfg_result = await session.execute(
-            select(Config.value).where(Config.guild_id == 0, Config.key == "clan_rank_mappings")
+            select(Config.value).where(
+                Config.guild_id == 0, Config.key == "clan_rank_mappings"
+            )
         )
         cfg = cfg_result.scalar_one_or_none() or {}
         mappings = cfg.get("mappings", [])
-        id_to_label = {m["discord_role_id"]: m.get("label", "") for m in mappings if "discord_role_id" in m}
+        id_to_label = {
+            m["discord_role_id"]: m.get("label", "")
+            for m in mappings
+            if "discord_role_id" in m
+        }
         role_labels = [id_to_label.get(r, r) for r in roles]
         allowed = _allowed_ticket_types(role_labels)
 
@@ -434,7 +500,9 @@ async def staff_ticket_transcript(
         )
     )
     if not ticket_result.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail="Ticket not found or access denied.")
+        raise HTTPException(
+            status_code=404, detail="Ticket not found or access denied."
+        )
 
     tr_result = await session.execute(
         select(Transcript).where(Transcript.ticket_id == ticket_id)

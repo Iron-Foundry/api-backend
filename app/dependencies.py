@@ -38,11 +38,13 @@ async def get_current_user(authorization: str = Header(...)) -> dict:
         raise HTTPException(status_code=401, detail="Invalid token") from exc
 
 
-async def get_optional_user(authorization: Optional[str] = Header(default=None)) -> dict | None:
+async def get_optional_user(
+    authorization: Optional[str] = Header(default=None),
+) -> dict | None:
     """Decode a Bearer JWT if present; return None if no token provided."""
     if not authorization or not authorization.startswith("Bearer "):
         return None
-    token = authorization[len("Bearer "):]
+    token = authorization[len("Bearer ") :]
     try:
         return jwt.decode(token, JWT_SECRET, algorithms=[_ALGORITHM])
     except JWTError:
@@ -60,7 +62,8 @@ async def verify_clan(
     """
     result = await session.execute(
         select(User).where(
-            User.api_key == verification_code, User.key_is_active == True  # noqa: E712
+            User.api_key == verification_code,
+            User.key_is_active == True,  # noqa: E712
         )
     )
     user = result.scalar_one_or_none()

@@ -104,7 +104,11 @@ async def check_page_permission(
     # Label-based fallback: resolve role IDs to labels and re-check.
     # Handles configs saved before role IDs were used as values.
     mappings = await _get_rank_mappings(session)
-    role_labels = {m["discord_role_id"]: m.get("label", "") for m in mappings if "discord_role_id" in m}
+    role_labels = {
+        m["discord_role_id"]: m.get("label", "")
+        for m in mappings
+        if "discord_role_id" in m
+    }
     role_names = {role_labels.get(r, r) for r in roles}
     if role_names & set(allowed):
         return True
@@ -114,6 +118,7 @@ async def check_page_permission(
 
 def require_page_permission(page_id: str, action: str):
     """FastAPI dependency factory — raises 403 if the caller lacks permission."""
+
     async def _dep(
         current_user: dict = Depends(get_current_user),
         session: AsyncSession = Depends(get_session),
@@ -122,4 +127,5 @@ def require_page_permission(page_id: str, action: str):
         roles = await get_effective_roles(uid, session)
         if not await check_page_permission(page_id, action, roles, session):
             raise HTTPException(403, f"Requires permission: {page_id}/{action}")
+
     return _dep

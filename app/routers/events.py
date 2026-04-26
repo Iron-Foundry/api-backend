@@ -73,7 +73,8 @@ async def _any_opted_out(session: AsyncSession, player_names: list[str]) -> bool
         return False
     result = await session.execute(
         select(User.discord_user_id).where(
-            User.rsn.in_(player_names), User.stats_opt_out == True  # noqa: E712
+            User.rsn.in_(player_names),
+            User.stats_opt_out == True,  # noqa: E712
         )
     )
     return result.first() is not None
@@ -145,7 +146,10 @@ async def _handle_broadcast(
                 raw_message=payload.message,
                 data=data,
             )
-            await _increment_loot_value(session, parsed.player_name, parsed.coin_value)
+            if parsed.coin_value is not None:
+                await _increment_loot_value(
+                    session, parsed.player_name, parsed.coin_value
+                )
             logger.info(
                 "[{}] Loot: {} got {} ({}gp)",
                 clan["guild_id"],
@@ -180,7 +184,9 @@ async def _handle_broadcast(
                 parsed.skill,
                 parsed.new_level,
             )
-            await publish(valkey, "levelup", _dispatch_doc("level", parsed.player_name, data))
+            await publish(
+                valkey, "levelup", _dispatch_doc("level", parsed.player_name, data)
+            )
 
     elif kind == BroadcastType.XP_MILESTONE:
         parsed = parser.parse_xp_milestone(payload.message)
@@ -204,7 +210,9 @@ async def _handle_broadcast(
                 parsed.skill,
             )
             await publish(
-                valkey, "xpmilestone", _dispatch_doc("xp_milestone", parsed.player_name, data)
+                valkey,
+                "xpmilestone",
+                _dispatch_doc("xp_milestone", parsed.player_name, data),
             )
 
     elif kind in (
@@ -232,7 +240,9 @@ async def _handle_broadcast(
                 parsed.name,
             )
             await publish(
-                valkey, "achievement", _dispatch_doc(parsed.kind, parsed.player_name, data)
+                valkey,
+                "achievement",
+                _dispatch_doc(parsed.kind, parsed.player_name, data),
             )
 
     elif kind == BroadcastType.PET:
@@ -272,7 +282,9 @@ async def _handle_broadcast(
                 parsed.invited_by,
             )
             await publish(
-                valkey, "new_member", _dispatch_doc("new_member", parsed.player_name, data)
+                valkey,
+                "new_member",
+                _dispatch_doc("new_member", parsed.player_name, data),
             )
 
     elif kind == BroadcastType.COLLECTION_LOG:
@@ -365,7 +377,10 @@ async def _handle_broadcast(
                 raw_message=payload.message,
                 data=data,
             )
-            await _increment_loot_value(session, parsed.player_name, parsed.coin_value)
+            if parsed.coin_value is not None:
+                await _increment_loot_value(
+                    session, parsed.player_name, parsed.coin_value
+                )
             logger.info(
                 "[{}] Clue item: {} got {}",
                 clan["guild_id"],
@@ -373,7 +388,9 @@ async def _handle_broadcast(
                 parsed.item_name,
             )
             await publish(
-                valkey, "clue_item", _dispatch_doc("clue_item", parsed.player_name, data)
+                valkey,
+                "clue_item",
+                _dispatch_doc("clue_item", parsed.player_name, data),
             )
 
     elif kind == BroadcastType.PK:
@@ -510,7 +527,9 @@ async def _handle_broadcast(
                 parsed.player_name,
                 parsed.amount,
             )
-            event_type = "coffer_donation" if parsed.is_donation else "coffer_withdrawal"
+            event_type = (
+                "coffer_donation" if parsed.is_donation else "coffer_withdrawal"
+            )
             await publish(
                 valkey,
                 event_type,
@@ -536,7 +555,9 @@ async def _handle_broadcast(
             )
             logger.info("[{}] HCIM death: {}", clan["guild_id"], parsed.player_name)
             await publish(
-                valkey, "hcim_death", _dispatch_doc("hcim_death", parsed.player_name, {})
+                valkey,
+                "hcim_death",
+                _dispatch_doc("hcim_death", parsed.player_name, {}),
             )
 
     else:

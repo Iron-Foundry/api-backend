@@ -1,4 +1,5 @@
 """Add content_categories, content_entries, content_collaborators tables."""
+
 from alembic import op
 
 revision = "0010"

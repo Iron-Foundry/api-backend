@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import Config
 from app.dependencies import get_current_user, get_session
 from app.services.page_permissions import (
-    check_page_permission,
     get_admin_bypass_roles,
     require_page_permission,
 )
@@ -26,6 +25,7 @@ _ADMIN_BYPASS_KEY = "admin_bypass_roles"
 
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
+
 
 async def _get_config_value(key: str, session: AsyncSession) -> dict:
     result = await session.execute(
@@ -52,11 +52,12 @@ async def _set_config_value(key: str, value: dict, session: AsyncSession) -> Non
 
 # ── Rank mappings ─────────────────────────────────────────────────────────────
 
+
 class RankMapping(BaseModel):
     clan_rank: str
-    discord_role_id: str   # Discord snowflake ID (stable against renames)
-    label: str             # Human-readable display name (e.g. "Foundry Mentors")
-    order: int = 0         # Display order for privilege hierarchy
+    discord_role_id: str  # Discord snowflake ID (stable against renames)
+    label: str  # Human-readable display name (e.g. "Foundry Mentors")
+    order: int = 0  # Display order for privilege hierarchy
 
 
 class RankMappingsBody(BaseModel):
@@ -94,6 +95,7 @@ async def set_rank_mappings(
 
 
 # ── Page permissions ──────────────────────────────────────────────────────────
+
 
 class PagePermissionEntry(BaseModel):
     read: list[str] = []
@@ -136,6 +138,7 @@ async def set_page_permissions(
 
 # ── Admin bypass roles ────────────────────────────────────────────────────────
 
+
 class AdminBypassBody(BaseModel):
     roles: list[str]
 
@@ -163,16 +166,23 @@ async def set_admin_bypass_roles(
     if not any(r in bypass_roles for r in caller_roles):
         # Also accept label-based bypass for transition
         from app.services.page_permissions import _DEFAULT_BYPASS_LABELS
-        from app.services.rank_mappings import get_effective_roles as _ger
+
         cfg_result = await session.execute(
-            select(Config.value).where(Config.guild_id == 0, Config.key == "clan_rank_mappings")
+            select(Config.value).where(
+                Config.guild_id == 0, Config.key == "clan_rank_mappings"
+            )
         )
         cfg = cfg_result.scalar_one_or_none() or {}
         mappings = cfg.get("mappings", [])
-        role_labels = {m["discord_role_id"]: m.get("label", "") for m in mappings if "discord_role_id" in m}
+        role_labels = {
+            m["discord_role_id"]: m.get("label", "")
+            for m in mappings
+            if "discord_role_id" in m
+        }
         caller_labels = {role_labels.get(r, r) for r in caller_roles}
         if not caller_labels & set(_DEFAULT_BYPASS_LABELS):
             from fastapi import HTTPException
+
             raise HTTPException(403, "Requires admin bypass role.")
     await _set_config_value(_ADMIN_BYPASS_KEY, {"roles": body.roles}, session)
     return {"roles": body.roles}

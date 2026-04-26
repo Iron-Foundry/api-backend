@@ -1,7 +1,14 @@
 import json
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from loguru import logger
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -90,23 +97,27 @@ async def clan_chat_dispatch(websocket: WebSocket) -> None:
     conn_id = connection_manager.connect(websocket, guild_id, verification_code or "")
 
     async def _publish_presence(event: str) -> None:
-        payload = json.dumps({
-            "event": event,
-            "discord_user_id": discord_user_id,
-            "guild_id": guild_id,
-            "connection_count": connection_manager.connection_count(guild_id),
-            "hide_presence_notifications": hide_presence,
-        })
+        payload = json.dumps(
+            {
+                "event": event,
+                "discord_user_id": discord_user_id,
+                "guild_id": guild_id,
+                "connection_count": connection_manager.connection_count(guild_id),
+                "hide_presence_notifications": hide_presence,
+            }
+        )
         try:
             await valkey.publish("foundry:ws_presence", payload)
         except Exception as exc:
             logger.warning("ccdispatch: failed to publish presence event: {}", exc)
 
     try:
-        await websocket.send_json({
-            "message_type": "ToClanChat",
-            "message": {"sender": "System", "message": f"Connected to clan Chat"},
-        })
+        await websocket.send_json(
+            {
+                "message_type": "ToClanChat",
+                "message": {"sender": "System", "message": "Connected to clan Chat"},
+            }
+        )
         await _publish_presence("connect")
         while True:
             await websocket.receive_text()

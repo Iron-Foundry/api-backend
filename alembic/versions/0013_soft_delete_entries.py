@@ -14,7 +14,9 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("ALTER TABLE content_entries ADD COLUMN deprecated BOOLEAN NOT NULL DEFAULT false")
+    op.execute(
+        "ALTER TABLE content_entries ADD COLUMN deprecated BOOLEAN NOT NULL DEFAULT false"
+    )
     op.execute("ALTER TABLE content_entries ADD COLUMN deprecated_at TIMESTAMPTZ")
     op.execute("ALTER TABLE content_entries ADD COLUMN deprecated_by BIGINT")
     op.execute("CREATE INDEX ON content_entries (deprecated) WHERE deprecated = true")

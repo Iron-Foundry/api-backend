@@ -32,7 +32,18 @@ ALLOWED_TYPES = {
     "video/ogg",
 }
 
-ALLOWED_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".avif", ".mp4", ".webm", ".ogg"}
+ALLOWED_EXTS = {
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".webp",
+    ".svg",
+    ".avif",
+    ".mp4",
+    ".webm",
+    ".ogg",
+}
 
 
 @router.get("/file/{filename}")
@@ -74,7 +85,9 @@ async def list_assets(
                 "discord_user_id": u.discord_user_id,
                 "rsn": u.rsn,
                 "discord_username": u.discord_username,
-            } if u else None,
+            }
+            if u
+            else None,
         }
         for a, u in result.all()
     ]
@@ -92,7 +105,10 @@ async def upload_asset(
         raise HTTPException(403, "Foundry Mentors+ required to upload assets")
 
     if file.content_type not in ALLOWED_TYPES:
-        raise HTTPException(400, f"File type {file.content_type!r} not allowed. Allowed: {', '.join(sorted(ALLOWED_TYPES))}")
+        raise HTTPException(
+            400,
+            f"File type {file.content_type!r} not allowed. Allowed: {', '.join(sorted(ALLOWED_TYPES))}",
+        )
 
     original_name = file.filename or "upload"
     ext = Path(original_name).suffix.lower()

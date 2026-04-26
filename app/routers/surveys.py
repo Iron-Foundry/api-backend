@@ -10,12 +10,21 @@ from pydantic import BaseModel
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Config, SurveyActive, SurveyResponse, SurveyTemplate, Ticket, User, WebSurveySubmission
+from app.db.models import (
+    Config,
+    SurveyActive,
+    SurveyResponse,
+    SurveyTemplate,
+    Ticket,
+    User,
+    WebSurveySubmission,
+)
 from app.dependencies import get_current_user, get_session
 from app.services.page_permissions import check_page_permission, get_admin_bypass_roles
 from app.services.rank_mappings import get_effective_roles
 
 router = APIRouter(prefix="/surveys", tags=["surveys"])
+
 
 def _normalize_visibility(raw: str | list | None) -> list[str] | None:
     """Normalize visibility to a list of allowed roles (or None = senior staff only).
@@ -75,14 +84,14 @@ async def _list_templates(
             SurveyResponse.template_id
         )
     )
-    response_counts: dict[str, int] = {r.template_id: r.count for r in count_result}
+    response_counts: dict[str, int] = {r[0]: r[1] for r in count_result}
 
     web_count_result = await session.execute(
         select(WebSurveySubmission.template_id, func.count().label("count")).group_by(
             WebSurveySubmission.template_id
         )
     )
-    web_response_counts: dict[str, int] = {r.template_id: r.count for r in web_count_result}
+    web_response_counts: dict[str, int] = {r[0]: r[1] for r in web_count_result}
 
     sub_result = await session.execute(
         select(WebSurveySubmission.template_id).where(
@@ -194,7 +203,9 @@ async def get_template(
 
     if not is_staff:
         if not is_open and prior_sub is None:
-            raise HTTPException(status_code=403, detail="Not authorized to view this template.")
+            raise HTTPException(
+                status_code=403, detail="Not authorized to view this template."
+            )
 
     active_result = await session.execute(select(SurveyActive))
     active_row = active_result.scalar_one_or_none()
@@ -243,23 +254,41 @@ async def get_template_responses(
     bypass_roles = await get_admin_bypass_roles(session)
     is_bypass = any(r in bypass_roles for r in roles)
 
+    role_labels: set[str] = set()
     if not is_bypass:
         cfg_result = await session.execute(
-            select(Config.value).where(Config.guild_id == 0, Config.key == "clan_rank_mappings")
+            select(Config.value).where(
+                Config.guild_id == 0, Config.key == "clan_rank_mappings"
+            )
         )
         cfg = cfg_result.scalar_one_or_none() or {}
         mappings: list[dict] = cfg.get("mappings", [])
-        id_to_label = {m["discord_role_id"]: m.get("label", "") for m in mappings if "discord_role_id" in m}
+        id_to_label = {
+            m["discord_role_id"]: m.get("label", "")
+            for m in mappings
+            if "discord_role_id" in m
+        }
         # Each role is either an ID (resolve to label) or already a label (legacy discord_roles)
         role_labels = {id_to_label.get(r, r) for r in roles}
 
     if raw_visibility is None:
-        if not (is_bypass or await check_page_permission("staff.surveys", "edit", roles, session)):
-            raise HTTPException(status_code=403, detail="Requires Senior Moderator or higher.")
+        if not (
+            is_bypass
+            or await check_page_permission("staff.surveys", "edit", roles, session)
+        ):
+            raise HTTPException(
+                status_code=403, detail="Requires Senior Moderator or higher."
+            )
     else:
         # visibility is either a legacy name string or a list of IDs/names
-        allowed_set: set[str] = {raw_visibility} if isinstance(raw_visibility, str) else set(raw_visibility)
-        if not (is_bypass or any(r in allowed_set for r in roles) or (not is_bypass and role_labels & allowed_set)):
+        allowed_set: set[str] = (
+            {raw_visibility} if isinstance(raw_visibility, str) else set(raw_visibility)
+        )
+        if not (
+            is_bypass
+            or any(r in allowed_set for r in roles)
+            or role_labels & allowed_set
+        ):
             raise HTTPException(
                 status_code=403,
                 detail="You do not have permission to view responses for this survey.",
@@ -267,21 +296,29 @@ async def get_template_responses(
 
     web_result = await session.execute(
         select(WebSurveySubmission, User)
-        .join(User, User.discord_user_id == WebSurveySubmission.discord_user_id, isouter=True)
+        .join(
+            User,
+            User.discord_user_id == WebSurveySubmission.discord_user_id,
+            isouter=True,
+        )
         .where(WebSurveySubmission.template_id == template_id)
     )
     out: list[dict] = []
     for sub, user in web_result:
-        out.append({
-            "id": f"web_{sub.id}",
-            "source": "web",
-            "discord_user_id": sub.discord_user_id,
-            "discord_username": user.discord_username if user else None,
-            "rsn": user.rsn if user else None,
-            "discord_roles": user.discord_roles if user else [],
-            "answers": sub.answers,
-            "submitted_at": sub.submitted_at.isoformat() if sub.submitted_at else None,
-        })
+        out.append(
+            {
+                "id": f"web_{sub.id}",
+                "source": "web",
+                "discord_user_id": sub.discord_user_id,
+                "discord_username": user.discord_username if user else None,
+                "rsn": user.rsn if user else None,
+                "discord_roles": user.discord_roles if user else [],
+                "answers": sub.answers,
+                "submitted_at": sub.submitted_at.isoformat()
+                if sub.submitted_at
+                else None,
+            }
+        )
 
     discord_result = await session.execute(
         select(SurveyResponse, Ticket, User)
@@ -295,16 +332,22 @@ async def get_template_responses(
             answers = raw_resp.get("answers") or {}
         else:
             answers = raw_resp
-        out.append({
-            "id": f"discord_{resp.ticket_id}",
-            "source": "discord",
-            "discord_user_id": ticket.creator_id,
-            "discord_username": user.discord_username if user else ticket.creator_name,
-            "rsn": user.rsn if user else None,
-            "discord_roles": user.discord_roles if user else [],
-            "answers": answers,
-            "submitted_at": resp.submitted_at.isoformat() if resp.submitted_at else None,
-        })
+        out.append(
+            {
+                "id": f"discord_{resp.ticket_id}",
+                "source": "discord",
+                "discord_user_id": ticket.creator_id,
+                "discord_username": user.discord_username
+                if user
+                else ticket.creator_name,
+                "rsn": user.rsn if user else None,
+                "discord_roles": user.discord_roles if user else [],
+                "answers": answers,
+                "submitted_at": resp.submitted_at.isoformat()
+                if resp.submitted_at
+                else None,
+            }
+        )
 
     out.sort(key=lambda r: r["submitted_at"] or "", reverse=True)
     return out
@@ -344,10 +387,14 @@ async def submit_response(
         )
     )
     if existing.scalar_one_or_none() is not None:
-        raise HTTPException(status_code=409, detail="You have already submitted a response.")
+        raise HTTPException(
+            status_code=409, detail="You have already submitted a response."
+        )
 
     fields = _extract_fields(raw)
-    missing = [f["id"] for f in fields if f.get("required") and f["id"] not in body.answers]
+    missing = [
+        f["id"] for f in fields if f.get("required") and f["id"] not in body.answers
+    ]
     if missing:
         raise HTTPException(status_code=422, detail={"missing_required": missing})
 
@@ -406,6 +453,7 @@ async def set_open(
 
 class VisibilityUpdate(BaseModel):
     """Controls which roles can read responses for this template (null = Senior Moderator+ only)."""
+
     visibility: list[str] | None
 
 

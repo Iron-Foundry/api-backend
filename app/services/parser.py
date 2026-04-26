@@ -171,7 +171,9 @@ _COMBAT_ACH_PATTERN = re.compile(
 
 _PET_PATTERNS = [
     re.compile(r"^(?P<player>.+?) has a funny feeling like they'?re being followed"),
-    re.compile(r"^(?P<player>.+?) feels something weird sneaking into (?:their|his|her) backpack"),
+    re.compile(
+        r"^(?P<player>.+?) feels something weird sneaking into (?:their|his|her) backpack"
+    ),
 ]
 
 _NEW_MEMBER_PATTERN = re.compile(
@@ -203,9 +205,7 @@ _PERSONAL_BEST_PATTERN = re.compile(
     r"^(?P<player>.+?) has achieved a new (?P<activity>.+?) personal best: (?P<time>[\d:]+(?:\.\d{2})?)$"
 )
 
-_LEFT_CLAN_PATTERN = re.compile(
-    r"^(?P<player>.+?) has left the clan\.$"
-)
+_LEFT_CLAN_PATTERN = re.compile(r"^(?P<player>.+?) has left the clan\.$")
 
 _EXPELLED_PATTERN = re.compile(
     r"^(?P<mod>.+?) has expelled (?P<player>.+?) from the clan\.$"
@@ -267,7 +267,11 @@ def classify(message: str) -> BroadcastType:
     if _EXPELLED_PATTERN.match(message):
         return BroadcastType.EXPELLED
     if m := _COFFER_PATTERN.match(message):
-        return BroadcastType.COFFER_DONATION if m.group("action") == "deposited" else BroadcastType.COFFER_WITHDRAWAL
+        return (
+            BroadcastType.COFFER_DONATION
+            if m.group("action") == "deposited"
+            else BroadcastType.COFFER_WITHDRAWAL
+        )
     if _HCIM_DEATH_PATTERN.match(message):
         return BroadcastType.HCIM_DEATH
     return BroadcastType.UNKNOWN
@@ -325,11 +329,19 @@ def parse_xp_milestone(message: str) -> ParsedXpMilestone | None:
 def parse_achievement(message: str) -> ParsedAchievement | None:
     message = _strip(message)
     if m := _QUEST_PATTERN.match(message):
-        return ParsedAchievement(player_name=m.group("player"), kind="quest", name=m.group("name"))
+        return ParsedAchievement(
+            player_name=m.group("player"), kind="quest", name=m.group("name")
+        )
     if m := _DIARY_PATTERN.match(message):
-        return ParsedAchievement(player_name=m.group("player"), kind="diary", name=m.group("name"))
+        return ParsedAchievement(
+            player_name=m.group("player"), kind="diary", name=m.group("name")
+        )
     if m := _COMBAT_ACH_PATTERN.match(message):
-        return ParsedAchievement(player_name=m.group("player"), kind="combat_achievement", name=m.group("name"))
+        return ParsedAchievement(
+            player_name=m.group("player"),
+            kind="combat_achievement",
+            name=m.group("name"),
+        )
     return None
 
 
@@ -344,7 +356,9 @@ def parse_pet(message: str) -> ParsedPet | None:
 def parse_new_member(message: str) -> ParsedNewMember | None:
     message = _strip(message)
     if m := _NEW_MEMBER_PATTERN.match(message):
-        return ParsedNewMember(player_name=m.group("player"), invited_by=m.group("inviter"))
+        return ParsedNewMember(
+            player_name=m.group("player"), invited_by=m.group("inviter")
+        )
     return None
 
 
@@ -417,7 +431,9 @@ def parse_clan_leave(message: str) -> ParsedClanLeave | None:
     if m := _LEFT_CLAN_PATTERN.match(message):
         return ParsedClanLeave(player_name=m.group("player"), expelled_by=None)
     if m := _EXPELLED_PATTERN.match(message):
-        return ParsedClanLeave(player_name=m.group("player"), expelled_by=m.group("mod"))
+        return ParsedClanLeave(
+            player_name=m.group("player"), expelled_by=m.group("mod")
+        )
     return None
 
 

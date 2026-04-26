@@ -96,7 +96,6 @@ class WiseOldManHandler(BaseRequestHandler):
             return resp
         return resp  # type: ignore[return-value]
 
-
     async def get_group(self, group_id: str | int) -> dict:
         resp = await self.get(f"/groups/{group_id}")
         resp.raise_for_status()
@@ -141,7 +140,9 @@ class WiseOldManHandler(BaseRequestHandler):
         if not resp.is_success:
             logger.warning(
                 "wom: GET /groups/{}/competitions offset={} returned HTTP {}",
-                group_id, offset, resp.status_code,
+                group_id,
+                offset,
+                resp.status_code,
             )
             return []
         return resp.json()
@@ -153,7 +154,6 @@ class WiseOldManHandler(BaseRequestHandler):
         resp = await self.get(f"/competitions/{comp_id}", params=params)
         resp.raise_for_status()
         return resp.json()
-
 
     async def fetch_metric_total(self, group_id: str | int, metric: str) -> int:
         """Sum kills across all group members for a single WOM metric."""
@@ -225,9 +225,8 @@ class WiseOldManHandler(BaseRequestHandler):
 
         stale = True
         if entry is not None:
-            stale = (
-                (entry.expires_at is not None and now >= entry.expires_at)
-                or (now >= entry.starts_at and _comp_status(entry) == "upcoming")
+            stale = (entry.expires_at is not None and now >= entry.expires_at) or (
+                now >= entry.starts_at and _comp_status(entry) == "upcoming"
             )
 
         if stale:
@@ -278,18 +277,23 @@ class WiseOldManHandler(BaseRequestHandler):
                     finished_seen += 1
             logger.debug(
                 "wom: got {} competitions (total: {}, finished so far: {})",
-                len(page), len(all_comps), finished_seen,
+                len(page),
+                len(all_comps),
+                finished_seen,
             )
             if len(page) < limit:
                 break
             if finished_seen >= max_finished:
                 logger.debug(
-                    "wom: hit max_finished={} threshold — stopping pagination", max_finished
+                    "wom: hit max_finished={} threshold — stopping pagination",
+                    max_finished,
                 )
                 break
             offset += len(page)
 
-        logger.info("wom: fetched {} competitions total for group={}", len(all_comps), group_id)
+        logger.info(
+            "wom: fetched {} competitions total for group={}", len(all_comps), group_id
+        )
 
         now = datetime.now(timezone.utc)
         result: list[dict] = []

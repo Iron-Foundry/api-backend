@@ -179,7 +179,9 @@ async def assign_badge(
 ) -> dict:
     """Assign a badge to a member. Requires Mentor or higher."""
     await _require_mentor(current_user, session)
-    badge = (await session.execute(select(Badge).where(Badge.id == badge_id))).scalar_one_or_none()
+    badge = (
+        await session.execute(select(Badge).where(Badge.id == badge_id))
+    ).scalar_one_or_none()
     if not badge:
         raise HTTPException(404, "Badge not found.")
     stmt = (

@@ -8,9 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import CofferEvent, Event, Leaderboard, MembershipEvent, User
 
 
-async def cascade_rsn_change(
-    session: AsyncSession, old_rsn: str, new_rsn: str
-) -> None:
+async def cascade_rsn_change(session: AsyncSession, old_rsn: str, new_rsn: str) -> None:
     """Rename player_name across all PG tables when a user changes their RSN.
 
     Commits the transaction internally.
@@ -61,4 +59,3 @@ async def cascade_rsn_change(
     )
 
     await session.commit()
-

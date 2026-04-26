@@ -5,9 +5,8 @@ Revises:
 Create Date: 2026-04-14
 
 """
+
 from alembic import op
-import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import BIGINT, JSONB
 
 revision = "0001"
 down_revision = None
@@ -43,7 +42,9 @@ def upgrade() -> None:
             CONSTRAINT users_rsn_unique UNIQUE NULLS NOT DISTINCT (rsn)
         )
     """)
-    op.execute("CREATE INDEX users_rsn_lower ON users (LOWER(rsn)) WHERE rsn IS NOT NULL")
+    op.execute(
+        "CREATE INDEX users_rsn_lower ON users (LOWER(rsn)) WHERE rsn IS NOT NULL"
+    )
     op.execute("CREATE INDEX users_guild ON users (guild_id, discord_user_id)")
 
     # ── events ─────────────────────────────────────────────────────────────
@@ -91,8 +92,12 @@ def upgrade() -> None:
             expelled_by     TEXT
         )
     """)
-    op.execute("CREATE INDEX membership_events_player ON membership_events (player_name)")
-    op.execute("CREATE INDEX membership_events_time ON membership_events (timestamp DESC)")
+    op.execute(
+        "CREATE INDEX membership_events_player ON membership_events (player_name)"
+    )
+    op.execute(
+        "CREATE INDEX membership_events_time ON membership_events (timestamp DESC)"
+    )
 
     # ── leaderboards ───────────────────────────────────────────────────────
     op.execute("""
@@ -104,7 +109,9 @@ def upgrade() -> None:
             PRIMARY KEY (player_name, activity, variant)
         )
     """)
-    op.execute("CREATE INDEX leaderboards_activity ON leaderboards (activity, time_seconds)")
+    op.execute(
+        "CREATE INDEX leaderboards_activity ON leaderboards (activity, time_seconds)"
+    )
 
     # ── metrics ────────────────────────────────────────────────────────────
     op.execute("""
@@ -182,7 +189,9 @@ def upgrade() -> None:
             submitted_at TIMESTAMPTZ
         )
     """)
-    op.execute("CREATE INDEX survey_responses_template ON survey_responses (template_id)")
+    op.execute(
+        "CREATE INDEX survey_responses_template ON survey_responses (template_id)"
+    )
 
     # ── config ─────────────────────────────────────────────────────────────
     op.execute("""

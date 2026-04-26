@@ -14,7 +14,9 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("ALTER TABLE content_entries ADD COLUMN sort_order INT NOT NULL DEFAULT 0")
+    op.execute(
+        "ALTER TABLE content_entries ADD COLUMN sort_order INT NOT NULL DEFAULT 0"
+    )
     op.execute("CREATE INDEX ON content_entries (category_id, sort_order)")
 
 

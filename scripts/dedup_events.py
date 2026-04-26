@@ -28,9 +28,7 @@ _FIND_SQL = text(
     """
 )
 
-_DELETE_SQL = text(
-    "DELETE FROM events WHERE id = ANY(:ids)"
-)
+_DELETE_SQL = text("DELETE FROM events WHERE id = ANY(:ids)")
 
 
 async def run(dry_run: bool) -> None:

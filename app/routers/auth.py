@@ -64,7 +64,9 @@ async def _fetch_discord_roles(discord_user_id: int) -> list[str]:
     do not break permission checks. Returns an empty list on any failure.
     """
     if not DISCORD_BOT_TOKEN:
-        logger.warning("discord_roles: DISCORD_SERVER_TOKEN not set — skipping role fetch")
+        logger.warning(
+            "discord_roles: DISCORD_SERVER_TOKEN not set — skipping role fetch"
+        )
         return []
     if not GUILD_ID:
         logger.warning("discord_roles: GUILD_ID not set — skipping role fetch")
@@ -278,7 +280,8 @@ async def token(
     """Exchange a web API key for a JWT."""
     result = await session.execute(
         select(User).where(
-            User.api_key == body.api_key, User.key_is_active == True  # noqa: E712
+            User.api_key == body.api_key,
+            User.key_is_active == True,  # noqa: E712
         )
     )
     user = result.scalar_one_or_none()
@@ -361,5 +364,7 @@ async def me(
         "effective_roles": effective_roles,
         "role_labels": role_labels,
         "stats_opt_out": row.stats_opt_out if row else False,
-        "hide_presence_notifications": row.hide_presence_notifications if row else False,
+        "hide_presence_notifications": row.hide_presence_notifications
+        if row
+        else False,
     }
