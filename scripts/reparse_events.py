@@ -149,7 +149,7 @@ async def run(dry_run: bool) -> None:
                 "id": row["id"],
                 "type": new_type,
                 "player_name": new_player,
-                "data": new_data,
+                "data": json.dumps(new_data),
             }
         )
         if dry_run:
