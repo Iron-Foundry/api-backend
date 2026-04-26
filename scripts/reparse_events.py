@@ -44,6 +44,8 @@ _UPDATE_SQL = text(
     """
 )
 
+_DELETE_SQL = text("DELETE FROM events WHERE id = :id")
+
 
 def _reparse_row(
     row_type: str, raw_message: str, stored_data: dict
@@ -167,9 +169,23 @@ async def run(dry_run: bool) -> None:
     print(f"{'Would update' if dry_run else 'Updating'} {len(updates)} event(s).")
 
     if not dry_run:
-        async with engine.begin() as conn:
-            await conn.execute(_UPDATE_SQL, updates)
-        print("Done.")
+        updated = 0
+        deleted = 0
+        for u in updates:
+            try:
+                async with engine.begin() as conn:
+                    await conn.execute(_UPDATE_SQL, u)
+                updated += 1
+            except Exception as exc:
+                if "unique" in str(exc).lower():
+                    # A correctly classified row already exists with the same dedup key.
+                    # The unknown duplicate is safe to drop.
+                    async with engine.begin() as conn:
+                        await conn.execute(_DELETE_SQL, {"id": u["id"]})
+                    deleted += 1
+                else:
+                    raise
+        print(f"Updated {updated}, deleted {deleted} duplicate(s).")
 
     await engine.dispose()
 
