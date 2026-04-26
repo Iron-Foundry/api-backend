@@ -27,7 +27,7 @@ from app.services.rank_mappings import get_effective_roles
 
 router = APIRouter(prefix="/content", tags=["content"])
 
-_VALID_PAGE_TYPES = {"plugin", "resource"}
+_VALID_PAGE_TYPES = {"plugin", "resource", "staff_resource"}
 
 
 def _slugify(label: str) -> str:
@@ -38,12 +38,19 @@ def _slugify(label: str) -> str:
     return s.strip("-") or "category"
 
 
+_PAGE_TYPE_TO_PAGE_ID: dict[str, str] = {
+    "resource": "resources",
+    "plugin": "plugins",
+    "staff_resource": "staff.resources",
+}
+
+
 async def _require_mentor(
     current_user: dict, session: AsyncSession, page_type: str = "resource"
 ) -> None:
     uid = int(current_user["sub"])
     roles = await get_effective_roles(uid, session)
-    page_id = "resources" if page_type == "resource" else "plugins"
+    page_id = _PAGE_TYPE_TO_PAGE_ID.get(page_type, "resources")
     if not await check_page_permission(page_id, "create", roles, session):
         raise HTTPException(403, "Requires Foundry Mentors or higher.")
 
@@ -71,7 +78,7 @@ async def _require_senior_mod(
 ) -> None:
     uid = int(current_user["sub"])
     roles = await get_effective_roles(uid, session)
-    page_id = "resources" if page_type == "resource" else "plugins"
+    page_id = _PAGE_TYPE_TO_PAGE_ID.get(page_type, "resources")
     if not await check_page_permission(page_id, "delete", roles, session):
         raise HTTPException(403, "Requires Senior Moderator or higher.")
 
