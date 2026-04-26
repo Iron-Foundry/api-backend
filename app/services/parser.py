@@ -69,6 +69,7 @@ class ParsedAchievement:
     player_name: str
     kind: Literal["quest", "diary", "combat_achievement"]
     name: str
+    difficulty: str | None = None  # normalised lowercase; None for quest/diary
 
 
 @dataclass
@@ -166,7 +167,17 @@ _DIARY_PATTERN = re.compile(
 )
 
 _COMBAT_ACH_PATTERN = re.compile(
-    r"^(?P<player>.+?) has completed (?:the combat achievement|a (?:easy|medium|hard|elite|master|grandmaster) combat task): (?P<name>.+?)\.?$"
+    r"^(?P<player>.+?) has completed "
+    r"(?:the combat achievement"
+    r"|an? (?P<difficulty>easy|medium|hard|elite|master|grandmaster) combat task)"
+    r": (?P<name>.+?)\.?$",
+    re.IGNORECASE,
+)
+
+_COMBAT_TIER_PATTERN = re.compile(
+    r"^(?P<player>.+?) has completed all "
+    r"(?P<difficulty>easy|medium|hard|elite|master|grandmaster) combat tasks\.?$",
+    re.IGNORECASE,
 )
 
 _PET_PATTERNS = [
@@ -202,7 +213,8 @@ _PK_LOSER_PATTERN = re.compile(
 )
 
 _PERSONAL_BEST_PATTERN = re.compile(
-    r"^(?P<player>.+?) has achieved a new (?P<activity>.+?) personal best: (?P<time>[\d:]+(?:\.\d{2})?)$"
+    r"^(?P<player>.+?) (?:has )?achieved a new (?P<activity>.+?) "
+    r"(?:(?P<variant>Overall|Challenge) )?personal best: (?P<time>[\d:]+(?:\.\d{2})?)$"
 )
 
 _LEFT_CLAN_PATTERN = re.compile(r"^(?P<player>.+?) has left the clan\.$")
@@ -246,7 +258,7 @@ def classify(message: str) -> BroadcastType:
         return BroadcastType.QUEST
     if _DIARY_PATTERN.match(message):
         return BroadcastType.DIARY
-    if _COMBAT_ACH_PATTERN.match(message):
+    if _COMBAT_ACH_PATTERN.match(message) or _COMBAT_TIER_PATTERN.match(message):
         return BroadcastType.COMBAT_ACHIEVEMENT
     if any(p.match(message) for p in _PET_PATTERNS):
         return BroadcastType.PET
@@ -285,7 +297,7 @@ def parse_loot(message: str) -> ParsedLoot | None:
             player_name=m.group("player"),
             item_name=m.group("item"),
             coin_value=int(raw_value.replace(",", "")) if raw_value else None,
-            source=m.group("source"),
+            source=m.group("source") or "Generic PVM",
         )
     if m := _RAID_LOOT_PATTERN.match(message):
         return ParsedLoot(
@@ -337,10 +349,20 @@ def parse_achievement(message: str) -> ParsedAchievement | None:
             player_name=m.group("player"), kind="diary", name=m.group("name")
         )
     if m := _COMBAT_ACH_PATTERN.match(message):
+        diff = m.group("difficulty")
         return ParsedAchievement(
             player_name=m.group("player"),
             kind="combat_achievement",
             name=m.group("name"),
+            difficulty=diff.lower() if diff else None,
+        )
+    if m := _COMBAT_TIER_PATTERN.match(message):
+        diff = m.group("difficulty").lower()
+        return ParsedAchievement(
+            player_name=m.group("player"),
+            kind="combat_achievement",
+            name=f"{diff} tier",
+            difficulty=diff,
         )
     return None
 
@@ -421,7 +443,7 @@ def parse_personal_best(message: str) -> ParsedPersonalBest | None:
             player_name=m.group("player"),
             activity=m.group("activity"),
             time_seconds=_parse_osrs_time(m.group("time")),
-            variant=None,
+            variant=m.group("variant"),
         )
     return None
 

@@ -222,7 +222,9 @@ async def _handle_broadcast(
     ):
         parsed = parser.parse_achievement(payload.message)
         if parsed:
-            data = {"achievement_type": parsed.kind, "name": parsed.name}
+            data: dict = {"achievement_type": parsed.kind, "name": parsed.name}
+            if parsed.difficulty:
+                data["difficulty"] = parsed.difficulty
             await _insert_event(
                 session,
                 type=parsed.kind,
