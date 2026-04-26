@@ -744,8 +744,8 @@ async def set_competition_metric_map(
 @router.get("/competitions/{comp_id}/metric-detail")
 async def competition_metric_detail(
     comp_id: int,
-    metric: str = Query(..., description="WOM metric key, e.g. 'woodcutting'"),
     background_tasks: BackgroundTasks,
+    metric: str = Query(..., description="WOM metric key, e.g. 'woodcutting'"),
     valkey: Valkey = Depends(get_valkey),
 ) -> dict:
     """Return competition participant data for a specific metric, with stale-while-revalidate caching."""
