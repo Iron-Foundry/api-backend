@@ -80,7 +80,7 @@ class WiseOldManHandler(BaseRequestHandler):
         *,
         params: dict | None = None,
     ) -> httpx.Response:
-        """GET with 429 retry and X-RateLimit-Remaining proactive sleep."""
+        """GET with 429 retry and RateLimit-Remaining proactive sleep."""
         resp: httpx.Response | None = None
         for _ in range(2):
             resp = await self.get(path, params=params)
@@ -89,9 +89,9 @@ class WiseOldManHandler(BaseRequestHandler):
                 await asyncio.sleep(retry_after)
                 continue
             if resp.is_success:
-                remaining = int(resp.headers.get("X-RateLimit-Remaining", "100"))
-                if remaining <= 5:
-                    reset_in = float(resp.headers.get("X-RateLimit-Reset", "2"))
+                remaining = int(resp.headers.get("RateLimit-Remaining", "100"))
+                if remaining <= 1:
+                    reset_in = float(resp.headers.get("RateLimit-Reset", "2"))
                     await asyncio.sleep(max(reset_in, 0.5))
             return resp
         return resp  # type: ignore[return-value]
@@ -194,9 +194,9 @@ class WiseOldManHandler(BaseRequestHandler):
             if not resp.is_success:
                 return None
 
-            remaining = int(resp.headers.get("X-RateLimit-Remaining", "100"))
+            remaining = int(resp.headers.get("RateLimit-Remaining", "100"))
             if remaining <= 5:
-                reset_in = float(resp.headers.get("X-RateLimit-Reset", "2"))
+                reset_in = float(resp.headers.get("RateLimit-Reset", "2"))
                 await asyncio.sleep(max(reset_in, 0.5))
 
             return [
