@@ -46,7 +46,7 @@ def _build_embed(party: Party) -> dict:
     fields.append({"name": "Members", "value": members_display, "inline": False})
     if party.ping_role_ids:
         fields.append({"name": "Pinged", "value": " ".join(f"<@&{rid}>" for rid in party.ping_role_ids), "inline": False})
-    fields.append({"name": "​", "value": f"[View on web]({_PARTIES_URL})", "inline": False})
+    fields.append({"name": "​", "value": f"🔗 [**View on the Website**]({_PARTIES_URL})", "inline": False})
 
     return {
         "title": title,
