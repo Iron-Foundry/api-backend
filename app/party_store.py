@@ -1,12 +1,34 @@
-"""In-memory party store — parties reset on restart (by design)."""
+"""Party store — DB-backed async operations."""
 
 from __future__ import annotations
 
 import random
 import uuid
-from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.db.models import PartyChatMessageDB, PartyDB, PartyMemberDB
+
+if TYPE_CHECKING:
+    pass
+
+Vibe = Literal["learning", "chill", "sweat"]
+
+VIBE_EMOJI: dict[str, str] = {
+    "learning": "🎓",
+    "chill":    "😌",
+    "sweat":    "💪",
+}
+
+VIBE_COLOUR: dict[str, int] = {
+    "learning": 0x5865F2,
+    "chill":    0x57F287,
+    "sweat":    0xED4245,
+}
 
 _WORDLIST = [
     "abyssal","ancient","anvil","arcane","armadyl","arrow","axe",
@@ -34,68 +56,41 @@ _WORDLIST = [
 def _generate_hub_code() -> str:
     return "-".join(random.choices(_WORDLIST, k=3))
 
-Vibe = Literal["learning", "chill", "sweat"]
 
-VIBE_EMOJI: dict[str, str] = {
-    "learning": "🎓",
-    "chill":    "😌",
-    "sweat":    "💪",
-}
+# ── Queries ───────────────────────────────────────────────────────────────────
 
-VIBE_COLOUR: dict[str, int] = {
-    "learning": 0x5865F2,  # blurple
-    "chill":    0x57F287,  # green
-    "sweat":    0xED4245,  # red
-}
+def _with_members(q):
+    return q.options(selectinload(PartyDB.members))
 
 
-@dataclass
-class PartyMember:
-    user_id: str
-    username: str
-    rsn: str | None
-    joined_at: datetime
+async def get_party(session: AsyncSession, party_id: str) -> PartyDB | None:
+    result = await session.execute(
+        _with_members(select(PartyDB).where(PartyDB.id == party_id))
+    )
+    return result.scalar_one_or_none()
 
 
-@dataclass
-class ChatMessage:
-    id: str
-    user_id: str
-    username: str
-    rsn: str | None
-    text: str
-    sent_at: datetime
-
-
-@dataclass
-class Party:
-    id: str
-    leader_id: str
-    leader_username: str
-    leader_rsn: str | None
-    activity: str
-    description: str | None
-    vibe: Vibe
-    max_size: int
-    members: list[PartyMember] = field(default_factory=list)
-    chat: list[ChatMessage] = field(default_factory=list)
-    ping_role_ids: list[str] = field(default_factory=list)
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    scheduled_at: datetime | None = None
-    expires_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    status: Literal["open", "full", "closed"] = "open"
-    discord_message_id: str | None = None
-    hub_code: str = field(default_factory=_generate_hub_code)
-
-
-# ── Store ─────────────────────────────────────────────────────────────────────
-
-_parties: dict[str, Party] = {}
+async def list_active_parties(session: AsyncSession) -> list[PartyDB]:
+    result = await session.execute(
+        _with_members(
+            select(PartyDB)
+            .where(PartyDB.status != "closed")
+            .order_by(PartyDB.created_at.desc())
+        )
+    )
+    return list(result.scalars().all())
 
 
 # ── Mutators ──────────────────────────────────────────────────────────────────
 
-def create_party(
+def _recalc_status(party: PartyDB) -> None:
+    if party.status == "closed":
+        return
+    party.status = "full" if len(party.members) >= party.max_size else "open"
+
+
+async def create_party(
+    session: AsyncSession,
     *,
     leader_id: str,
     leader_username: str,
@@ -107,10 +102,11 @@ def create_party(
     scheduled_at: datetime | None,
     ttl_hours: float,
     ping_role_ids: list[str],
-) -> Party:
+) -> PartyDB:
     now = datetime.now(timezone.utc)
-    party = Party(
-        id=str(uuid.uuid4()),
+    party_id = str(uuid.uuid4())
+    party = PartyDB(
+        id=party_id,
         leader_id=leader_id,
         leader_username=leader_username,
         leader_rsn=leader_rsn,
@@ -118,73 +114,123 @@ def create_party(
         description=description,
         vibe=vibe,
         max_size=max_size,
-        members=[PartyMember(user_id=leader_id, username=leader_username, rsn=leader_rsn, joined_at=now)],
         ping_role_ids=ping_role_ids,
+        hub_code=_generate_hub_code(),
+        status="open",
         created_at=now,
         scheduled_at=scheduled_at,
         expires_at=now + timedelta(hours=ttl_hours),
-        status="open",
     )
-    _parties[party.id] = party
+    member = PartyMemberDB(
+        id=str(uuid.uuid4()),
+        party_id=party_id,
+        user_id=leader_id,
+        username=leader_username,
+        rsn=leader_rsn,
+        joined_at=now,
+    )
+    session.add(party)
+    session.add(member)
+    await session.commit()
+    await session.refresh(party, attribute_names=["members"])
     return party
 
 
-def _recalc_status(party: Party) -> None:
-    if party.status == "closed":
-        return
-    party.status = "full" if len(party.members) >= party.max_size else "open"
-
-
-def add_member(party: Party, *, user_id: str, username: str, rsn: str | None) -> None:
-    party.members.append(PartyMember(user_id=user_id, username=username, rsn=rsn, joined_at=datetime.now(timezone.utc)))
+async def add_member(
+    session: AsyncSession,
+    party: PartyDB,
+    *,
+    user_id: str,
+    username: str,
+    rsn: str | None,
+) -> None:
+    member = PartyMemberDB(
+        id=str(uuid.uuid4()),
+        party_id=party.id,
+        user_id=user_id,
+        username=username,
+        rsn=rsn,
+        joined_at=datetime.now(timezone.utc),
+    )
+    session.add(member)
+    await session.flush()
+    await session.refresh(party, attribute_names=["members"])
     _recalc_status(party)
+    await session.commit()
 
 
-def remove_member(party: Party, user_id: str) -> bool:
-    before = len(party.members)
-    party.members = [m for m in party.members if m.user_id != user_id]
-    if len(party.members) < before:
-        _recalc_status(party)
-        return True
-    return False
+async def remove_member(session: AsyncSession, party: PartyDB, user_id: str) -> bool:
+    result = await session.execute(
+        delete(PartyMemberDB)
+        .where(PartyMemberDB.party_id == party.id, PartyMemberDB.user_id == user_id)
+    )
+    if result.rowcount == 0:
+        return False
+    await session.flush()
+    await session.refresh(party, attribute_names=["members"])
+    _recalc_status(party)
+    await session.commit()
+    return True
 
 
-def add_chat_message(party: Party, *, user_id: str, username: str, rsn: str | None, text: str) -> ChatMessage:
-    msg = ChatMessage(id=str(uuid.uuid4()), user_id=user_id, username=username, rsn=rsn, text=text, sent_at=datetime.now(timezone.utc))
-    party.chat.append(msg)
-    if len(party.chat) > 200:
-        party.chat = party.chat[-200:]
+async def close_party(session: AsyncSession, party: PartyDB) -> None:
+    party.status = "closed"
+    await session.commit()
+
+
+async def add_chat_message(
+    session: AsyncSession,
+    party_id: str,
+    *,
+    user_id: str,
+    username: str,
+    rsn: str | None,
+    text: str,
+) -> PartyChatMessageDB:
+    msg = PartyChatMessageDB(
+        id=str(uuid.uuid4()),
+        party_id=party_id,
+        user_id=user_id,
+        username=username,
+        rsn=rsn,
+        text=text,
+        sent_at=datetime.now(timezone.utc),
+    )
+    session.add(msg)
+    await session.commit()
     return msg
 
 
-def close_party(party: Party) -> None:
-    party.status = "closed"
+async def get_chat_messages(session: AsyncSession, party_id: str, limit: int = 50) -> list[PartyChatMessageDB]:
+    result = await session.execute(
+        select(PartyChatMessageDB)
+        .where(PartyChatMessageDB.party_id == party_id)
+        .order_by(PartyChatMessageDB.sent_at.desc())
+        .limit(limit)
+    )
+    return list(reversed(result.scalars().all()))
 
 
-def expire_parties() -> list[Party]:
+async def expire_parties(session: AsyncSession) -> list[PartyDB]:
     """Mark timed-out parties as closed and return the newly-expired list."""
     now = datetime.now(timezone.utc)
-    expired = []
-    for party in list(_parties.values()):
-        if party.status != "closed" and party.expires_at <= now:
-            party.status = "closed"
-            expired.append(party)
-    return expired
-
-
-# ── Queries ───────────────────────────────────────────────────────────────────
-
-def get_party(party_id: str) -> Party | None:
-    return _parties.get(party_id)
-
-
-def list_active_parties() -> list[Party]:
-    return [p for p in _parties.values() if p.status != "closed"]
+    result = await session.execute(
+        _with_members(
+            select(PartyDB)
+            .where(PartyDB.status != "closed", PartyDB.expires_at <= now)
+        )
+    )
+    parties = list(result.scalars().all())
+    for party in parties:
+        party.status = "closed"
+    if parties:
+        await session.commit()
+    return parties
 
 
 # ── Serialisers ───────────────────────────────────────────────────────────────
 
-def party_to_dict(party: Party, viewer_id: str | None = None) -> dict:
+def party_to_dict(party: PartyDB, viewer_id: str | None = None) -> dict:
     is_member = viewer_id is not None and any(m.user_id == viewer_id for m in party.members)
     return {
         "id": party.id,
@@ -202,7 +248,7 @@ def party_to_dict(party: Party, viewer_id: str | None = None) -> dict:
             {"user_id": m.user_id, "username": m.username, "rsn": m.rsn, "joined_at": m.joined_at.isoformat()}
             for m in party.members
         ],
-        "ping_role_ids": party.ping_role_ids,
+        "ping_role_ids": party.ping_role_ids or [],
         "status": party.status,
         "created_at": party.created_at.isoformat(),
         "scheduled_at": party.scheduled_at.isoformat() if party.scheduled_at else None,
@@ -211,7 +257,7 @@ def party_to_dict(party: Party, viewer_id: str | None = None) -> dict:
     }
 
 
-def chat_message_to_dict(msg: ChatMessage) -> dict:
+def chat_message_to_dict(msg: PartyChatMessageDB) -> dict:
     return {
         "id": msg.id,
         "user_id": msg.user_id,

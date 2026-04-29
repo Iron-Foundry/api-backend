@@ -29,7 +29,6 @@ from app.services.connection_manager import connection_manager
 from app.services.clan_stats import ClanStatsService
 from app.services.discord_party import close_party_embed
 from app.services.name_change import WomNameChangeService
-from app.party_store import expire_parties
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 VALKEY_URI = os.getenv("VALKEY_URI", "redis://localhost:6379")
@@ -165,14 +164,19 @@ async def _discord_chat_subscriber(valkey_uri: str, session_factory) -> None:  #
             await asyncio.sleep(5)
 
 
-async def _party_expiry_task() -> None:
-    """Close expired in-memory parties every 60 seconds."""
+async def _party_expiry_task(session_factory) -> None:  # type: ignore[no-untyped-def]
+    """Close expired parties every 60 seconds."""
+    from app.party_store import expire_parties
+
     while True:
         await asyncio.sleep(60)
+        if not session_factory:
+            continue
         try:
-            for party in expire_parties():
-                logger.info("party_expiry: closing expired party {}", party.id)
-                await close_party_embed(party)
+            async with session_factory() as session:
+                for party in await expire_parties(session):
+                    logger.info("party_expiry: closing expired party {}", party.id)
+                    await close_party_embed(party)
         except Exception as exc:
             logger.warning("party_expiry: error — {}", exc)
 
@@ -195,7 +199,9 @@ async def lifespan(app: FastAPI):
         _discord_chat_subscriber(VALKEY_URI, app.state.session_factory),
         name="discord-chat-subscriber",
     )
-    expiry_task = asyncio.create_task(_party_expiry_task(), name="party-expiry")
+    expiry_task = asyncio.create_task(
+        _party_expiry_task(app.state.session_factory), name="party-expiry"
+    )
     clan_stats_service: ClanStatsService | None = None
     if WOM_GROUP_ID:
         wom_service: WomNameChangeService | None = WomNameChangeService(

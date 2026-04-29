@@ -1,8 +1,8 @@
-"""Parties router — in-memory party management."""
+"""Parties router — DB-backed party management."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -14,13 +14,14 @@ from sqlalchemy import select
 from app.db.models import User
 from app.dependencies import get_current_user, get_optional_user, get_session
 from app.party_store import (
-    Party,
     Vibe,
+    _recalc_status,
     add_chat_message,
     add_member,
     chat_message_to_dict,
     close_party,
     create_party,
+    get_chat_messages,
     get_party,
     list_active_parties,
     party_to_dict,
@@ -39,7 +40,7 @@ class CreatePartyRequest(BaseModel):
     activity: Annotated[str, Field(min_length=1, max_length=60)]
     description: Annotated[str | None, Field(max_length=300)] = None
     vibe: Vibe = "chill"
-    max_size: Annotated[int, Field(ge=2, le=100)]
+    max_size: Annotated[int, Field(ge=1, le=100)]
     scheduled_at: datetime | None = None
     ttl_hours: Annotated[float, Field(ge=0.5, le=24)] = 4.0
     ping_role_ids: list[str] = []
@@ -49,7 +50,7 @@ class UpdatePartyRequest(BaseModel):
     activity: Annotated[str | None, Field(min_length=1, max_length=60)] = None
     description: Annotated[str | None, Field(max_length=300)] = None
     vibe: Vibe | None = None
-    max_size: Annotated[int | None, Field(ge=2, le=100)] = None
+    max_size: Annotated[int | None, Field(ge=1, le=100)] = None
     scheduled_at: datetime | None = None
     ping_role_ids: list[str] | None = None
 
@@ -60,8 +61,8 @@ class SendChatRequest(BaseModel):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _require_party(party_id: str) -> Party:
-    party = get_party(party_id)
+async def _require_party(party_id: str, session: AsyncSession):  # type: ignore[return]
+    party = await get_party(session, party_id)
     if not party:
         raise HTTPException(404, "Party not found")
     return party
@@ -78,15 +79,34 @@ async def _get_rsn(uid: int, session: AsyncSession) -> str | None:
     return result.scalar_one_or_none()
 
 
+def _resolve_scheduled_at(dt: datetime) -> datetime:
+    """Ensure scheduled_at is in the future.
+
+    - Past date → replace with today's date at the same time.
+    - Still in the past → now + 1 hour.
+    """
+    now = datetime.now(timezone.utc)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    if dt > now:
+        return dt
+    today = now.date()
+    candidate = datetime(today.year, today.month, today.day, dt.hour, dt.minute, tzinfo=timezone.utc)
+    if candidate > now:
+        return candidate
+    return now + timedelta(hours=1)
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("")
 async def get_parties(
     current_user: dict | None = Depends(get_optional_user),
+    session: AsyncSession = Depends(get_session),
 ) -> list[dict]:
     """List all non-closed parties. Public."""
     viewer_id = str(current_user["sub"]) if current_user else None
-    return [party_to_dict(p, viewer_id) for p in list_active_parties()]
+    return [party_to_dict(p, viewer_id) for p in await list_active_parties(session)]
 
 
 @router.post("", status_code=201)
@@ -100,7 +120,8 @@ async def create_new_party(
     username = current_user.get("username", "Unknown")
     rsn = await _get_rsn(int(current_user["sub"]), session)
 
-    party = create_party(
+    party = await create_party(
+        session,
         leader_id=uid,
         leader_username=username,
         leader_rsn=rsn,
@@ -108,7 +129,7 @@ async def create_new_party(
         description=body.description.strip() if body.description else None,
         vibe=body.vibe,
         max_size=body.max_size,
-        scheduled_at=body.scheduled_at,
+        scheduled_at=_resolve_scheduled_at(body.scheduled_at) if body.scheduled_at else None,
         ttl_hours=body.ttl_hours,
         ping_role_ids=body.ping_role_ids,
     )
@@ -116,8 +137,9 @@ async def create_new_party(
     message_id = await post_party_embed(party)
     if message_id:
         party.discord_message_id = message_id
+        await session.commit()
 
-    return party_to_dict(party, str(current_user["sub"]))
+    return party_to_dict(party, uid)
 
 
 @router.patch("/{party_id}")
@@ -125,9 +147,10 @@ async def update_party(
     party_id: str,
     body: UpdatePartyRequest,
     current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ) -> dict:
     """Edit party details. Leader only."""
-    party = _require_party(party_id)
+    party = await _require_party(party_id, session)
     uid = str(current_user["sub"])
     if party.leader_id != uid:
         raise HTTPException(403, "Only the party leader can edit this party")
@@ -142,16 +165,15 @@ async def update_party(
         party.vibe = body.vibe
     if body.max_size is not None:
         party.max_size = body.max_size
-        # Re-evaluate full/open status after size change
-        from app.party_store import _recalc_status
         _recalc_status(party)
     if body.scheduled_at is not None:
-        party.scheduled_at = body.scheduled_at
+        party.scheduled_at = _resolve_scheduled_at(body.scheduled_at)
     if body.ping_role_ids is not None:
         party.ping_role_ids = body.ping_role_ids
 
+    await session.commit()
     await edit_party_embed(party)
-    return party_to_dict(party, str(current_user["sub"]))
+    return party_to_dict(party, uid)
 
 
 @router.post("/{party_id}/join")
@@ -161,7 +183,7 @@ async def join_party(
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     """Join an open party."""
-    party = _require_party(party_id)
+    party = await _require_party(party_id, session)
     uid = str(current_user["sub"])
 
     if party.status == "closed":
@@ -173,29 +195,30 @@ async def join_party(
 
     username = current_user.get("username", "Unknown")
     rsn = await _get_rsn(int(current_user["sub"]), session)
-    add_member(party, user_id=uid, username=username, rsn=rsn)
+    await add_member(session, party, user_id=uid, username=username, rsn=rsn)
     await edit_party_embed(party)
-    return party_to_dict(party, str(current_user["sub"]))
+    return party_to_dict(party, uid)
 
 
 @router.delete("/{party_id}/leave")
 async def leave_party(
     party_id: str,
     current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ) -> dict:
     """Leave a party. Leaders cannot leave — they must close the party instead."""
-    party = _require_party(party_id)
+    party = await _require_party(party_id, session)
     uid = str(current_user["sub"])
 
     if party.leader_id == uid:
         raise HTTPException(400, "Leaders cannot leave — close the party instead")
     if party.status == "closed":
         raise HTTPException(409, "Party is already closed")
-    if not remove_member(party, uid):
+    if not await remove_member(session, party, uid):
         raise HTTPException(404, "You are not in this party")
 
     await edit_party_embed(party)
-    return party_to_dict(party, str(current_user["sub"]))
+    return party_to_dict(party, uid)
 
 
 @router.delete("/{party_id}")
@@ -205,7 +228,7 @@ async def close_party_endpoint(
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     """Close a party. Leader or staff only."""
-    party = _require_party(party_id)
+    party = await _require_party(party_id, session)
     uid = str(current_user["sub"])
 
     if party.status == "closed":
@@ -214,9 +237,9 @@ async def close_party_endpoint(
         if not await _is_staff(int(current_user["sub"]), session):
             raise HTTPException(403, "Only the party leader or staff can close this party")
 
-    close_party(party)
+    await close_party(session, party)
     await close_party_embed(party)
-    return party_to_dict(party, str(current_user["sub"]))
+    return party_to_dict(party, uid)
 
 
 @router.delete("/{party_id}/members/{target_user_id}")
@@ -224,9 +247,10 @@ async def kick_member(
     party_id: str,
     target_user_id: str,
     current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ) -> dict:
     """Kick a member from the party. Leader only."""
-    party = _require_party(party_id)
+    party = await _require_party(party_id, session)
     uid = str(current_user["sub"])
 
     if party.leader_id != uid:
@@ -235,21 +259,24 @@ async def kick_member(
         raise HTTPException(400, "Cannot kick yourself — close the party instead")
     if party.status == "closed":
         raise HTTPException(409, "Party is closed")
-    if not remove_member(party, target_user_id):
+    if not await remove_member(session, party, target_user_id):
         raise HTTPException(404, "Member not found in this party")
 
     await edit_party_embed(party)
-    return party_to_dict(party, str(current_user["sub"]))
+    return party_to_dict(party, uid)
 
 
 @router.get("/{party_id}/chat")
 async def get_chat(
     party_id: str,
     current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ) -> list[dict]:
     """Fetch the most recent 50 chat messages for a party."""
-    party = _require_party(party_id)
-    return [chat_message_to_dict(m) for m in party.chat[-50:]]
+    party = await _require_party(party_id, session)
+    _ = party  # existence check only
+    messages = await get_chat_messages(session, party_id)
+    return [chat_message_to_dict(m) for m in messages]
 
 
 @router.post("/{party_id}/chat", status_code=201)
@@ -257,12 +284,14 @@ async def send_chat(
     party_id: str,
     body: SendChatRequest,
     current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Post a chat message to a party. Requires auth; party need not be open."""
-    party = _require_party(party_id)
+    """Post a chat message to a party."""
+    party = await _require_party(party_id, session)
     if party.status == "closed":
         raise HTTPException(409, "Cannot chat in a closed party")
+
     uid = str(current_user["sub"])
     username = current_user.get("username", "Unknown")
-    msg = add_chat_message(party, user_id=uid, username=username, rsn=None, text=body.text.strip())
+    msg = await add_chat_message(session, party_id, user_id=uid, username=username, rsn=None, text=body.text.strip())
     return chat_message_to_dict(msg)

@@ -8,7 +8,8 @@ from datetime import timezone
 import httpx
 from loguru import logger
 
-from app.party_store import VIBE_COLOUR, Party
+from app.db.models import PartyDB as Party
+from app.party_store import VIBE_COLOUR
 
 WEBHOOK_URL = os.getenv("DISCORD_PARTY_WEBHOOK_URL", "").rstrip("/")
 _SITE_URL = os.getenv("FRONTEND_URL", "https://ironfoundry.cc").split(",")[0].strip().rstrip("/")
