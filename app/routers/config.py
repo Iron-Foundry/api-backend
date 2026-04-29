@@ -22,6 +22,7 @@ _GLOBAL_GUILD_ID = 0
 _RANK_MAPPINGS_KEY = "clan_rank_mappings"
 _PAGE_PERMISSIONS_KEY = "page_permissions"
 _ADMIN_BYPASS_KEY = "admin_bypass_roles"
+_PARTY_PING_ROLES_KEY = "party_ping_roles"
 
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
@@ -151,6 +152,45 @@ async def get_admin_bypass_roles_endpoint(
     """Return the admin bypass role IDs. Accessible to all authenticated users."""
     roles = await get_admin_bypass_roles(session)
     return {"roles": roles}
+
+
+# ── Party ping roles ─────────────────────────────────────────────────────────
+
+
+class PartyPingRoleEntry(BaseModel):
+    discord_role_id: str
+    label: str
+
+
+class PartyPingRolesBody(BaseModel):
+    roles: list[PartyPingRoleEntry]
+
+
+@router.get("/party-ping-roles")
+async def get_party_ping_roles(
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Return the list of Discord roles that party leaders can ping. Any authenticated user."""
+    data = await _get_config_value(_PARTY_PING_ROLES_KEY, session)
+    return {"roles": data.get("roles", [])}
+
+
+@router.put(
+    "/party-ping-roles",
+    dependencies=[Depends(require_page_permission("staff.rank-mappings", "edit"))],
+)
+async def set_party_ping_roles(
+    body: PartyPingRolesBody,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Update the party ping roles list. Requires rank-mappings edit permission."""
+    roles = [r.model_dump() for r in body.roles if r.discord_role_id.strip() and r.label.strip()]
+    await _set_config_value(_PARTY_PING_ROLES_KEY, {"roles": roles}, session)
+    return {"roles": roles}
+
+
+# ── Admin bypass roles ────────────────────────────────────────────────────────
 
 
 @router.put("/admin-bypass-roles")

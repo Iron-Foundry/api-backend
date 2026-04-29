@@ -20,13 +20,16 @@ from app.routers import (
     content,
     events,
     members,
+    parties,
     staff,
     surveys,
 )
 from app.routers.ccdispatch import split_message
 from app.services.connection_manager import connection_manager
 from app.services.clan_stats import ClanStatsService
+from app.services.discord_party import close_party_embed
 from app.services.name_change import WomNameChangeService
+from app.party_store import expire_parties
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 VALKEY_URI = os.getenv("VALKEY_URI", "redis://localhost:6379")
@@ -162,6 +165,18 @@ async def _discord_chat_subscriber(valkey_uri: str, session_factory) -> None:  #
             await asyncio.sleep(5)
 
 
+async def _party_expiry_task() -> None:
+    """Close expired in-memory parties every 60 seconds."""
+    while True:
+        await asyncio.sleep(60)
+        try:
+            for party in expire_parties():
+                logger.info("party_expiry: closing expired party {}", party.id)
+                await close_party_embed(party)
+        except Exception as exc:
+            logger.warning("party_expiry: error — {}", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if DATABASE_URL:
@@ -180,6 +195,7 @@ async def lifespan(app: FastAPI):
         _discord_chat_subscriber(VALKEY_URI, app.state.session_factory),
         name="discord-chat-subscriber",
     )
+    expiry_task = asyncio.create_task(_party_expiry_task(), name="party-expiry")
     clan_stats_service: ClanStatsService | None = None
     if WOM_GROUP_ID:
         wom_service: WomNameChangeService | None = WomNameChangeService(
@@ -197,8 +213,13 @@ async def lifespan(app: FastAPI):
         wom_service = None
     yield
     subscriber_task.cancel()
+    expiry_task.cancel()
     try:
         await subscriber_task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await expiry_task
     except asyncio.CancelledError:
         pass
     if wom_service:
@@ -229,6 +250,7 @@ app.include_router(config.router)
 app.include_router(events.router)
 app.include_router(ccdispatch.router)
 app.include_router(members.router)
+app.include_router(parties.router)
 app.include_router(staff.router)
 app.include_router(surveys.router)
 app.include_router(badges.router)
