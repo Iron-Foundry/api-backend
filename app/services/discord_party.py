@@ -8,9 +8,11 @@ from datetime import timezone
 import httpx
 from loguru import logger
 
-from app.party_store import VIBE_COLOUR, VIBE_EMOJI, Party
+from app.party_store import VIBE_COLOUR, Party
 
 WEBHOOK_URL = os.getenv("DISCORD_PARTY_WEBHOOK_URL", "").rstrip("/")
+_SITE_URL = os.getenv("FRONTEND_URL", "https://ironfoundry.cc").split(",")[0].strip().rstrip("/")
+_PARTIES_URL = f"{_SITE_URL}/parties"
 _CLOSED_COLOUR = 0x95A5A6
 
 
@@ -19,14 +21,13 @@ def _build_embed(party: Party) -> dict:
     is_full = party.status == "full"
 
     if is_closed:
-        title = f"✅ {party.activity} — Closed"
+        title = f"{party.activity} — Closed"
         colour = _CLOSED_COLOUR
     elif is_full:
-        title = f"🔒 {party.activity} — Full"
+        title = f"{party.activity} — Full"
         colour = _CLOSED_COLOUR
     else:
-        emoji = VIBE_EMOJI.get(party.vibe, "⚔️")
-        title = f"{emoji} {party.activity}"
+        title = party.activity
         colour = VIBE_COLOUR.get(party.vibe, 0xF1C40F)
 
     leader_display = party.leader_rsn or party.leader_username
@@ -34,7 +35,7 @@ def _build_embed(party: Party) -> dict:
 
     fields: list[dict] = [
         {"name": "Leader",  "value": leader_display, "inline": True},
-        {"name": "Vibe",    "value": f"{VIBE_EMOJI.get(party.vibe, '')} {party.vibe.capitalize()}", "inline": True},
+        {"name": "Vibe",    "value": party.vibe.capitalize(), "inline": True},
         {"name": "Spots",   "value": f"{len(party.members)} / {party.max_size}", "inline": True},
     ]
     if party.scheduled_at:
@@ -43,13 +44,16 @@ def _build_embed(party: Party) -> dict:
     if not is_closed:
         fields.append({"name": "Expires", "value": f"<t:{int(party.expires_at.timestamp())}:R>", "inline": True})
     fields.append({"name": "Members", "value": members_display, "inline": False})
+    if party.ping_role_ids:
+        fields.append({"name": "Pinged", "value": " ".join(f"<@&{rid}>" for rid in party.ping_role_ids), "inline": False})
 
     return {
         "title": title,
+        "url": _PARTIES_URL,
         "description": party.description or "",
         "color": colour,
         "fields": fields,
-        "footer": {"text": "Join/chat at ironfoundry.cc/parties"},
+        "footer": {"text": "Iron Foundry Parties"},
         "timestamp": party.created_at.isoformat(),
     }
 
