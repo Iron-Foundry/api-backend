@@ -2,10 +2,37 @@
 
 from __future__ import annotations
 
+import random
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Literal
+
+_WORDLIST = [
+    "abyssal","ancient","anvil","arcane","armadyl","arrow","axe",
+    "bandos","barrows","berserker","brimstone","bronze","brutal",
+    "cannonball","chaos","chimera","coffer","coral","crystal",
+    "dagannoth","dark","death","defender","demon","divine","dragon",
+    "dragonfire","dusk","dwarf","elder","eternal","fighter","fire",
+    "flask","forest","fury","ghost","giant","gloves","goblin",
+    "golem","granite","guthix","hammer","helm","hunter","hydra",
+    "infernal","iron","jad","justiciar","karambwan","kraken","lance",
+    "lava","lobster","magic","manta","maple","marble","master",
+    "monk","mortar","mud","mystic","nature","needle","nex",
+    "nightmare","oak","obsidian","onyx","oracle","pegasian","pickaxe",
+    "prayer","quartz","quest","ranger","rapier","rune","sacred",
+    "saradomin","scimitar","seed","shark","shield","silver","skeleton",
+    "slayer","smoke","snow","soul","spade","spectral","staff","steel",
+    "storm","sword","teak","thorn","titan","toad","tome","torch",
+    "torva","toxic","trident","tuna","twisted","vanguard","venom",
+    "vigour","viper","void","vorkath","warhammer","warped","water",
+    "whip","willow","wings","witch","wolf","wrath","yew",
+    "zamorak","zenyte","zulrah",
+]
+
+
+def _generate_hub_code() -> str:
+    return "-".join(random.choices(_WORDLIST, k=3))
 
 Vibe = Literal["learning", "chill", "sweat"]
 
@@ -58,6 +85,7 @@ class Party:
     expires_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     status: Literal["open", "full", "closed"] = "open"
     discord_message_id: str | None = None
+    hub_code: str = field(default_factory=_generate_hub_code)
 
 
 # ── Store ─────────────────────────────────────────────────────────────────────
@@ -156,7 +184,8 @@ def list_active_parties() -> list[Party]:
 
 # ── Serialisers ───────────────────────────────────────────────────────────────
 
-def party_to_dict(party: Party) -> dict:
+def party_to_dict(party: Party, viewer_id: str | None = None) -> dict:
+    is_member = viewer_id is not None and any(m.user_id == viewer_id for m in party.members)
     return {
         "id": party.id,
         "activity": party.activity,
@@ -178,6 +207,7 @@ def party_to_dict(party: Party) -> dict:
         "created_at": party.created_at.isoformat(),
         "scheduled_at": party.scheduled_at.isoformat() if party.scheduled_at else None,
         "expires_at": party.expires_at.isoformat(),
+        "hub_code": party.hub_code if is_member else None,
     }
 
 

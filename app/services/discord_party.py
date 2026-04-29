@@ -46,10 +46,10 @@ def _build_embed(party: Party) -> dict:
     fields.append({"name": "Members", "value": members_display, "inline": False})
     if party.ping_role_ids:
         fields.append({"name": "Pinged", "value": " ".join(f"<@&{rid}>" for rid in party.ping_role_ids), "inline": False})
+    fields.append({"name": "​", "value": f"[View on web]({_PARTIES_URL})", "inline": False})
 
     return {
         "title": title,
-        "url": _PARTIES_URL,
         "description": party.description or "",
         "color": colour,
         "fields": fields,
@@ -62,16 +62,9 @@ async def post_party_embed(party: Party) -> str | None:
     """POST a new embed to the webhook. Returns the Discord message ID."""
     if not WEBHOOK_URL:
         return None
-    content = " ".join(f"<@&{rid}>" for rid in party.ping_role_ids) if party.ping_role_ids else ""
-    payload: dict = {
-        "embeds": [_build_embed(party)],
-        "allowed_mentions": {"parse": [], "roles": list(party.ping_role_ids)},
-    }
-    if content:
-        payload["content"] = content
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(f"{WEBHOOK_URL}?wait=true", json=payload)
+            resp = await client.post(f"{WEBHOOK_URL}?wait=true", json={"embeds": [_build_embed(party)]})
             resp.raise_for_status()
             return str(resp.json().get("id"))
     except Exception as exc:

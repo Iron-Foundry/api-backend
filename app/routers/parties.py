@@ -9,6 +9,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import select
+
+from app.db.models import User
 from app.dependencies import get_current_user, get_optional_user, get_session
 from app.party_store import (
     Party,
@@ -48,6 +51,7 @@ class UpdatePartyRequest(BaseModel):
     vibe: Vibe | None = None
     max_size: Annotated[int | None, Field(ge=2, le=100)] = None
     scheduled_at: datetime | None = None
+    ping_role_ids: list[str] | None = None
 
 
 class SendChatRequest(BaseModel):
@@ -69,25 +73,32 @@ async def _is_staff(uid: int, session: AsyncSession) -> bool:
     return bool(bypass and any(r in bypass for r in roles))
 
 
+async def _get_rsn(uid: int, session: AsyncSession) -> str | None:
+    result = await session.execute(select(User.rsn).where(User.discord_user_id == uid))
+    return result.scalar_one_or_none()
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("")
 async def get_parties(
-    _current_user: dict | None = Depends(get_optional_user),
+    current_user: dict | None = Depends(get_optional_user),
 ) -> list[dict]:
     """List all non-closed parties. Public."""
-    return [party_to_dict(p) for p in list_active_parties()]
+    viewer_id = str(current_user["sub"]) if current_user else None
+    return [party_to_dict(p, viewer_id) for p in list_active_parties()]
 
 
 @router.post("", status_code=201)
 async def create_new_party(
     body: CreatePartyRequest,
     current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ) -> dict:
     """Create a party. The creator is automatically added as leader/first member."""
     uid = str(current_user["sub"])
     username = current_user.get("username", "Unknown")
-    rsn: str | None = None  # rsn not in JWT; party shows username by default
+    rsn = await _get_rsn(int(current_user["sub"]), session)
 
     party = create_party(
         leader_id=uid,
@@ -106,7 +117,7 @@ async def create_new_party(
     if message_id:
         party.discord_message_id = message_id
 
-    return party_to_dict(party)
+    return party_to_dict(party, str(current_user["sub"]))
 
 
 @router.patch("/{party_id}")
@@ -136,15 +147,18 @@ async def update_party(
         _recalc_status(party)
     if body.scheduled_at is not None:
         party.scheduled_at = body.scheduled_at
+    if body.ping_role_ids is not None:
+        party.ping_role_ids = body.ping_role_ids
 
     await edit_party_embed(party)
-    return party_to_dict(party)
+    return party_to_dict(party, str(current_user["sub"]))
 
 
 @router.post("/{party_id}/join")
 async def join_party(
     party_id: str,
     current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ) -> dict:
     """Join an open party."""
     party = _require_party(party_id)
@@ -158,9 +172,10 @@ async def join_party(
         raise HTTPException(409, "Already in this party")
 
     username = current_user.get("username", "Unknown")
-    add_member(party, user_id=uid, username=username, rsn=None)
+    rsn = await _get_rsn(int(current_user["sub"]), session)
+    add_member(party, user_id=uid, username=username, rsn=rsn)
     await edit_party_embed(party)
-    return party_to_dict(party)
+    return party_to_dict(party, str(current_user["sub"]))
 
 
 @router.delete("/{party_id}/leave")
@@ -180,7 +195,7 @@ async def leave_party(
         raise HTTPException(404, "You are not in this party")
 
     await edit_party_embed(party)
-    return party_to_dict(party)
+    return party_to_dict(party, str(current_user["sub"]))
 
 
 @router.delete("/{party_id}")
@@ -201,7 +216,7 @@ async def close_party_endpoint(
 
     close_party(party)
     await close_party_embed(party)
-    return party_to_dict(party)
+    return party_to_dict(party, str(current_user["sub"]))
 
 
 @router.delete("/{party_id}/members/{target_user_id}")
@@ -224,7 +239,7 @@ async def kick_member(
         raise HTTPException(404, "Member not found in this party")
 
     await edit_party_embed(party)
-    return party_to_dict(party)
+    return party_to_dict(party, str(current_user["sub"]))
 
 
 @router.get("/{party_id}/chat")
