@@ -1,4 +1,4 @@
-"""Discord party integration — no-ops.
+"""Discord party integration - no-ops.
 
 Party display on Discord is handled entirely by the discord-server bot panel.
 The bot polls the database every 30 seconds and refreshes the panel in place.

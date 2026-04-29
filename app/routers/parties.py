@@ -1,4 +1,4 @@
-"""Parties router — DB-backed party management."""
+"""Parties router - DB-backed party management."""
 
 from __future__ import annotations
 
@@ -206,12 +206,12 @@ async def leave_party(
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Leave a party. Leaders cannot leave — they must close the party instead."""
+    """Leave a party. Leaders cannot leave - they must close the party instead."""
     party = await _require_party(party_id, session)
     uid = str(current_user["sub"])
 
     if party.leader_id == uid:
-        raise HTTPException(400, "Leaders cannot leave — close the party instead")
+        raise HTTPException(400, "Leaders cannot leave - close the party instead")
     if party.status == "closed":
         raise HTTPException(409, "Party is already closed")
     if not await remove_member(session, party, uid):
@@ -256,7 +256,7 @@ async def kick_member(
     if party.leader_id != uid:
         raise HTTPException(403, "Only the party leader can kick members")
     if target_user_id == uid:
-        raise HTTPException(400, "Cannot kick yourself — close the party instead")
+        raise HTTPException(400, "Cannot kick yourself - close the party instead")
     if party.status == "closed":
         raise HTTPException(409, "Party is closed")
     if not await remove_member(session, party, target_user_id):

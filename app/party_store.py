@@ -1,4 +1,4 @@
-"""Party store — DB-backed async operations."""
+"""Party store - DB-backed async operations."""
 
 from __future__ import annotations
 
