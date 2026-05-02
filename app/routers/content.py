@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -318,6 +318,13 @@ async def get_entry(
 class CreateCategoryBody(BaseModel):
     label: str
     parent_id: UUID | None = None
+
+    @field_validator("label")
+    @classmethod
+    def label_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("label must not be empty")
+        return v
 
 
 @router.post("/{page_type}/categories", status_code=201)

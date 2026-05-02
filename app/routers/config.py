@@ -23,6 +23,7 @@ _RANK_MAPPINGS_KEY = "clan_rank_mappings"
 _PAGE_PERMISSIONS_KEY = "page_permissions"
 _ADMIN_BYPASS_KEY = "admin_bypass_roles"
 _PARTY_PING_ROLES_KEY = "party_ping_roles"
+_RANKING_CONFIG_KEY = "ranking_config"
 
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
@@ -226,3 +227,34 @@ async def set_admin_bypass_roles(
             raise HTTPException(403, "Requires admin bypass role.")
     await _set_config_value(_ADMIN_BYPASS_KEY, {"roles": body.roles}, session)
     return {"roles": body.roles}
+
+
+# ── Ranking config ────────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/ranking",
+    dependencies=[Depends(require_page_permission("staff.ranking", "read"))],
+)
+async def get_ranking_config(
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    from app.services.ranking_service import _DEFAULT_CONFIG
+    data = await _get_config_value(_RANKING_CONFIG_KEY, session)
+    if not data:
+        return _DEFAULT_CONFIG
+    merged = dict(_DEFAULT_CONFIG)
+    merged.update(data)
+    return merged
+
+
+@router.put(
+    "/ranking",
+    dependencies=[Depends(require_page_permission("staff.ranking", "edit"))],
+)
+async def set_ranking_config(
+    body: dict,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    await _set_config_value(_RANKING_CONFIG_KEY, body, session)
+    return body

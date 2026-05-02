@@ -452,6 +452,27 @@ class RolePanel(Base):
     )
 
 
+class PlayerRanking(Base):
+    __tablename__ = "player_rankings"
+
+    rsn: Mapped[str] = mapped_column(Text, primary_key=True)
+    rank: Mapped[str] = mapped_column(Text, nullable=False)
+    points: Mapped[int] = mapped_column(Integer, nullable=False)
+    boss_points: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    skill_points: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    discord_user_id: Mapped[int | None] = mapped_column(BigInteger)
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+
+
+class PlayerSnapshot(Base):
+    __tablename__ = "player_snapshots"
+
+    rsn: Mapped[str] = mapped_column(Text, primary_key=True)
+    skills: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    bosses: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    fetched_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+
+
 class ContentEntryReaction(Base):
     __tablename__ = "content_entry_reactions"
     __table_args__ = (

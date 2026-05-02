@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -46,9 +46,11 @@ class BadgeBody(BaseModel):
 async def list_badges(
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, le=200),
 ) -> list[dict]:
     """Return all badges. Any authenticated user can fetch the list."""
-    result = await session.execute(select(Badge).order_by(Badge.name))
+    result = await session.execute(select(Badge).order_by(Badge.name).offset(skip).limit(limit))
     return [
         {
             "id": str(b.id),
@@ -242,3 +244,25 @@ async def my_badges(
         }
         for b in result.scalars()
     ]
+
+
+@router.get("/{badge_id}")
+async def get_badge(
+    badge_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Return a single badge by ID. Any authenticated user."""
+    result = await session.execute(select(Badge).where(Badge.id == badge_id))
+    badge = result.scalar_one_or_none()
+    if not badge:
+        raise HTTPException(404, "Badge not found.")
+    return {
+        "id": str(badge.id),
+        "name": badge.name,
+        "description": badge.description,
+        "icon": badge.icon,
+        "color": badge.color,
+        "text_color": badge.text_color,
+        "created_at": badge.created_at.isoformat() if badge.created_at else None,
+    }

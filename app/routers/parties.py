@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from sqlalchemy import select
@@ -45,6 +45,20 @@ class CreatePartyRequest(BaseModel):
     ttl_hours: Annotated[float, Field(ge=0.5, le=24)] = 4.0
     ping_role_ids: list[str] = []
 
+    @field_validator("activity")
+    @classmethod
+    def activity_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("activity must not be blank")
+        return v
+
+    @field_validator("description")
+    @classmethod
+    def description_not_blank(cls, v: str | None) -> str | None:
+        if v is not None and not v.strip():
+            return None
+        return v
+
 
 class UpdatePartyRequest(BaseModel):
     activity: Annotated[str | None, Field(min_length=1, max_length=60)] = None
@@ -53,6 +67,13 @@ class UpdatePartyRequest(BaseModel):
     max_size: Annotated[int | None, Field(ge=1, le=100)] = None
     scheduled_at: datetime | None = None
     ping_role_ids: list[str] | None = None
+
+    @field_validator("activity")
+    @classmethod
+    def activity_not_blank(cls, v: str | None) -> str | None:
+        if v is not None and not v.strip():
+            raise ValueError("activity must not be blank")
+        return v
 
 
 class SendChatRequest(BaseModel):
@@ -107,6 +128,18 @@ async def get_parties(
     """List all non-closed parties. Public."""
     viewer_id = str(current_user["sub"]) if current_user else None
     return [party_to_dict(p, viewer_id) for p in await list_active_parties(session)]
+
+
+@router.get("/{party_id}")
+async def get_party_endpoint(
+    party_id: str,
+    current_user: dict | None = Depends(get_optional_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Return a single party by ID. Public."""
+    party = await _require_party(party_id, session)
+    viewer_id = str(current_user["sub"]) if current_user else None
+    return party_to_dict(party, viewer_id)
 
 
 @router.post("", status_code=201)

@@ -4,29 +4,25 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timezone
+from typing import Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 from pydantic import BaseModel
-from typing import cast
-
-from sqlalchemy import func, select, text, update
+from sqlalchemy import func, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
-    Config,
-    CofferEvent,
     Event,
-    Leaderboard,
-    MembershipEvent,
     Ticket,
     Transcript,
     User,
 )
 from app.dependencies import get_current_user, get_session
 from app.services.page_permissions import check_page_permission, get_admin_bypass_roles
-from app.services.rank_mappings import get_effective_roles
+from app.services.rank_mappings import get_effective_roles, get_role_label_map
+from app.services.rsn_cascade import backfill_user_from_rsn, cascade_rsn_change
 
 _RSN_RE = re.compile(r"^[A-Za-z0-9 _-]{1,12}$")
 
@@ -131,6 +127,8 @@ async def staff_members(
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
     search: str | None = None,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, le=200),
 ) -> list[dict]:
     """Return all member profiles. Requires staff.members read permission."""
     await _require_rank("staff.members", "read", current_user, session)
@@ -154,7 +152,7 @@ async def staff_members(
         stmt = stmt.where(
             User.rsn.ilike(pattern) | User.discord_username.ilike(pattern)
         )
-    stmt = stmt.order_by(User.join_date.asc().nulls_last())
+    stmt = stmt.order_by(User.join_date.asc().nulls_last()).offset(skip).limit(limit)
     result = await session.execute(stmt)
     members: list[dict] = []
     for row in result:
@@ -178,14 +176,14 @@ async def staff_members(
     return members
 
 
-class RsnUpdate(BaseModel):
+class StaffRsnUpdate(BaseModel):
     rsn: str | None
 
 
 @router.patch("/members/{discord_user_id}/rsn")
 async def update_member_rsn(
     discord_user_id: int,
-    body: RsnUpdate,
+    body: StaffRsnUpdate,
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
@@ -255,40 +253,7 @@ async def update_member_rsn(
         )
 
     if old_rsn and old_rsn.lower() != new_rsn.lower():
-        await session.execute(
-            update(Event)
-            .where(func.lower(Event.player_name) == old_rsn.lower())
-            .values(player_name=new_rsn)
-        )
-        await session.execute(
-            text(
-                "UPDATE events SET data = jsonb_set(data, '{winner}', to_jsonb(:new::text))"
-                " WHERE type = 'pk' AND lower(data->>'winner') = lower(:old)"
-            ),
-            {"old": old_rsn, "new": new_rsn},
-        )
-        await session.execute(
-            text(
-                "UPDATE events SET data = jsonb_set(data, '{loser}', to_jsonb(:new::text))"
-                " WHERE type = 'pk' AND lower(data->>'loser') = lower(:old)"
-            ),
-            {"old": old_rsn, "new": new_rsn},
-        )
-        await session.execute(
-            update(CofferEvent)
-            .where(func.lower(CofferEvent.player_name) == old_rsn.lower())
-            .values(player_name=new_rsn)
-        )
-        await session.execute(
-            update(MembershipEvent)
-            .where(func.lower(MembershipEvent.player_name) == old_rsn.lower())
-            .values(player_name=new_rsn)
-        )
-        await session.execute(
-            update(Leaderboard)
-            .where(func.lower(Leaderboard.player_name) == old_rsn.lower())
-            .values(player_name=new_rsn)
-        )
+        await cascade_rsn_change(session, old_rsn, new_rsn)
         logger.info(
             "staff/rsn: cascaded rename {!r} → {!r} for user {}",
             old_rsn,
@@ -303,72 +268,15 @@ async def update_member_rsn(
     )
     logger.info("staff/rsn: user {} set RSN {!r}", discord_user_id, new_rsn)
 
-    backfill: dict = {}
-
-    if not user_row.clan_rank:
-        rank_result = await session.execute(
-            select(Event.data["rank"].as_string())
-            .where(
-                func.lower(Event.player_name) == new_rsn.lower(),
-                Event.data["rank"].as_string().isnot(None),
-                Event.type.in_(
-                    [
-                        "loot",
-                        "level",
-                        "xp_milestone",
-                        "quest",
-                        "diary",
-                        "combat_achievement",
-                    ]
-                ),
-            )
-            .order_by(Event.timestamp.desc())
-            .limit(1)
-        )
-        rank_val = rank_result.scalar_one_or_none()
-        if rank_val:
-            backfill["clan_rank"] = rank_val
-
-    if not user_row.total_loot_value:
-        loot_result = await session.execute(
-            select(
-                func.coalesce(func.sum(Event.data["coin_value"].as_integer()), 0)
-            ).where(
-                func.lower(Event.player_name) == new_rsn.lower(),
-                Event.type.in_(["loot", "loot_key", "clue_item"]),
-            )
-        )
-        total_loot = loot_result.scalar_one_or_none() or 0
-        if total_loot:
-            backfill["total_loot_value"] = total_loot
-
-    if not user_row.collection_log_slots:
-        cl_result = await session.execute(
-            select(
-                func.coalesce(func.max(Event.data["log_slots"].as_integer()), 0)
-            ).where(
-                func.lower(Event.player_name) == new_rsn.lower(),
-                Event.type == "collection_log",
-            )
-        )
-        cl_slots = cl_result.scalar_one_or_none() or 0
-        if cl_slots:
-            backfill["collection_log_slots"] = cl_slots
-
-    ticket_result = await session.execute(
-        select(Ticket.ticket_id).where(Ticket.creator_id == discord_user_id)
+    backfill = await backfill_user_from_rsn(
+        session,
+        discord_user_id,
+        new_rsn,
+        clan_rank=user_row.clan_rank,
+        total_loot_value=user_row.total_loot_value or 0,
+        collection_log_slots=user_row.collection_log_slots or 0,
     )
-    ticket_ids = sorted([row[0] for row in ticket_result])
-    if ticket_ids:
-        backfill["ticket_ids"] = ticket_ids
-
     if backfill:
-        backfill["updated_at"] = now
-        await session.execute(
-            update(User)
-            .where(User.discord_user_id == discord_user_id)
-            .values(**backfill)
-        )
         logger.info(
             "staff/rsn: backfilled {} for user {}",
             list(backfill.keys()),
@@ -394,7 +302,7 @@ async def update_member_rsn(
 async def staff_tickets(
     limit: int = Query(default=50, ge=1, le=200),
     skip: int = Query(default=0, ge=0),
-    status: str | None = Query(default=None),
+    status: Literal["open", "closed"] | None = Query(default=None),
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[dict]:
@@ -408,18 +316,7 @@ async def staff_tickets(
     if any(r in bypass_roles for r in roles):
         allowed = list(_TICKET_TYPE_MIN_RANK.keys())
     else:
-        cfg_result = await session.execute(
-            select(Config.value).where(
-                Config.guild_id == 0, Config.key == "clan_rank_mappings"
-            )
-        )
-        cfg = cfg_result.scalar_one_or_none() or {}
-        mappings: list[dict] = cfg.get("mappings", [])
-        id_to_label = {
-            m["discord_role_id"]: m.get("label", "")
-            for m in mappings
-            if "discord_role_id" in m
-        }
+        id_to_label = await get_role_label_map(session)
         role_labels = [id_to_label.get(r, r) for r in roles]
         allowed = _allowed_ticket_types(role_labels)
 
@@ -433,7 +330,7 @@ async def staff_tickets(
         .offset(skip)
         .limit(limit)
     )
-    if status:
+    if status is not None:
         stmt = stmt.where(Ticket.status == status)
 
     result = await session.execute(stmt)
@@ -478,18 +375,7 @@ async def staff_ticket_transcript(
     if any(r in bypass_roles for r in roles):
         allowed = list(_TICKET_TYPE_MIN_RANK.keys())
     else:
-        cfg_result = await session.execute(
-            select(Config.value).where(
-                Config.guild_id == 0, Config.key == "clan_rank_mappings"
-            )
-        )
-        cfg = cfg_result.scalar_one_or_none() or {}
-        mappings = cfg.get("mappings", [])
-        id_to_label = {
-            m["discord_role_id"]: m.get("label", "")
-            for m in mappings
-            if "discord_role_id" in m
-        }
+        id_to_label = await get_role_label_map(session)
         role_labels = [id_to_label.get(r, r) for r in roles]
         allowed = _allowed_ticket_types(role_labels)
 

@@ -6,12 +6,11 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
-    Config,
     SurveyActive,
     SurveyResponse,
     SurveyTemplate,
@@ -21,7 +20,7 @@ from app.db.models import (
 )
 from app.dependencies import get_current_user, get_session
 from app.services.page_permissions import check_page_permission, get_admin_bypass_roles
-from app.services.rank_mappings import get_effective_roles
+from app.services.rank_mappings import get_effective_roles, get_role_label_map
 
 router = APIRouter(prefix="/surveys", tags=["surveys"])
 
@@ -256,19 +255,7 @@ async def get_template_responses(
 
     role_labels: set[str] = set()
     if not is_bypass:
-        cfg_result = await session.execute(
-            select(Config.value).where(
-                Config.guild_id == 0, Config.key == "clan_rank_mappings"
-            )
-        )
-        cfg = cfg_result.scalar_one_or_none() or {}
-        mappings: list[dict] = cfg.get("mappings", [])
-        id_to_label = {
-            m["discord_role_id"]: m.get("label", "")
-            for m in mappings
-            if "discord_role_id" in m
-        }
-        # Each role is either an ID (resolve to label) or already a label (legacy discord_roles)
+        id_to_label = await get_role_label_map(session)
         role_labels = {id_to_label.get(r, r) for r in roles}
 
     if raw_visibility is None:
@@ -504,7 +491,7 @@ class TemplateFieldBody(BaseModel):
     description: str | None = None
     required: bool = False
     options: list[str] = []
-    max_choices: int = 1
+    max_choices: int = Field(default=1, ge=1)
 
 
 class TemplateBody(BaseModel):

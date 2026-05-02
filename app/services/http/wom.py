@@ -116,6 +116,10 @@ class WiseOldManHandler(BaseRequestHandler):
             return []
         return resp.json()
 
+    async def get_player_details(self, username: str) -> dict:
+        resp = await self._get_with_rate_limit(f"/players/{username}")
+        return resp.json() if resp.is_success else {}
+
     async def get_group_name_changes(
         self, group_id: str | int, *, limit: int = 50
     ) -> list[dict]:

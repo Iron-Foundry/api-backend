@@ -11,6 +11,22 @@ _GLOBAL_GUILD_ID = 0
 _RANK_MAPPINGS_KEY = "clan_rank_mappings"
 
 
+async def get_role_label_map(session: AsyncSession) -> dict[str, str]:
+    """Return {discord_role_id: label} from clan_rank_mappings config."""
+    result = await session.execute(
+        select(Config.value).where(
+            Config.guild_id == _GLOBAL_GUILD_ID,
+            Config.key == _RANK_MAPPINGS_KEY,
+        )
+    )
+    cfg = result.scalar_one_or_none() or {}
+    return {
+        m["discord_role_id"]: m.get("label", "")
+        for m in cfg.get("mappings", [])
+        if "discord_role_id" in m
+    }
+
+
 async def get_effective_roles(discord_user_id: int, session: AsyncSession) -> list[str]:
     """Return the user's effective Discord roles.
 

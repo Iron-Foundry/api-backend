@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Event, Ticket, User
 from app.dependencies import get_current_user, get_session
+from app.services.rsn_cascade import backfill_user_from_rsn
 
 router = APIRouter(prefix="/members", tags=["members"])
 
@@ -96,77 +97,16 @@ async def update_rsn(
         )
     )
     user_row = user_result.one_or_none()
-    backfill: dict = {}
 
-    if not user_row or not user_row.clan_rank:
-        rank_result = await session.execute(
-            select(Event.data["rank"].as_string())
-            .where(
-                func.lower(Event.player_name) == rsn.lower(),
-                Event.data["rank"].as_string().isnot(None),
-                Event.type.in_(
-                    [
-                        "loot",
-                        "level",
-                        "xp_milestone",
-                        "quest",
-                        "diary",
-                        "combat_achievement",
-                    ]
-                ),
-            )
-            .order_by(Event.timestamp.desc())
-            .limit(1)
-        )
-        rank_val = rank_result.scalar_one_or_none()
-        if rank_val:
-            backfill["clan_rank"] = rank_val
-            logger.info(
-                "members/rsn: backfilled clan_rank={!r} for user {}",
-                rank_val,
-                discord_user_id,
-            )
-
-    if not user_row or user_row.total_loot_value == 0:
-        loot_result = await session.execute(
-            select(
-                func.coalesce(func.sum(Event.data["coin_value"].as_integer()), 0)
-            ).where(
-                func.lower(Event.player_name) == rsn.lower(),
-                Event.type.in_(["loot", "loot_key", "clue_item"]),
-            )
-        )
-        total_loot = loot_result.scalar_one_or_none() or 0
-        if total_loot:
-            backfill["total_loot_value"] = total_loot
-
-    if not user_row or user_row.collection_log_slots == 0:
-        cl_result = await session.execute(
-            select(
-                func.coalesce(func.max(Event.data["log_slots"].as_integer()), 0)
-            ).where(
-                func.lower(Event.player_name) == rsn.lower(),
-                Event.type == "collection_log",
-            )
-        )
-        cl_slots = cl_result.scalar_one_or_none() or 0
-        if cl_slots:
-            backfill["collection_log_slots"] = cl_slots
-
-    ticket_result = await session.execute(
-        select(Ticket.ticket_id).where(Ticket.creator_id == discord_user_id)
+    backfill = await backfill_user_from_rsn(
+        session,
+        discord_user_id,
+        rsn,
+        clan_rank=user_row.clan_rank if user_row else None,
+        total_loot_value=user_row.total_loot_value if user_row else 0,
+        collection_log_slots=user_row.collection_log_slots if user_row else 0,
     )
-    ticket_ids = sorted([row[0] for row in ticket_result])
-    if ticket_ids:
-        backfill["ticket_ids"] = ticket_ids
-
     if backfill:
-        backfill["updated_at"] = now
-        await session.execute(
-            update(User)
-            .where(User.discord_user_id == discord_user_id)
-            .values(**backfill)
-        )
         logger.info(
             "members/rsn: backfilled fields {} for user {}",
             list(backfill.keys()),
@@ -191,6 +131,7 @@ async def update_rsn(
 @router.get("/me/feed")
 async def member_feed(
     limit: int = Query(default=100, ge=1, le=500),
+    skip: int = Query(default=0, ge=0),
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[dict]:
@@ -367,7 +308,7 @@ async def member_feed(
             )
 
     items.sort(key=lambda x: x["timestamp"], reverse=True)
-    return items[:limit]
+    return items[skip : skip + limit]
 
 
 @router.get("/me/tickets")

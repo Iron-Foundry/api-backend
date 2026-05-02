@@ -17,8 +17,9 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_session
-from app.db.models import Config, Ticket, User
+from app.db.models import Config, User
 from app.services.rank_mappings import get_effective_roles
+from app.services.rsn_cascade import get_user_ticket_ids
 
 DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "")
 DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", "")
@@ -241,10 +242,7 @@ async def callback(
     )
     await session.execute(stmt)
 
-    ticket_result = await session.execute(
-        select(Ticket.ticket_id).where(Ticket.creator_id == discord_user_id)
-    )
-    ticket_ids = sorted([row[0] for row in ticket_result])
+    ticket_ids = await get_user_ticket_ids(session, discord_user_id)
     if ticket_ids:
         await session.execute(
             update(User)

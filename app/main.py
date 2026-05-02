@@ -21,6 +21,7 @@ from app.routers import (
     events,
     members,
     parties,
+    ranking,
     staff,
     surveys,
 )
@@ -29,6 +30,7 @@ from app.services.connection_manager import connection_manager
 from app.services.clan_stats import ClanStatsService
 from app.services.discord_party import close_party_embed
 from app.services.name_change import WomNameChangeService
+from app.services.ranking_service import RankingService
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 VALKEY_URI = os.getenv("VALKEY_URI", "redis://localhost:6379")
@@ -203,6 +205,7 @@ async def lifespan(app: FastAPI):
         _party_expiry_task(app.state.session_factory), name="party-expiry"
     )
     clan_stats_service: ClanStatsService | None = None
+    ranking_service: RankingService | None = None
     if WOM_GROUP_ID:
         wom_service: WomNameChangeService | None = WomNameChangeService(
             app.state.session_factory,
@@ -214,9 +217,16 @@ async def lifespan(app: FastAPI):
         await wom_service.start()
         clan_stats_service = ClanStatsService(app.state.session_factory)
         await clan_stats_service.start()
+        ranking_service = RankingService(
+            app.state.session_factory,
+            int(WOM_GROUP_ID),
+            api_key=WOM_API_KEY,
+        )
+        await ranking_service.start()
     else:
-        logger.warning("WOM_GROUP_ID not set — name change and clan stats services disabled")
+        logger.warning("WOM_GROUP_ID not set — name change, clan stats, and ranking services disabled")
         wom_service = None
+    app.state.ranking_service = ranking_service
     yield
     subscriber_task.cancel()
     expiry_task.cancel()
@@ -232,6 +242,8 @@ async def lifespan(app: FastAPI):
         await wom_service.stop()
     if clan_stats_service:
         await clan_stats_service.stop()
+    if ranking_service:
+        await ranking_service.stop()
     if app.state.engine:
         logger.info("Closing PostgreSQL connection...")
         await app.state.engine.dispose()
@@ -257,6 +269,7 @@ app.include_router(events.router)
 app.include_router(ccdispatch.router)
 app.include_router(members.router)
 app.include_router(parties.router)
+app.include_router(ranking.router)
 app.include_router(staff.router)
 app.include_router(surveys.router)
 app.include_router(badges.router)
