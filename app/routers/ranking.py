@@ -51,12 +51,13 @@ async def get_ranking_status(
     """Last run info. All authenticated users."""
     svc = getattr(request.app.state, "ranking_service", None)
     if svc is None:
-        return {"last_run_at": None, "player_count": 0, "last_error": None, "service_active": False}
+        return {"last_run_at": None, "player_count": 0, "last_error": None, "service_active": False, "is_running": False}
     return {
         "last_run_at": svc.last_run_at.isoformat() if svc.last_run_at else None,
         "player_count": svc.last_run_count,
         "last_error": svc.last_error,
         "service_active": True,
+        "is_running": svc.is_running,
     }
 
 
@@ -124,7 +125,8 @@ async def trigger_ranking_run(request: Request) -> dict:
     svc = getattr(request.app.state, "ranking_service", None)
     if svc is None:
         raise HTTPException(503, "Ranking service not running (WOM_GROUP_ID not configured)")
-    svc.run_now()
+    if not svc.run_now():
+        raise HTTPException(409, "Ranking run already in progress")
     return {"status": "triggered"}
 
 

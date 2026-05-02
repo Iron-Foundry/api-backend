@@ -220,6 +220,7 @@ class RankingService:
         self._api_key = api_key
         self._task: asyncio.Task[None] | None = None
         self._run_event = asyncio.Event()
+        self.is_running: bool = False
         self.last_run_at: datetime | None = None
         self.last_run_count: int = 0
         self.last_error: str | None = None
@@ -237,18 +238,24 @@ class RankingService:
                 pass
         logger.info("RankingService stopped")
 
-    def run_now(self) -> None:
-        """Trigger an immediate ranking run (skips current sleep)."""
+    def run_now(self) -> bool:
+        """Trigger an immediate ranking run. Returns False if already running."""
+        if self.is_running:
+            return False
         self._run_event.set()
+        return True
 
     async def _poll_loop(self) -> None:
         while True:
             self._run_event.clear()
+            self.is_running = True
             try:
                 await self._refresh()
             except Exception as exc:
                 self.last_error = str(exc)
                 logger.warning("RankingService._refresh error: {}", exc)
+            finally:
+                self.is_running = False
             try:
                 await asyncio.wait_for(self._run_event.wait(), timeout=POLL_INTERVAL)
             except TimeoutError:
