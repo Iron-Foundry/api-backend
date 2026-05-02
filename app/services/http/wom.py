@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import ClassVar
@@ -11,6 +12,37 @@ import httpx
 from loguru import logger
 
 from app.services.http.base import BaseRequestHandler
+
+# Shared rate-limit bucket — one bucket for all WiseOldManHandler instances.
+# WOM uses express-rate-limit with standardHeaders (IETF draft):
+#   RateLimit-Remaining: <n>
+#   RateLimit-Reset: <seconds until window ends>  (delta, not epoch)
+_rl_remaining: int = 60
+_rl_reset_at: float = 0.0  # time.monotonic() deadline
+
+
+def _rl_update(headers: httpx.Headers) -> None:
+    global _rl_remaining, _rl_reset_at
+    raw_remaining = headers.get("ratelimit-remaining")
+    raw_reset = headers.get("ratelimit-reset")
+    if raw_remaining is not None:
+        try:
+            _rl_remaining = int(raw_remaining)
+        except ValueError:
+            pass
+    if raw_reset is not None:
+        try:
+            _rl_reset_at = time.monotonic() + float(raw_reset)
+        except ValueError:
+            pass
+
+
+async def _rl_proactive_sleep() -> None:
+    if _rl_remaining <= 1:
+        wait = _rl_reset_at - time.monotonic()
+        if wait > 0:
+            logger.debug("wom: rate limit bucket exhausted, sleeping {:.1f}s", wait)
+            await asyncio.sleep(wait + 0.25)
 
 
 @dataclass
@@ -80,24 +112,21 @@ class WiseOldManHandler(BaseRequestHandler):
         *,
         params: dict | None = None,
     ) -> httpx.Response:
-        """GET with 429 retry and RateLimit-Remaining proactive sleep."""
+        """GET with shared-bucket proactive sleep and 429 retry."""
         resp: httpx.Response | None = None
-        for _ in range(2):
+        for attempt in range(3):
+            await _rl_proactive_sleep()
             resp = await self.get(path, params=params)
-            if resp.status_code == 429:
-                retry_after = float(resp.headers.get("Retry-After", "10"))
-                await asyncio.sleep(retry_after)
-                continue
-            if resp.is_success:
-                remaining = int(resp.headers.get("RateLimit-Remaining", "100"))
-                if remaining <= 1:
-                    reset_in = float(resp.headers.get("RateLimit-Reset", "2"))
-                    await asyncio.sleep(max(reset_in, 0.5))
-            return resp
+            _rl_update(resp.headers)
+            if resp.status_code != 429:
+                return resp
+            retry_after = float(resp.headers.get("retry-after", "5"))
+            logger.warning("wom: 429 on {} (attempt {}) — sleeping {:.1f}s", path, attempt + 1, retry_after)
+            await asyncio.sleep(retry_after)
         return resp  # type: ignore[return-value]
 
     async def get_group(self, group_id: str | int) -> dict:
-        resp = await self.get(f"/groups/{group_id}")
+        resp = await self._get_with_rate_limit(f"/groups/{group_id}")
         resp.raise_for_status()
         return resp.json()
 
@@ -180,36 +209,21 @@ class WiseOldManHandler(BaseRequestHandler):
     async def fetch_kc_metric(
         self, group_id: str | int, metric: str, top_n: int = 10
     ) -> list[dict] | None:
-        """Fetch top top_n players for one WOM metric, retrying once on 429."""
-        for _ in range(2):
-            try:
-                resp = await self.get(
-                    f"/groups/{group_id}/hiscores",
-                    params={"metric": metric, "limit": top_n, "offset": 0},
-                )
-            except Exception:
-                return None
-
-            if resp.status_code == 429:
-                retry_after = float(resp.headers.get("Retry-After", "10"))
-                await asyncio.sleep(retry_after)
-                continue
-
-            if not resp.is_success:
-                return None
-
-            remaining = int(resp.headers.get("RateLimit-Remaining", "100"))
-            if remaining <= 5:
-                reset_in = float(resp.headers.get("RateLimit-Reset", "2"))
-                await asyncio.sleep(max(reset_in, 0.5))
-
-            return [
-                {"player_name": e["player"]["displayName"], "kills": e["data"]["kills"]}
-                for e in resp.json()
-                if (e.get("data", {}).get("kills") or 0) > 0
-            ]
-
-        return None
+        """Fetch top top_n players for one WOM metric."""
+        try:
+            resp = await self._get_with_rate_limit(
+                f"/groups/{group_id}/hiscores",
+                params={"metric": metric, "limit": top_n, "offset": 0},
+            )
+        except Exception:
+            return None
+        if not resp.is_success:
+            return None
+        return [
+            {"player_name": e["player"]["displayName"], "kills": e["data"]["kills"]}
+            for e in resp.json()
+            if (e.get("data", {}).get("kills") or 0) > 0
+        ]
 
     # ------------------------------------------------------------------
     # Competition cache
