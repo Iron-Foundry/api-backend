@@ -5,13 +5,13 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
-from app.db.models import User
+from app.db.models import User, UserAccount
 from app.dependencies import get_current_user, get_optional_user, get_session
 from app.party_store import (
     Vibe,
@@ -44,6 +44,7 @@ class CreatePartyRequest(BaseModel):
     scheduled_at: datetime | None = None
     ttl_hours: Annotated[float, Field(ge=0.5, le=24)] = 4.0
     ping_role_ids: list[str] = []
+    rsn_override: str | None = None
 
     @field_validator("activity")
     @classmethod
@@ -76,6 +77,10 @@ class UpdatePartyRequest(BaseModel):
         return v
 
 
+class JoinPartyRequest(BaseModel):
+    rsn_override: str | None = None
+
+
 class SendChatRequest(BaseModel):
     text: Annotated[str, Field(min_length=1, max_length=300)]
 
@@ -95,7 +100,17 @@ async def _is_staff(uid: int, session: AsyncSession) -> bool:
     return bool(bypass and any(r in bypass for r in roles))
 
 
-async def _get_rsn(uid: int, session: AsyncSession) -> str | None:
+async def _get_rsn(
+    uid: int, session: AsyncSession, rsn_override: str | None = None
+) -> str | None:
+    if rsn_override:
+        result = await session.execute(
+            select(UserAccount.rsn).where(
+                UserAccount.discord_user_id == uid,
+                func.lower(UserAccount.rsn) == rsn_override.lower(),
+            )
+        )
+        return result.scalar_one_or_none()
     result = await session.execute(select(User.rsn).where(User.discord_user_id == uid))
     return result.scalar_one_or_none()
 
@@ -151,7 +166,7 @@ async def create_new_party(
     """Create a party. The creator is automatically added as leader/first member."""
     uid = str(current_user["sub"])
     username = current_user.get("username", "Unknown")
-    rsn = await _get_rsn(int(current_user["sub"]), session)
+    rsn = await _get_rsn(int(current_user["sub"]), session, body.rsn_override)
 
     party = await create_party(
         session,
@@ -212,6 +227,7 @@ async def update_party(
 @router.post("/{party_id}/join")
 async def join_party(
     party_id: str,
+    body: JoinPartyRequest = Body(default_factory=JoinPartyRequest),
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
@@ -227,7 +243,7 @@ async def join_party(
         raise HTTPException(409, "Already in this party")
 
     username = current_user.get("username", "Unknown")
-    rsn = await _get_rsn(int(current_user["sub"]), session)
+    rsn = await _get_rsn(int(current_user["sub"]), session, body.rsn_override)
     await add_member(session, party, user_id=uid, username=username, rsn=rsn)
     await edit_party_embed(party)
     return party_to_dict(party, uid)

@@ -5,10 +5,12 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import PlayerRanking, User
+from collections import defaultdict
+
+from app.db.models import PlayerRanking, User, UserAccount
 from app.dependencies import get_current_user, get_session
 from app.services.page_permissions import require_page_permission
 from app.services.ranking_service import _DEFAULT_CONFIG
@@ -69,23 +71,52 @@ async def get_ranking_results(
     _: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Paginated ranked player list. All authenticated users."""
+    """Paginated ranked player list. All authenticated users.
+
+    For users with multiple linked RSNs, only the highest-scoring alt is shown
+    (best alt wins).
+    """
     stmt = select(PlayerRanking)
     if rank_filter:
         stmt = stmt.where(PlayerRanking.rank == rank_filter)
 
-    total_result = await session.execute(
-        select(func.count()).select_from(PlayerRanking).where(
-            *([] if rank_filter is None else [PlayerRanking.rank == rank_filter])
-        )
-    )
-    total = total_result.scalar_one()
+    all_rows = await session.execute(stmt)
+    all_rankings = all_rows.scalars().all()
 
-    rows = await session.execute(stmt.offset(skip).limit(limit))
-    rankings = rows.scalars().all()
+    # Deduplicate: keep best-scoring entry per discord_user_id
+    best_per_user: dict[int, PlayerRanking] = {}
+    unlinked: list[PlayerRanking] = []
+    for r in all_rankings:
+        if r.discord_user_id is None:
+            unlinked.append(r)
+        else:
+            prev = best_per_user.get(r.discord_user_id)
+            if prev is None or r.points > prev.points:
+                best_per_user[r.discord_user_id] = r
+
+    deduplicated = list(best_per_user.values()) + unlinked
+
+    # Apply rank filter to deduplicated list (already filtered by stmt, but unlinked rows
+    # with wrong rank could slip through if no filter - stmt handles this)
+
+    # Sort by rank order then points descending
+    deduplicated.sort(
+        key=lambda r: (-_RANK_ORDER.get(r.rank, 0), -r.points)
+    )
+
+    total = len(deduplicated)
+    page = deduplicated[skip : skip + limit]
+
+    # Build alt map from user_accounts
+    alt_map_result = await session.execute(
+        select(UserAccount.discord_user_id, UserAccount.rsn)
+    )
+    alt_map: dict[int, list[str]] = defaultdict(list)
+    for row in alt_map_result:
+        alt_map[row.discord_user_id].append(row.rsn)
 
     # Fetch linked usernames
-    user_ids = [r.discord_user_id for r in rankings if r.discord_user_id]
+    user_ids = [r.discord_user_id for r in page if r.discord_user_id]
     username_map: dict[int, str] = {}
     if user_ids:
         users_result = await session.execute(
@@ -104,9 +135,12 @@ async def get_ranking_results(
             "skill_points": r.skill_points,
             "discord_user_id": r.discord_user_id,
             "username": username_map.get(r.discord_user_id) if r.discord_user_id else None,
+            "alts": [a for a in alt_map.get(r.discord_user_id, []) if a.lower() != r.rsn.lower()]
+            if r.discord_user_id
+            else [],
             "updated_at": r.updated_at.isoformat(),
         }
-        for r in rankings
+        for r in page
     ]
 
     return {

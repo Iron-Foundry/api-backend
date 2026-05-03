@@ -12,12 +12,12 @@ from fastapi.responses import RedirectResponse
 from jose import JWTError, jwt
 from loguru import logger
 from pydantic import BaseModel
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_session
-from app.db.models import Config, User
+from app.db.models import Config, User, UserAccount
 from app.services.rank_mappings import get_effective_roles
 from app.services.rsn_cascade import get_user_ticket_ids
 
@@ -352,11 +352,22 @@ async def me(
         if "discord_role_id" in m
     }
 
+    alts_result = await session.execute(
+        select(func.count())
+        .select_from(UserAccount)
+        .where(
+            UserAccount.discord_user_id == discord_user_id,
+            UserAccount.is_primary == False,  # noqa: E712
+        )
+    )
+    alts_count: int = alts_result.scalar_one() or 0
+
     return {
         "discord_user_id": current_user["sub"],
         "username": current_user.get("username"),
         "avatar": current_user.get("avatar"),
         "rsn": row.rsn if row else None,
+        "alts_count": alts_count,
         "clan_rank": row.clan_rank if row else None,
         "discord_roles": discord_roles,
         "effective_roles": effective_roles,

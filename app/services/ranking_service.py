@@ -11,7 +11,7 @@ from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from app.db.models import Config, PlayerRanking, PlayerSnapshot, User
+from app.db.models import Config, PlayerRanking, PlayerSnapshot, UserAccount
 from app.services.http.wom import WiseOldManHandler
 
 POLL_INTERVAL = 86400  # 24 hours
@@ -337,7 +337,7 @@ class RankingService:
         async with self._session_factory() as session:
             # RSN → discord_user_id lookup
             rsn_map_result = await session.execute(
-                select(User.discord_user_id, User.rsn).where(User.rsn.isnot(None))
+                select(UserAccount.discord_user_id, UserAccount.rsn)
             )
             rsn_to_user: dict[str, int] = {
                 row.rsn.lower(): row.discord_user_id for row in rsn_map_result

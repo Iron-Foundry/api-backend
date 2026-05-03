@@ -77,12 +77,12 @@ class WomNameChangeService:
 
             from sqlalchemy import func, select
 
-            from app.db.models import User
+            from app.db.models import UserAccount
 
             async with self._session_factory() as session:
                 result = await session.execute(
-                    select(User.discord_user_id).where(
-                        func.lower(User.rsn) == old.lower()
+                    select(UserAccount.discord_user_id).where(
+                        func.lower(UserAccount.rsn) == old.lower()
                     )
                 )
                 match = result.scalar_one_or_none()

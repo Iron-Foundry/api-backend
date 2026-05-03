@@ -5,7 +5,15 @@ from datetime import datetime, timezone
 from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import CofferEvent, Event, Leaderboard, MembershipEvent, Ticket, User
+from app.db.models import (
+    CofferEvent,
+    Event,
+    Leaderboard,
+    MembershipEvent,
+    Ticket,
+    User,
+    UserAccount,
+)
 
 
 async def cascade_rsn_change(session: AsyncSession, old_rsn: str, new_rsn: str) -> None:
@@ -56,6 +64,12 @@ async def cascade_rsn_change(session: AsyncSession, old_rsn: str, new_rsn: str) 
         update(Leaderboard)
         .where(func.lower(Leaderboard.player_name) == old_rsn.lower())
         .values(player_name=new_rsn)
+    )
+
+    await session.execute(
+        update(UserAccount)
+        .where(func.lower(UserAccount.rsn) == old_rsn.lower())
+        .values(rsn=new_rsn)
     )
 
     await session.commit()
