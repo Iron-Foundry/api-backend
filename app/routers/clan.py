@@ -919,6 +919,7 @@ async def create_competition_endpoint(
         result = await create_competition(
             body,
             group_id=_WOM_GROUP_ID,
+            group_key=_WOM_GROUP_KEY,
             api_key=_WOM_API_KEY,
             discord_contact=_WOM_DISCORD_CONTACT,
         )

@@ -62,6 +62,7 @@ async def create_competition(
     data: CreateCompetitionInput,
     *,
     group_id: str | int,
+    group_key: str,
     api_key: str | None = None,
     discord_contact: str | None = None,
 ) -> dict:
@@ -77,6 +78,7 @@ async def create_competition(
         payload["participants"] = data.participants
     else:
         payload["groupId"] = int(group_id)
+        payload["groupVerificationCode"] = group_key
 
     async with WiseOldManHandler(
         api_key=api_key, discord_contact=discord_contact
