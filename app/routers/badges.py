@@ -1,4 +1,4 @@
-"""Badges router — create, manage, and assign profile badges."""
+"""Badges router - create, manage, and assign profile badges."""
 
 from __future__ import annotations
 

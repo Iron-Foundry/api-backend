@@ -1,4 +1,4 @@
-"""Staff router — rank-protected endpoints for staff-only operations."""
+"""Staff router - rank-protected endpoints for staff-only operations."""
 
 from __future__ import annotations
 

@@ -180,7 +180,7 @@ async def _party_expiry_task(session_factory) -> None:  # type: ignore[no-untype
                     logger.info("party_expiry: closing expired party {}", party.id)
                     await close_party_embed(party)
         except Exception as exc:
-            logger.warning("party_expiry: error — {}", exc)
+            logger.warning("party_expiry: error - {}", exc)
 
 
 @asynccontextmanager
@@ -191,7 +191,7 @@ async def lifespan(app: FastAPI):
         app.state.engine = engine
         app.state.session_factory = create_session_factory(engine)
     else:
-        logger.warning("DATABASE_URL not set — PostgreSQL disabled")
+        logger.warning("DATABASE_URL not set - PostgreSQL disabled")
         app.state.engine = None
         app.state.session_factory = None
 
@@ -224,7 +224,7 @@ async def lifespan(app: FastAPI):
         )
         await ranking_service.start()
     else:
-        logger.warning("WOM_GROUP_ID not set — name change, clan stats, and ranking services disabled")
+        logger.warning("WOM_GROUP_ID not set - name change, clan stats, and ranking services disabled")
         wom_service = None
     app.state.ranking_service = ranking_service
     yield

@@ -57,7 +57,7 @@ async def run(dry_run: bool) -> None:
     print(f"Found {len(groups)} duplicate groups, {total_dupes} rows to delete.")
 
     if dry_run:
-        print("Dry run — no rows deleted.")
+        print("Dry run - no rows deleted.")
         await engine.dispose()
         return
 

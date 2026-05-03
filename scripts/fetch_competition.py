@@ -129,7 +129,7 @@ async def _get(
         if resp.status_code == 429:
             retry_after = float(resp.headers.get("Retry-After", "10"))
             if bar:
-                bar.set_postfix_str(f"429 — sleeping {retry_after:.0f}s")
+                bar.set_postfix_str(f"429 - sleeping {retry_after:.0f}s")
             await asyncio.sleep(retry_after)
             continue
 
@@ -147,7 +147,7 @@ async def _get(
                 reset_in = float(reset_in_raw)
                 sleep_for = max(reset_in, 0.5)
                 if bar:
-                    bar.set_postfix_str(f"bucket {bucket} — sleeping {sleep_for:.1f}s")
+                    bar.set_postfix_str(f"bucket {bucket} - sleeping {sleep_for:.1f}s")
                 await asyncio.sleep(sleep_for)
                 if bar:
                     bar.set_postfix_str(f"bucket {bucket}")

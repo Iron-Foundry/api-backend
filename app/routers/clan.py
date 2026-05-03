@@ -1,11 +1,11 @@
-"""Clan router — public read endpoints for clan stats and activity."""
+"""Clan router - public read endpoints for clan stats and activity."""
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 from datetime import datetime, timezone
+from typing import Never
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -18,6 +18,13 @@ from valkey.asyncio import Valkey
 
 from app.db.models import ClanStats, Config, Event, Leaderboard, Metric, User
 from app.dependencies import get_current_user, get_session, get_valkey
+from app.services.competitions import (
+    CreateCompetitionInput,
+    EditCompetitionInput,
+    create_competition,
+    delete_competition,
+    edit_competition,
+)
 from app.services.http import WiseOldManHandler
 from app.services.page_permissions import require_page_permission
 
@@ -25,6 +32,7 @@ router = APIRouter(prefix="/clan", tags=["clan"])
 
 _WOM_GROUP_ID = os.getenv("WOM_GROUP_ID", "9403")
 _WOM_API_KEY = os.getenv("WOM_API_KEY")
+_WOM_GROUP_KEY = os.getenv("WOM_GROUP_KEY")
 _WOM_DISCORD_CONTACT = os.getenv("WOM_DISCORD_CONTACT")
 
 _RAID_METRICS = [
@@ -280,7 +288,7 @@ async def _build_name_changes_cache(valkey: Valkey) -> None:
         await valkey.setex(_NC_STALE_KEY, _NC_STALE_TTL, payload)
         logger.info("name-changes cache: wrote {} approved changes", len(result))
     except Exception as exc:
-        logger.error("name-changes cache: hydration failed — {}", exc)
+        logger.error("name-changes cache: hydration failed - {}", exc)
     finally:
         await valkey.delete(_NC_LOCK_KEY)
 
@@ -298,7 +306,7 @@ async def group_name_changes(
     # Acquire lock here so only one request ever schedules the background task.
     # All other cache-miss requests see the lock, skip scheduling, and return stale.
     if await valkey.set(_NC_LOCK_KEY, "1", ex=_NC_LOCK_TTL, nx=True):
-        logger.info("name-changes: cache miss — scheduling hydration")
+        logger.info("name-changes: cache miss - scheduling hydration")
         background_tasks.add_task(_build_name_changes_cache, valkey)
     else:
         logger.debug("name-changes: cache miss, hydration already scheduled")
@@ -561,9 +569,7 @@ async def _build_metric_detail_cache(
 ) -> None:
     """Fetch competition details for a specific metric and write to Valkey cache."""
     fresh_key, stale_key, lock_key = _comp_metric_keys(comp_id, metric)
-    logger.info(
-        "comp metric cache: hydrating comp={} metric={}", comp_id, metric
-    )
+    logger.info("comp metric cache: hydrating comp={} metric={}", comp_id, metric)
     try:
         async with WiseOldManHandler(
             api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT
@@ -624,7 +630,10 @@ async def _build_metric_detail_cache(
         )
     except Exception as exc:
         logger.error(
-            "comp metric cache: hydration failed comp={} metric={} — {}", comp_id, metric, exc
+            "comp metric cache: hydration failed comp={} metric={} - {}",
+            comp_id,
+            metric,
+            exc,
         )
     finally:
         await valkey.delete(lock_key)
@@ -652,12 +661,34 @@ async def _build_competitions_cache(valkey: Valkey) -> None:
             )
         else:
             logger.warning(
-                "competitions cache: WOM returned empty list — cache not updated"
+                "competitions cache: WOM returned empty list - cache not updated"
             )
     except Exception as exc:
-        logger.error("competitions cache: hydration failed — {}", exc)
+        logger.error("competitions cache: hydration failed - {}", exc)
     finally:
         await valkey.delete(_COMPS_LOCK_KEY)
+
+
+async def _invalidate_competitions_cache(valkey: Valkey) -> None:
+    """Delete fresh cache + lock so the next request triggers a rebuild. Leaves stale intact."""
+    await valkey.delete(_COMPS_FRESH_KEY)
+    await valkey.delete(_COMPS_LOCK_KEY)
+    logger.info("competitions cache: invalidated after write operation")
+
+
+def _handle_wom_error(exc: httpx.HTTPStatusError) -> Never:
+    status = exc.response.status_code
+    try:
+        detail = exc.response.json().get("message", str(exc))
+    except Exception:
+        detail = str(exc)
+    if status == 400:
+        raise HTTPException(400, f"WOM rejected request: {detail}")
+    if status == 404:
+        raise HTTPException(404, "Competition not found on WOM.")
+    if status == 429:
+        raise HTTPException(429, "WOM rate limit reached.")
+    raise HTTPException(502, f"WOM upstream error: {detail}")
 
 
 @router.get("/competitions")
@@ -675,9 +706,9 @@ async def list_competitions(
         logger.debug("competitions: serving from fresh cache")
         return json.loads(fresh)
 
-    # Acquire lock here — only one request ever schedules hydration.
+    # Acquire lock here - only one request ever schedules hydration.
     if await valkey.set(_COMPS_LOCK_KEY, "1", ex=_COMPS_LOCK_TTL, nx=True):
-        logger.info("competitions: cache miss — scheduling hydration")
+        logger.info("competitions: cache miss - scheduling hydration")
         background_tasks.add_task(_build_competitions_cache, valkey)
     else:
         logger.debug("competitions: cache miss, hydration already scheduled")
@@ -687,7 +718,7 @@ async def list_competitions(
         logger.info("competitions: serving stale cache while refresh runs")
         return json.loads(stale)
 
-    logger.warning("competitions: no cache at all — returning empty list")
+    logger.warning("competitions: no cache at all - returning empty list")
     return []
 
 
@@ -741,6 +772,19 @@ async def set_competition_metric_map(
     return current
 
 
+@router.get("/competitions/participants")
+async def list_competition_participants(
+    session: AsyncSession = Depends(get_session),
+) -> list[dict]:
+    """Return all users with linked RSNs for competition participant autofill."""
+    result = await session.execute(
+        select(User.rsn, User.discord_username).where(User.rsn.is_not(None))
+    )
+    return [
+        {"rsn": row.rsn, "discord_username": row.discord_username} for row in result
+    ]
+
+
 @router.get("/competitions/{comp_id}/metric-detail")
 async def competition_metric_detail(
     comp_id: int,
@@ -767,20 +811,22 @@ async def competition_metric_detail(
         return json.loads(fresh)
 
     if await valkey.set(lock_key, "1", ex=_COMP_METRIC_LOCK_TTL, nx=True):
-        background_tasks.add_task(_build_metric_detail_cache, comp_id, metric, status, valkey)
+        background_tasks.add_task(
+            _build_metric_detail_cache, comp_id, metric, status, valkey
+        )
 
     stale = await valkey.get(stale_key)
     if stale:
         return json.loads(stale)
 
-    # No cache at all — fetch synchronously so the first request doesn't fail
+    # No cache at all - fetch synchronously so the first request doesn't fail
     try:
         await _build_metric_detail_cache(comp_id, metric, status, valkey)
         fresh = await valkey.get(fresh_key)
         if fresh:
             return json.loads(fresh)
     except Exception as exc:
-        logger.error("comp metric detail: sync fetch failed — {}", exc)
+        logger.error("comp metric detail: sync fetch failed - {}", exc)
 
     raise HTTPException(status_code=503, detail="Competition data not yet available.")
 
@@ -811,7 +857,7 @@ async def competition_details(
         if exc.response.status_code == 429:
             raise HTTPException(
                 status_code=429,
-                detail="WiseOldMan rate limit reached — try again shortly.",
+                detail="WiseOldMan rate limit reached - try again shortly.",
             )
         raise HTTPException(
             status_code=502, detail="Failed to fetch competition details."
@@ -854,6 +900,86 @@ async def competition_details(
         "metric_url": f"https://wiseoldman.net/competitions/{comp_id}?metric={metric}",
         "participations": participations,
     }
+
+
+@router.post(
+    "/competitions",
+    status_code=201,
+    dependencies=[Depends(require_page_permission("staff.competitions", "create"))],
+)
+async def create_competition_endpoint(
+    body: CreateCompetitionInput,
+    background_tasks: BackgroundTasks,
+    valkey: Valkey = Depends(get_valkey),
+) -> dict:
+    """Create a group competition on WOM."""
+    if not _WOM_GROUP_KEY:
+        raise HTTPException(503, "WOM group key not configured.")
+    try:
+        result = await create_competition(
+            body,
+            group_id=_WOM_GROUP_ID,
+            api_key=_WOM_API_KEY,
+            discord_contact=_WOM_DISCORD_CONTACT,
+        )
+        background_tasks.add_task(_invalidate_competitions_cache, valkey)
+        return result
+    except httpx.HTTPStatusError as exc:
+        _handle_wom_error(exc)
+
+
+@router.put(
+    "/competitions/{comp_id}",
+    dependencies=[Depends(require_page_permission("staff.competitions", "edit"))],
+)
+async def edit_competition_endpoint(
+    comp_id: int,
+    body: EditCompetitionInput,
+    background_tasks: BackgroundTasks,
+    valkey: Valkey = Depends(get_valkey),
+) -> dict:
+    """Edit an existing group competition on WOM."""
+    if not _WOM_GROUP_KEY:
+        raise HTTPException(503, "WOM group key not configured.")
+    try:
+        result = await edit_competition(
+            comp_id,
+            body,
+            group_key=_WOM_GROUP_KEY,
+            api_key=_WOM_API_KEY,
+            discord_contact=_WOM_DISCORD_CONTACT,
+        )
+        WiseOldManHandler._comp_cache.pop(comp_id, None)
+        background_tasks.add_task(_invalidate_competitions_cache, valkey)
+        return result
+    except httpx.HTTPStatusError as exc:
+        _handle_wom_error(exc)
+
+
+@router.delete(
+    "/competitions/{comp_id}",
+    status_code=204,
+    dependencies=[Depends(require_page_permission("staff.competitions", "delete"))],
+)
+async def delete_competition_endpoint(
+    comp_id: int,
+    background_tasks: BackgroundTasks,
+    valkey: Valkey = Depends(get_valkey),
+) -> None:
+    """Delete a group competition on WOM."""
+    if not _WOM_GROUP_KEY:
+        raise HTTPException(503, "WOM group key not configured.")
+    try:
+        await delete_competition(
+            comp_id,
+            group_key=_WOM_GROUP_KEY,
+            api_key=_WOM_API_KEY,
+            discord_contact=_WOM_DISCORD_CONTACT,
+        )
+        WiseOldManHandler._comp_cache.pop(comp_id, None)
+        background_tasks.add_task(_invalidate_competitions_cache, valkey)
+    except httpx.HTTPStatusError as exc:
+        _handle_wom_error(exc)
 
 
 @router.get("/user-avatar/{user_id}")

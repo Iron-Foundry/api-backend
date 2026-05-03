@@ -50,7 +50,7 @@ class WomNameChangeService:
 
     async def _process(self) -> None:
         if self._session_factory is None:
-            logger.warning("WomNameChangeService: no session_factory — skipping")
+            logger.warning("WomNameChangeService: no session_factory - skipping")
             return
 
         wom = WiseOldManHandler(group_key=self._group_key, api_key=self._api_key)

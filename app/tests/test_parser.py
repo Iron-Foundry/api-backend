@@ -13,7 +13,7 @@ from app.services.parser import (
 
 
 # ---------------------------------------------------------------------------
-# Combat achievements — individual tasks
+# Combat achievements - individual tasks
 # ---------------------------------------------------------------------------
 
 
@@ -61,7 +61,7 @@ from app.services.parser import (
         ("X has completed an Easy combat task: Task.", "X", "easy", "Task"),
         ("X has completed an Elite combat task: Task.", "X", "elite", "Task"),
         ("X has completed a Grandmaster combat task: Task.", "X", "grandmaster", "Task"),
-        # Legacy format — no difficulty
+        # Legacy format - no difficulty
         (
             "X has completed the combat achievement: Task Name.",
             "X",

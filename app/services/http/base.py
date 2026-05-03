@@ -45,3 +45,54 @@ class BaseRequestHandler:
         headers = {**self.default_headers, **(extra_headers or {})}
         async with httpx.AsyncClient(headers=headers, timeout=self._timeout) as client:
             return await client.get(url, params=params)
+
+    async def post(
+        self,
+        path: str,
+        *,
+        json: dict | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> httpx.Response:
+        url = self.base_url.rstrip("/") + path
+        if self._client is not None:
+            kw: dict[str, Any] = {"json": json}
+            if extra_headers:
+                kw["headers"] = extra_headers
+            return await self._client.post(url, **kw)
+        headers = {**self.default_headers, **(extra_headers or {})}
+        async with httpx.AsyncClient(headers=headers, timeout=self._timeout) as client:
+            return await client.post(url, json=json)
+
+    async def put(
+        self,
+        path: str,
+        *,
+        json: dict | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> httpx.Response:
+        url = self.base_url.rstrip("/") + path
+        if self._client is not None:
+            kw: dict[str, Any] = {"json": json}
+            if extra_headers:
+                kw["headers"] = extra_headers
+            return await self._client.put(url, **kw)
+        headers = {**self.default_headers, **(extra_headers or {})}
+        async with httpx.AsyncClient(headers=headers, timeout=self._timeout) as client:
+            return await client.put(url, json=json)
+
+    async def delete(
+        self,
+        path: str,
+        *,
+        json: dict | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> httpx.Response:
+        url = self.base_url.rstrip("/") + path
+        if self._client is not None:
+            kw: dict[str, Any] = {"json": json}
+            if extra_headers:
+                kw["headers"] = extra_headers
+            return await self._client.request("DELETE", url, **kw)
+        headers = {**self.default_headers, **(extra_headers or {})}
+        async with httpx.AsyncClient(headers=headers, timeout=self._timeout) as client:
+            return await client.request("DELETE", url, json=json)

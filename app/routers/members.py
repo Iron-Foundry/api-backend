@@ -1,4 +1,4 @@
-"""Members router — authenticated endpoints for profile self-management."""
+"""Members router - authenticated endpoints for profile self-management."""
 
 from __future__ import annotations
 

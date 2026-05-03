@@ -148,7 +148,7 @@ def rank_from_snapshots(
     snapshots: list[dict],  # list of {rsn, skills, bosses}
     config: dict,
 ) -> list[dict]:
-    """Pure ranking computation — no DB access.
+    """Pure ranking computation - no DB access.
 
     Returns list of {rsn, rank, points, boss_points, skill_points}.
     """
@@ -280,7 +280,7 @@ class RankingService:
 
     async def _refresh(self) -> None:
         if self._session_factory is None:
-            logger.warning("RankingService: no session_factory — skipping")
+            logger.warning("RankingService: no session_factory - skipping")
             return
 
         config = await self._get_config()

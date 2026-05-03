@@ -1,4 +1,4 @@
-"""Content CMS router — plugins and resources pages."""
+"""Content CMS router - plugins and resources pages."""
 
 from __future__ import annotations
 

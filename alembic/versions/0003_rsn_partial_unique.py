@@ -17,7 +17,7 @@ depends_on = None
 def upgrade() -> None:
     # Drop the NULLS NOT DISTINCT constraint that prevents multiple NULL rsn values
     op.execute("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_rsn_unique")
-    # Partial unique index — only enforces uniqueness when rsn is set
+    # Partial unique index - only enforces uniqueness when rsn is set
     op.execute(
         "CREATE UNIQUE INDEX users_rsn_unique ON users (rsn) WHERE rsn IS NOT NULL"
     )

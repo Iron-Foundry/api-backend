@@ -13,7 +13,7 @@ from loguru import logger
 
 from app.services.http.base import BaseRequestHandler
 
-# Shared rate-limit bucket — one bucket for all WiseOldManHandler instances.
+# Shared rate-limit bucket - one bucket for all WiseOldManHandler instances.
 # WOM uses express-rate-limit with standardHeaders (IETF draft):
 #   RateLimit-Remaining: <n>
 #   RateLimit-Reset: <seconds until window ends>  (delta, not epoch)
@@ -64,10 +64,10 @@ def _comp_status(entry: _CachedComp) -> str:
 
 def _ttl_for(now: datetime, starts_at: datetime, ends_at: datetime) -> datetime | None:
     if now > ends_at:
-        return None  # finished — cache forever
+        return None  # finished - cache forever
     if now >= starts_at:
-        return now + timedelta(minutes=5)  # ongoing — 5 min TTL
-    return None  # upcoming — no expiry (stale check uses starts_at)
+        return now + timedelta(minutes=5)  # ongoing - 5 min TTL
+    return None  # upcoming - no expiry (stale check uses starts_at)
 
 
 def _parse_dt(iso: str) -> datetime:
@@ -121,9 +121,63 @@ class WiseOldManHandler(BaseRequestHandler):
             if resp.status_code != 429:
                 return resp
             retry_after = float(resp.headers.get("retry-after", "5"))
-            logger.warning("wom: 429 on {} (attempt {}) — sleeping {:.1f}s", path, attempt + 1, retry_after)
+            logger.warning(
+                "wom: 429 on {} (attempt {}) - sleeping {:.1f}s",
+                path,
+                attempt + 1,
+                retry_after,
+            )
             await asyncio.sleep(retry_after)
         return resp  # type: ignore[return-value]
+
+    async def _write_with_rate_limit(
+        self,
+        method: str,
+        path: str,
+        *,
+        json: dict | None = None,
+    ) -> httpx.Response:
+        """POST/PUT/DELETE with shared-bucket proactive sleep and 429 retry."""
+        resp: httpx.Response | None = None
+        for attempt in range(3):
+            await _rl_proactive_sleep()
+            if method == "post":
+                resp = await self.post(path, json=json)
+            elif method == "put":
+                resp = await self.put(path, json=json)
+            else:
+                resp = await self.delete(path, json=json)
+            _rl_update(resp.headers)
+            if resp.status_code != 429:
+                return resp
+            retry_after = float(resp.headers.get("retry-after", "5"))
+            logger.warning(
+                "wom: 429 on {} {} (attempt {}) - sleeping {:.1f}s",
+                method.upper(),
+                path,
+                attempt + 1,
+                retry_after,
+            )
+            await asyncio.sleep(retry_after)
+        return resp  # type: ignore[return-value]
+
+    async def create_competition(self, payload: dict) -> dict:
+        resp = await self._write_with_rate_limit("post", "/competitions", json=payload)
+        resp.raise_for_status()
+        return resp.json()
+
+    async def edit_competition(self, comp_id: int, payload: dict) -> dict:
+        resp = await self._write_with_rate_limit(
+            "put", f"/competitions/{comp_id}", json=payload
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    async def delete_competition(self, comp_id: int, payload: dict) -> None:
+        resp = await self._write_with_rate_limit(
+            "delete", f"/competitions/{comp_id}", json=payload
+        )
+        resp.raise_for_status()
 
     async def get_group(self, group_id: str | int) -> dict:
         resp = await self._get_with_rate_limit(f"/groups/{group_id}")
@@ -286,7 +340,7 @@ class WiseOldManHandler(BaseRequestHandler):
                 group_id, limit=limit, offset=offset
             )
             if not page:
-                logger.debug("wom: competitions page empty at offset={} — done", offset)
+                logger.debug("wom: competitions page empty at offset={} - done", offset)
                 break
             all_comps.extend(page)
             for comp in page:
@@ -303,7 +357,7 @@ class WiseOldManHandler(BaseRequestHandler):
                 break
             if finished_seen >= max_finished:
                 logger.debug(
-                    "wom: hit max_finished={} threshold — stopping pagination",
+                    "wom: hit max_finished={} threshold - stopping pagination",
                     max_finished,
                 )
                 break

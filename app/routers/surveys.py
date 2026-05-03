@@ -1,4 +1,4 @@
-"""Surveys router — member-facing endpoints for survey and application templates."""
+"""Surveys router - member-facing endpoints for survey and application templates."""
 
 from __future__ import annotations
 
@@ -63,7 +63,7 @@ def _extract_is_open(raw: list | dict) -> bool:
        ``visibility != null`` to signal that the survey was published.
     """
     if isinstance(raw, list):
-        return False  # legacy list-only format — treat as closed
+        return False  # legacy list-only format - treat as closed
     if "is_open" in raw:
         return bool(raw["is_open"])
     return raw.get("visibility") is not None

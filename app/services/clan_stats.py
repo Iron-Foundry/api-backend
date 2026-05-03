@@ -58,7 +58,7 @@ class ClanStatsService:
 
     async def _refresh(self) -> None:
         if self._session_factory is None:
-            logger.warning("ClanStatsService: no session_factory — skipping")
+            logger.warning("ClanStatsService: no session_factory - skipping")
             return
 
         logger.info("ClanStatsService: fetching WOM stats (group={})", _WOM_GROUP_ID)
@@ -119,7 +119,7 @@ class ClanStatsService:
             await session.commit()
 
         logger.info(
-            "ClanStatsService: updated — members={}, total_xp={:,}, cox={} tob={} toa={}",
+            "ClanStatsService: updated - members={}, total_xp={:,}, cox={} tob={} toa={}",
             member_count,
             total_xp,
             cox_kc,

@@ -1,4 +1,4 @@
-"""Config router — server-wide configuration managed via the web panel."""
+"""Config router - server-wide configuration managed via the web panel."""
 
 from __future__ import annotations
 

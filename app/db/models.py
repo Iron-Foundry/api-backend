@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM models — canonical PostgreSQL schema definition.
+"""SQLAlchemy ORM models - canonical PostgreSQL schema definition.
 
 These classes mirror the tables created by the Alembic migrations and act as
 the single source of truth for alembic autogenerate.

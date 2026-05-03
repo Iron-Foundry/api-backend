@@ -21,7 +21,7 @@ def upgrade() -> None:
     )
     op.execute("ALTER TABLE tickets ADD COLUMN metadata JSONB NOT NULL DEFAULT '{}'")
 
-    # ── events: add discord_user_id (nullable, no FK — RSN changes) ─────────
+    # ── events: add discord_user_id (nullable, no FK - RSN changes) ─────────
     op.execute("ALTER TABLE events ADD COLUMN discord_user_id BIGINT")
     op.execute("CREATE INDEX events_user ON events (discord_user_id)")
 

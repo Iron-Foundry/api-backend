@@ -18,7 +18,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Truncates sub-second data — intentional on downgrade
+    # Truncates sub-second data - intentional on downgrade
     op.execute(
         "ALTER TABLE leaderboards ALTER COLUMN time_seconds TYPE INT USING time_seconds::INT"
     )

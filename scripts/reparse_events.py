@@ -1,9 +1,9 @@
 """Reparse events that were stored with incomplete data or as unknown.
 
 Targets three cases:
-  1. type='unknown'       — messages that now parse correctly after pattern fixes
-  2. type='combat_achievement' — missing 'difficulty' key in data JSONB
-  3. type='personal_best'      — missing 'variant', or 'activity' embeds the variant
+  1. type='unknown'       - messages that now parse correctly after pattern fixes
+  2. type='combat_achievement' - missing 'difficulty' key in data JSONB
+  3. type='personal_best'      - missing 'variant', or 'activity' embeds the variant
 
 Only 'type', 'player_name', and 'data' are ever updated. 'timestamp', 'id',
 'sender', and 'is_league_world' are never touched.
@@ -87,7 +87,7 @@ def _reparse_row(
             return "personal_best", parsed.player_name, new_data
 
     elif kind not in (p.BroadcastType.UNKNOWN, p.BroadcastType.CHAT):
-        # Previously unknown message now classifies — parse and store
+        # Previously unknown message now classifies - parse and store
         dispatch = {
             p.BroadcastType.QUEST: p.parse_achievement,
             p.BroadcastType.DIARY: p.parse_achievement,

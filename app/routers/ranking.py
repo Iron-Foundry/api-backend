@@ -1,4 +1,4 @@
-"""Ranking router — clan member ranking results and config preview."""
+"""Ranking router - clan member ranking results and config preview."""
 
 from __future__ import annotations
 

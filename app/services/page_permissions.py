@@ -1,4 +1,4 @@
-"""Page-level permission service — DB-driven permission checks."""
+"""Page-level permission service - DB-driven permission checks."""
 
 from __future__ import annotations
 
@@ -83,7 +83,7 @@ async def check_page_permission(
     """
     bypass_roles = await get_admin_bypass_roles(session)
 
-    # Bypass roles override ALL actions — bypass users can never be locked out.
+    # Bypass roles override ALL actions - bypass users can never be locked out.
     if bypass_roles and any(r in bypass_roles for r in roles):
         return True
 
@@ -117,7 +117,7 @@ async def check_page_permission(
 
 
 def require_page_permission(page_id: str, action: str):
-    """FastAPI dependency factory — raises 403 if the caller lacks permission."""
+    """FastAPI dependency factory - raises 403 if the caller lacks permission."""
 
     async def _dep(
         current_user: dict = Depends(get_current_user),

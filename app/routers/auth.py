@@ -1,4 +1,4 @@
-"""Authentication router — Discord OAuth2 and API-key login."""
+"""Authentication router - Discord OAuth2 and API-key login."""
 
 from __future__ import annotations
 
@@ -66,11 +66,11 @@ async def _fetch_discord_roles(discord_user_id: int) -> list[str]:
     """
     if not DISCORD_BOT_TOKEN:
         logger.warning(
-            "discord_roles: DISCORD_SERVER_TOKEN not set — skipping role fetch"
+            "discord_roles: DISCORD_SERVER_TOKEN not set - skipping role fetch"
         )
         return []
     if not GUILD_ID:
-        logger.warning("discord_roles: GUILD_ID not set — skipping role fetch")
+        logger.warning("discord_roles: GUILD_ID not set - skipping role fetch")
         return []
 
     bot_headers = {"Authorization": f"Bot {DISCORD_BOT_TOKEN}"}
@@ -82,7 +82,7 @@ async def _fetch_discord_roles(discord_user_id: int) -> list[str]:
             )
             if roles_resp.status_code != 200:
                 logger.warning(
-                    "discord_roles: GET /guilds/{}/roles failed ({}) — body: {}",
+                    "discord_roles: GET /guilds/{}/roles failed ({}) - body: {}",
                     GUILD_ID,
                     roles_resp.status_code,
                     roles_resp.text,
@@ -98,7 +98,7 @@ async def _fetch_discord_roles(discord_user_id: int) -> list[str]:
             )
             if member_resp.status_code != 200:
                 logger.warning(
-                    "discord_roles: GET /guilds/{}/members/{} failed ({}) — body: {}",
+                    "discord_roles: GET /guilds/{}/members/{} failed ({}) - body: {}",
                     GUILD_ID,
                     discord_user_id,
                     member_resp.status_code,
@@ -122,13 +122,13 @@ async def _fetch_discord_roles(discord_user_id: int) -> list[str]:
             )
             if guild_resp.status_code != 200:
                 logger.warning(
-                    "discord_roles: GET /guilds/{} failed ({}) — owner check skipped",
+                    "discord_roles: GET /guilds/{} failed ({}) - owner check skipped",
                     GUILD_ID,
                     guild_resp.status_code,
                 )
             elif guild_resp.json().get("owner_id") == str(discord_user_id):
                 logger.info(
-                    "discord_roles: user {} is guild owner — injecting Co-owner role ID",
+                    "discord_roles: user {} is guild owner - injecting Co-owner role ID",
                     discord_user_id,
                 )
                 # Inject Co-owner role ID if it exists in the guild
