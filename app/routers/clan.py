@@ -146,6 +146,7 @@ _COMP_METRIC_UPCOMING_FRESH_TTL = 15 * 60
 _COMP_METRIC_FINISHED_FRESH_TTL = 60 * 60
 _COMP_METRIC_STALE_TTL = 2 * 60 * 60
 _COMP_METRIC_LOCK_TTL = 60
+_COMP_OVERTIME_LOCK_TTL = 60
 
 
 def _comp_metric_keys(comp_id: int, metric: str) -> tuple[str, str, str]:
@@ -159,6 +160,11 @@ def _comp_metric_fresh_ttl(status: str) -> int:
     if status == "upcoming":
         return _COMP_METRIC_UPCOMING_FRESH_TTL
     return _COMP_METRIC_FINISHED_FRESH_TTL
+
+
+def _comp_overtime_keys(comp_id: int, metric: str) -> tuple[str, str, str]:
+    base = f"clan:comp:{comp_id}:overtime:{metric}"
+    return f"{base}:fresh", f"{base}:stale", f"{base}:lock"
 
 
 async def _build_kc_cache(valkey: Valkey) -> None:
@@ -650,6 +656,51 @@ async def _build_metric_detail_cache(
         await valkey.delete(lock_key)
 
 
+async def _build_overtime_cache(
+    comp_id: int, metric: str, status: str, valkey: Valkey
+) -> None:
+    """Fetch competition top-5 progress from WOM and write to Valkey cache."""
+    fresh_key, stale_key, lock_key = _comp_overtime_keys(comp_id, metric)
+    logger.info("comp overtime cache: hydrating comp={} metric={}", comp_id, metric)
+    try:
+        async with WiseOldManHandler(
+            api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT
+        ) as wom:
+            raw = await wom.get_competition_top5_progress(comp_id, metric)
+
+        series = [
+            {
+                "player_name": entry["player"]["displayName"],
+                "history": [
+                    {"date": h["date"], "value": h.get("gained", h.get("value", 0))}
+                    for h in entry.get("history", [])
+                ],
+            }
+            for entry in raw
+            if entry.get("player") and entry.get("history") is not None
+        ]
+
+        payload = json.dumps({"comp_id": comp_id, "metric": metric, "series": series})
+        fresh_ttl = _comp_metric_fresh_ttl(status)
+        await valkey.setex(fresh_key, fresh_ttl, payload)
+        await valkey.setex(stale_key, _COMP_METRIC_STALE_TTL, payload)
+        logger.info(
+            "comp overtime cache: wrote comp={} metric={} series={}",
+            comp_id,
+            metric,
+            len(series),
+        )
+    except Exception as exc:
+        logger.error(
+            "comp overtime cache: hydration failed comp={} metric={} - {}",
+            comp_id,
+            metric,
+            exc,
+        )
+    finally:
+        await valkey.delete(lock_key)
+
+
 async def _build_competitions_cache(valkey: Valkey) -> None:
     """Fetch all group competitions from WOM and write to Valkey cache. Lock already held by caller."""
     logger.info("competitions cache: hydrating from WOM (group={})", _WOM_GROUP_ID)
@@ -840,6 +891,48 @@ async def competition_metric_detail(
         logger.error("comp metric detail: sync fetch failed - {}", exc)
 
     raise HTTPException(status_code=503, detail="Competition data not yet available.")
+
+
+@router.get("/competitions/{comp_id}/overtime")
+async def competition_overtime(
+    comp_id: int,
+    background_tasks: BackgroundTasks,
+    metric: str = Query(..., description="WOM metric key"),
+    valkey: Valkey = Depends(get_valkey),
+) -> dict:
+    """Top-5 player progress over time for a specific metric. Stale-while-revalidate."""
+    fresh_key, stale_key, lock_key = _comp_overtime_keys(comp_id, metric)
+
+    status = "ongoing"
+    for cache_key in (_COMPS_FRESH_KEY, _COMPS_STALE_KEY):
+        raw = await valkey.get(cache_key)
+        if raw:
+            comps: list[dict] = json.loads(raw)
+            match = next((c for c in comps if c.get("id") == comp_id), None)
+            if match:
+                status = match.get("status", "ongoing")
+            break
+
+    fresh = await valkey.get(fresh_key)
+    if fresh:
+        return json.loads(fresh)
+
+    if await valkey.set(lock_key, "1", ex=_COMP_OVERTIME_LOCK_TTL, nx=True):
+        background_tasks.add_task(_build_overtime_cache, comp_id, metric, status, valkey)
+
+    stale = await valkey.get(stale_key)
+    if stale:
+        return json.loads(stale)
+
+    try:
+        await _build_overtime_cache(comp_id, metric, status, valkey)
+        fresh = await valkey.get(fresh_key)
+        if fresh:
+            return json.loads(fresh)
+    except Exception as exc:
+        logger.error("comp overtime: sync fetch failed - {}", exc)
+
+    raise HTTPException(status_code=503, detail="Timeline data not yet available.")
 
 
 @router.get("/competitions/{comp_id}")

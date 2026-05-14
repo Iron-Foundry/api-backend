@@ -179,6 +179,17 @@ class WiseOldManHandler(BaseRequestHandler):
         )
         resp.raise_for_status()
 
+    async def get_competition_top5_progress(
+        self, comp_id: int, metric: str
+    ) -> list[dict]:
+        resp = await self._get_with_rate_limit(
+            f"/competitions/{comp_id}/top5-progress",
+            params={"metric": metric},
+        )
+        if not resp.is_success:
+            return []
+        return resp.json()
+
     async def get_group(self, group_id: str | int) -> dict:
         resp = await self._get_with_rate_limit(f"/groups/{group_id}")
         resp.raise_for_status()
