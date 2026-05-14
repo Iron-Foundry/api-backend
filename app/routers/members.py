@@ -188,7 +188,7 @@ async def update_rsn(
 
     event_result = await session.execute(
         update(Event)
-        .where(func.lower(Event.player_name) == rsn.lower())
+        .where(func.replace(func.lower(Event.player_name), "\xa0", " ") == rsn.lower())
         .values(user_id=discord_user_id)
     )
     logger.info(
@@ -220,7 +220,18 @@ async def member_feed(
     )
     linked_rsns = [r.rsn for r in accounts_result.all()]
     if not linked_rsns:
-        return []
+        # Fall back to users.rsn for accounts predating the user_accounts table.
+        fallback = await session.execute(
+            select(User.rsn).where(
+                User.discord_user_id == discord_user_id,
+                User.rsn.isnot(None),
+            )
+        )
+        primary_rsn = fallback.scalar_one_or_none()
+        if primary_rsn:
+            linked_rsns = [primary_rsn]
+        else:
+            return []
 
     rsn_lower_set = {r.lower() for r in linked_rsns}
     rsn_lower_list = list(rsn_lower_set)
@@ -231,7 +242,7 @@ async def member_feed(
         .where(
             or_(
                 Event.user_id == discord_user_id,
-                func.lower(Event.player_name).in_(rsn_lower_list),
+                func.replace(func.lower(Event.player_name), "\xa0", " ").in_(rsn_lower_list),
             )
         )
         .order_by(Event.timestamp.desc())
@@ -683,7 +694,7 @@ async def add_account(
 
     event_result = await session.execute(
         update(Event)
-        .where(func.lower(Event.player_name) == rsn.lower())
+        .where(func.replace(func.lower(Event.player_name), "\xa0", " ") == rsn.lower())
         .values(user_id=discord_user_id)
     )
     logger.info(

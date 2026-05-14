@@ -702,8 +702,12 @@ async def ingest_chat(
             """
             UPDATE events e
             SET user_id = u.discord_user_id
-            FROM user_accounts u
-            WHERE lower(e.player_name) = lower(u.rsn)
+            FROM (
+                SELECT discord_user_id, lower(rsn) AS rsn_lower FROM user_accounts
+                UNION
+                SELECT discord_user_id, lower(rsn) FROM users WHERE rsn IS NOT NULL
+            ) u
+            WHERE replace(lower(e.player_name), chr(160), ' ') = u.rsn_lower
               AND e.user_id IS NULL
             """
         )

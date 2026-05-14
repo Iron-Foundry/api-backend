@@ -16,7 +16,10 @@ _CA_ID_RE = re.compile(r"CA_ID:\d+\|")
 def _strip(message: str) -> str:
     """Remove OSRS image tags and CA_ID prefixes before pattern matching."""
     message = _IMG_TAG_RE.sub("", message).strip()
-    return _CA_ID_RE.sub("", message).strip()
+    message = _CA_ID_RE.sub("", message).strip()
+    # OSRS broadcasts use non-breaking spaces (U+00A0) in player names;
+    # normalize to regular spaces so player_name comparisons work.
+    return message.replace("\xa0", " ")
 
 
 class BroadcastType(str, Enum):
