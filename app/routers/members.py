@@ -223,12 +223,16 @@ async def member_feed(
         return []
 
     rsn_lower_set = {r.lower() for r in linked_rsns}
+    rsn_lower_list = list(rsn_lower_set)
 
     fetch_limit = min(limit * 10, 2000)
     events_result = await session.execute(
         select(Event)
         .where(
-            Event.user_id == discord_user_id,
+            or_(
+                Event.user_id == discord_user_id,
+                func.lower(Event.player_name).in_(rsn_lower_list),
+            )
         )
         .order_by(Event.timestamp.desc())
         .limit(fetch_limit)
@@ -269,7 +273,12 @@ async def member_feed(
         )
         unknown_rows = list(unknown_result.scalars().all())
 
-    all_rows = list(rows) + list(pk_rows) + unknown_rows
+    seen_ids: set[int] = set()
+    all_rows: list[Event] = []
+    for row in list(rows) + list(pk_rows) + unknown_rows:
+        if row.id not in seen_ids:
+            seen_ids.add(row.id)
+            all_rows.append(row)
 
     items: list[dict] = []
     for row in all_rows:
