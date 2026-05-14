@@ -325,8 +325,19 @@ async def clan_stats(session: AsyncSession = Depends(get_session)) -> dict:
     )
     total_gp = gp_result.scalar_one() or 0
 
+    # Sum the highest known log_slots per player from events (includes unlinked accounts).
+    per_player = (
+        select(func.max(Event.data["log_slots"].as_integer()).label("max_slots"))
+        .where(
+            Event.type == "collection_log",
+            Event.player_name.is_not(None),
+            Event.is_league_world.is_(False),
+        )
+        .group_by(Event.player_name)
+        .subquery()
+    )
     cl_result = await session.execute(
-        select(func.coalesce(func.sum(User.collection_log_slots), 0))
+        select(func.coalesce(func.sum(per_player.c.max_slots), 0))
     )
     collection_log_items = cl_result.scalar_one() or 0
 
