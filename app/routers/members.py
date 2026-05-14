@@ -393,6 +393,37 @@ async def member_feed(
                     "value": d.get("coin_value", 0),
                 }
             )
+        elif t == "league_relic":
+            items.append(
+                {
+                    "type": "league_relic",
+                    "timestamp": ts,
+                    "label": f"Tier {d.get('tier')} League relic",
+                    "detail": None,
+                    "value": None,
+                }
+            )
+        elif t == "league_rank":
+            items.append(
+                {
+                    "type": "league_rank",
+                    "timestamp": ts,
+                    "label": f"{d.get('rank', '')} rank",
+                    "detail": None,
+                    "value": None,
+                }
+            )
+        elif t == "league_area":
+            area = d.get("area_count")
+            items.append(
+                {
+                    "type": "league_area",
+                    "timestamp": ts,
+                    "label": "Final League area" if area is None else f"League area {area}",
+                    "detail": None,
+                    "value": None,
+                }
+            )
         elif t == "unknown":
             items.append(
                 {
