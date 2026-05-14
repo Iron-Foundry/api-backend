@@ -8,6 +8,9 @@ from app.services.parser import (
     BroadcastType,
     classify,
     parse_achievement,
+    parse_league_area,
+    parse_league_rank,
+    parse_league_relic,
     parse_personal_best,
 )
 
@@ -194,3 +197,93 @@ def test_parse_personal_best(
 )
 def test_classify_personal_best(message: str) -> None:
     assert classify(message) == BroadcastType.PERSONAL_BEST
+
+
+# ---------------------------------------------------------------------------
+# League events
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "message,player,tier",
+    [
+        ("<img=22> ImNotCreg has unlocked their tier 2 League relic!", "ImNotCreg", 2),
+        ("<img=22> cardoorvis has unlocked their tier 3 League relic!", "cardoorvis", 3),
+        ("<img=22> ImaPixelLoL has unlocked their tier 4 League relic!", "ImaPixelLoL", 4),
+        ("<img=22> Meymer has unlocked their tier 8 League relic!", "Meymer", 8),
+    ],
+)
+def test_parse_league_relic(message: str, player: str, tier: int) -> None:
+    result = parse_league_relic(message)
+    assert result is not None
+    assert result.player_name == player
+    assert result.tier == tier
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "<img=22> ImNotCreg has unlocked their tier 2 League relic!",
+        "<img=22> Meymer has unlocked their tier 8 League relic!",
+    ],
+)
+def test_classify_league_relic(message: str) -> None:
+    assert classify(message) == BroadcastType.LEAGUE_RELIC
+
+
+@pytest.mark.parametrize(
+    "message,player,rank",
+    [
+        ("<img=22> Railroaded has earned the Iron rank!", "Railroaded", "Iron"),
+        ("<img=22> Hard Wire has earned the Iron rank!", "Hard Wire", "Iron"),
+        ("<img=22> Recurrsion has earned the Mithril rank!", "Recurrsion", "Mithril"),
+        ("<img=22> Gra3ff has earned the Dragon rank!", "Gra3ff", "Dragon"),
+    ],
+)
+def test_parse_league_rank(message: str, player: str, rank: str) -> None:
+    result = parse_league_rank(message)
+    assert result is not None
+    assert result.player_name == player
+    assert result.rank == rank
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "<img=22> Railroaded has earned the Iron rank!",
+        "<img=22> Hard Wire has earned the Iron rank!",
+        "<img=22> Gra3ff has earned the Dragon rank!",
+    ],
+)
+def test_classify_league_rank(message: str) -> None:
+    assert classify(message) == BroadcastType.LEAGUE_RANK
+
+
+@pytest.mark.parametrize(
+    "message,player,area_count",
+    [
+        ("<img=22> AZ 5 Pets has unlocked their 4th League area!", "AZ 5 Pets", 4),
+        ("<img=22> Fe Gate has unlocked their final League area!", "Fe Gate", None),
+        ("<img=22> UIM HAM has unlocked their 2nd League area!", "UIM HAM", 2),
+        ("<img=22> The Mail Man has unlocked their 2nd League area!", "The Mail Man", 2),
+        ("<img=22> X has unlocked their 1st League area!", "X", 1),
+        ("<img=22> X has unlocked their 3rd League area!", "X", 3),
+    ],
+)
+def test_parse_league_area(message: str, player: str, area_count: int | None) -> None:
+    result = parse_league_area(message)
+    assert result is not None
+    assert result.player_name == player
+    assert result.area_count == area_count
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "<img=22> AZ 5 Pets has unlocked their 4th League area!",
+        "<img=22> Fe Gate has unlocked their final League area!",
+        "<img=22> The Mail Man has unlocked their 2nd League area!",
+    ],
+)
+def test_classify_league_area(message: str) -> None:
+    assert classify(message) == BroadcastType.LEAGUE_AREA

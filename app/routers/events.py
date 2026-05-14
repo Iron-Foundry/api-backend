@@ -39,6 +39,9 @@ _PLAYER_NAME_PARSERS: dict[BroadcastType, Callable[[str], Any]] = {
     BroadcastType.COFFER_DONATION: parser.parse_coffer_transaction,
     BroadcastType.COFFER_WITHDRAWAL: parser.parse_coffer_transaction,
     BroadcastType.HCIM_DEATH: parser.parse_hcim_death,
+    BroadcastType.LEAGUE_RELIC: parser.parse_league_relic,
+    BroadcastType.LEAGUE_RANK: parser.parse_league_rank,
+    BroadcastType.LEAGUE_AREA: parser.parse_league_area,
 }
 
 
@@ -560,6 +563,84 @@ async def _handle_broadcast(
                 valkey,
                 "hcim_death",
                 _dispatch_doc("hcim_death", parsed.player_name, {}),
+            )
+
+    elif kind == BroadcastType.LEAGUE_RELIC:
+        parsed = parser.parse_league_relic(payload.message)
+        if parsed:
+            data = {"tier": parsed.tier}
+            await _insert_event(
+                session,
+                type="league_relic",
+                timestamp=now,
+                player_name=parsed.player_name,
+                sender=payload.sender,
+                is_league_world=payload.is_league_world,
+                raw_message=payload.message,
+                data=data,
+            )
+            logger.info(
+                "[{}] League relic: {} unlocked tier {}",
+                clan["guild_id"],
+                parsed.player_name,
+                parsed.tier,
+            )
+            await publish(
+                valkey,
+                "league_relic",
+                _dispatch_doc("league_relic", parsed.player_name, data),
+            )
+
+    elif kind == BroadcastType.LEAGUE_RANK:
+        parsed = parser.parse_league_rank(payload.message)
+        if parsed:
+            data = {"rank": parsed.rank}
+            await _insert_event(
+                session,
+                type="league_rank",
+                timestamp=now,
+                player_name=parsed.player_name,
+                sender=payload.sender,
+                is_league_world=payload.is_league_world,
+                raw_message=payload.message,
+                data=data,
+            )
+            logger.info(
+                "[{}] League rank: {} earned {}",
+                clan["guild_id"],
+                parsed.player_name,
+                parsed.rank,
+            )
+            await publish(
+                valkey,
+                "league_rank",
+                _dispatch_doc("league_rank", parsed.player_name, data),
+            )
+
+    elif kind == BroadcastType.LEAGUE_AREA:
+        parsed = parser.parse_league_area(payload.message)
+        if parsed:
+            data = {"area_count": parsed.area_count}
+            await _insert_event(
+                session,
+                type="league_area",
+                timestamp=now,
+                player_name=parsed.player_name,
+                sender=payload.sender,
+                is_league_world=payload.is_league_world,
+                raw_message=payload.message,
+                data=data,
+            )
+            logger.info(
+                "[{}] League area: {} unlocked area {}",
+                clan["guild_id"],
+                parsed.player_name,
+                parsed.area_count if parsed.area_count is not None else "final",
+            )
+            await publish(
+                valkey,
+                "league_area",
+                _dispatch_doc("league_area", parsed.player_name, data),
             )
 
     else:

@@ -38,6 +38,9 @@ class BroadcastType(str, Enum):
     COFFER_DONATION = "coffer_donation"
     COFFER_WITHDRAWAL = "coffer_withdrawal"
     HCIM_DEATH = "hcim_death"
+    LEAGUE_RELIC = "league_relic"
+    LEAGUE_RANK = "league_rank"
+    LEAGUE_AREA = "league_area"
     CHAT = "chat"
     UNKNOWN = "unknown"
 
@@ -135,6 +138,24 @@ class ParsedCofferTransaction:
 @dataclass
 class ParsedHcimDeath:
     player_name: str
+
+
+@dataclass
+class ParsedLeagueRelic:
+    player_name: str
+    tier: int
+
+
+@dataclass
+class ParsedLeagueRank:
+    player_name: str
+    rank: str
+
+
+@dataclass
+class ParsedLeagueArea:
+    player_name: str
+    area_count: int | None  # None = "final" area
 
 
 _LOOT_PATTERN = re.compile(
@@ -238,6 +259,18 @@ _HCIM_DEATH_PATTERN = re.compile(
     r"^(?P<player>.+?) has died and lost their Hardcore Ironman status\.$"
 )
 
+_LEAGUE_RELIC_PATTERN = re.compile(
+    r"^(?P<player>.+?) has unlocked their tier (?P<tier>\d+) League relic!$"
+)
+
+_LEAGUE_RANK_PATTERN = re.compile(
+    r"^(?P<player>.+?) has earned the (?P<rank>.+?) rank!$"
+)
+
+_LEAGUE_AREA_PATTERN = re.compile(
+    r"^(?P<player>.+?) has unlocked their (?:(?P<nth>\d+)(?:st|nd|rd|th)|final) League area!$"
+)
+
 
 def _parse_osrs_time(time_str: str) -> float:
     """Convert an OSRS time string (``MM:SS`` or ``H:MM:SS``, optional ``.ss``) to seconds."""
@@ -296,6 +329,12 @@ def classify(message: str) -> BroadcastType:
         )
     if _HCIM_DEATH_PATTERN.match(message):
         return BroadcastType.HCIM_DEATH
+    if _LEAGUE_RELIC_PATTERN.match(message):
+        return BroadcastType.LEAGUE_RELIC
+    if _LEAGUE_RANK_PATTERN.match(message):
+        return BroadcastType.LEAGUE_RANK
+    if _LEAGUE_AREA_PATTERN.match(message):
+        return BroadcastType.LEAGUE_AREA
     return BroadcastType.UNKNOWN
 
 
@@ -492,4 +531,29 @@ def parse_hcim_death(message: str) -> ParsedHcimDeath | None:
     message = _strip(message)
     if m := _HCIM_DEATH_PATTERN.match(message):
         return ParsedHcimDeath(player_name=m.group("player"))
+    return None
+
+
+def parse_league_relic(message: str) -> ParsedLeagueRelic | None:
+    message = _strip(message)
+    if m := _LEAGUE_RELIC_PATTERN.match(message):
+        return ParsedLeagueRelic(player_name=m.group("player"), tier=int(m.group("tier")))
+    return None
+
+
+def parse_league_rank(message: str) -> ParsedLeagueRank | None:
+    message = _strip(message)
+    if m := _LEAGUE_RANK_PATTERN.match(message):
+        return ParsedLeagueRank(player_name=m.group("player"), rank=m.group("rank"))
+    return None
+
+
+def parse_league_area(message: str) -> ParsedLeagueArea | None:
+    message = _strip(message)
+    if m := _LEAGUE_AREA_PATTERN.match(message):
+        nth = m.group("nth")
+        return ParsedLeagueArea(
+            player_name=m.group("player"),
+            area_count=int(nth) if nth else None,
+        )
     return None

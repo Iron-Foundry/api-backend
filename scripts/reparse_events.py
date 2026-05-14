@@ -114,6 +114,9 @@ def _reparse_row(
             p.BroadcastType.COFFER_WITHDRAWAL: p.parse_coffer_transaction,
             p.BroadcastType.HCIM_DEATH: p.parse_hcim_death,
             p.BroadcastType.LOOT: p.parse_loot,
+            p.BroadcastType.LEAGUE_RELIC: p.parse_league_relic,
+            p.BroadcastType.LEAGUE_RANK: p.parse_league_rank,
+            p.BroadcastType.LEAGUE_AREA: p.parse_league_area,
         }
         parse_fn = dispatch.get(kind)
         if not parse_fn:
