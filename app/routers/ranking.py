@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +16,17 @@ from app.db.models import PlayerRanking, User, UserAccount
 from app.dependencies import get_current_user, get_session
 from app.services.page_permissions import require_page_permission
 from app.services.ranking_service import _DEFAULT_CONFIG
+
+
+class PlayerPublicSchema(BaseModel):
+    rsn: str
+    rank: str
+    points: int
+    boss_points: int
+    skill_points: int
+    join_date: datetime | None
+    total_loot_value: int | None
+    stats_opt_out: bool
 
 router = APIRouter(prefix="/ranking", tags=["ranking"])
 
@@ -61,6 +74,44 @@ async def get_ranking_status(
         "service_active": True,
         "is_running": svc.is_running,
     }
+
+
+@router.get("/player/{rsn}", response_model=PlayerPublicSchema)
+async def get_player_ranking(rsn: str, session: AsyncSession = Depends(get_session)) -> PlayerPublicSchema:
+    """Public ranking lookup by RSN. Returns opt-out flag so callers can redact."""
+    result = await session.execute(
+        select(PlayerRanking).where(PlayerRanking.rsn.ilike(rsn))
+    )
+    player = result.scalar_one_or_none()
+    if player is None:
+        raise HTTPException(404, "Player not found")
+
+    join_date: datetime | None = None
+    total_loot_value: int | None = None
+    stats_opt_out: bool = False
+
+    if player.discord_user_id is not None:
+        user_result = await session.execute(
+            select(User.join_date, User.total_loot_value, User.stats_opt_out).where(
+                User.discord_user_id == player.discord_user_id
+            )
+        )
+        user_row = user_result.one_or_none()
+        if user_row is not None:
+            join_date = user_row.join_date
+            total_loot_value = user_row.total_loot_value
+            stats_opt_out = user_row.stats_opt_out
+
+    return PlayerPublicSchema(
+        rsn=player.rsn,
+        rank=player.rank,
+        points=player.points,
+        boss_points=player.boss_points,
+        skill_points=player.skill_points,
+        join_date=join_date,
+        total_loot_value=total_loot_value,
+        stats_opt_out=stats_opt_out,
+    )
 
 
 @router.get("/results")
