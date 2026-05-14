@@ -16,6 +16,7 @@ from app.dependencies import get_session, get_valkey, verify_clan
 from app.models.clan_chat import ClanChatPayload
 from app.services import parser
 from app.services.dispatcher import is_duplicate, publish
+from app.services.feed_event import insert_feed_event
 from app.services.parser import BroadcastType
 
 router = APIRouter(tags=["clan"])
@@ -108,8 +109,7 @@ def _dispatch_doc(event_type: str, player_name: str | None, data: dict) -> dict:
 
 
 async def _insert_event(session: AsyncSession, **kwargs: Any) -> None:
-    """Insert an Event row, silently skipping on duplicate (dedup index conflict)."""
-    await session.execute(pg_insert(Event).values(**kwargs).on_conflict_do_nothing())
+    await insert_feed_event(session, **kwargs)
 
 
 async def _handle_broadcast(

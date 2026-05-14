@@ -4,6 +4,7 @@ import asyncio
 
 from loguru import logger
 
+from app.services.feed_event import insert_feed_event
 from app.services.http import WiseOldManHandler
 from app.services.rsn_cascade import cascade_rsn_change
 
@@ -93,6 +94,16 @@ class WomNameChangeService:
 
             async with self._session_factory() as session:
                 await cascade_rsn_change(session, old, new)
+
+            async with self._session_factory() as session:
+                await insert_feed_event(
+                    session,
+                    type="name_change",
+                    player_name=new,
+                    user_id=match,
+                    data={"old_name": old, "new_name": new},
+                )
+                await session.commit()
 
             self._last_id = change["id"]
             processed += 1

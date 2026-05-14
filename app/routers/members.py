@@ -11,7 +11,7 @@ from loguru import logger
 from pydantic import BaseModel
 from typing import cast
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -229,7 +229,6 @@ async def member_feed(
         select(Event)
         .where(
             Event.user_id == discord_user_id,
-            Event.type.notin_(["unknown"]),
         )
         .order_by(Event.timestamp.desc())
         .limit(fetch_limit)
@@ -248,7 +247,24 @@ async def member_feed(
     )
     pk_rows = pk_result.scalars().all()
 
-    all_rows = list(rows) + list(pk_rows)
+    unknown_conditions = [
+        func.lower(func.left(Event.raw_message, 20)).contains(rsn.lower())
+        for rsn in linked_rsns
+    ]
+    unknown_rows: list[Event] = []
+    if unknown_conditions:
+        unknown_result = await session.execute(
+            select(Event)
+            .where(
+                Event.type == "unknown",
+                or_(*unknown_conditions),
+            )
+            .order_by(Event.timestamp.desc())
+            .limit(fetch_limit)
+        )
+        unknown_rows = list(unknown_result.scalars().all())
+
+    all_rows = list(rows) + list(pk_rows) + unknown_rows
 
     items: list[dict] = []
     for row in all_rows:
@@ -370,6 +386,26 @@ async def member_feed(
                     "label": "Loot key opened",
                     "detail": None,
                     "value": d.get("coin_value", 0),
+                }
+            )
+        elif t == "unknown":
+            items.append(
+                {
+                    "type": "unknown",
+                    "timestamp": ts,
+                    "label": row.raw_message or "Unknown event",
+                    "detail": None,
+                    "value": None,
+                }
+            )
+        elif t == "name_change":
+            items.append(
+                {
+                    "type": "name_change",
+                    "timestamp": ts,
+                    "label": f"{d.get('old_name', '')} -> {d.get('new_name', '')}",
+                    "detail": None,
+                    "value": None,
                 }
             )
         else:
