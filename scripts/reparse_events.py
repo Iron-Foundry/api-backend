@@ -46,6 +46,17 @@ _UPDATE_SQL = text(
 
 _DELETE_SQL = text("DELETE FROM events WHERE id = :id")
 
+_LINK_USER_IDS_SQL = text(
+    """
+    UPDATE events e
+    SET user_id = u.discord_user_id
+    FROM user_accounts u
+    WHERE lower(e.player_name) = lower(u.rsn)
+      AND e.user_id IS NULL
+      AND e.player_name IS NOT NULL
+    """
+)
+
 
 def _reparse_row(
     row_type: str, raw_message: str, stored_data: dict
@@ -186,6 +197,10 @@ async def run(dry_run: bool) -> None:
                 else:
                     raise
         print(f"Updated {updated}, deleted {deleted} duplicate(s).")
+
+        async with engine.begin() as conn:
+            result = await conn.execute(_LINK_USER_IDS_SQL)
+            print(f"Linked user_id for {result.rowcount} event(s).")
 
     await engine.dispose()
 

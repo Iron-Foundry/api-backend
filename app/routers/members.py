@@ -248,7 +248,12 @@ async def member_feed(
     pk_rows = pk_result.scalars().all()
 
     unknown_conditions = [
-        func.lower(func.left(Event.raw_message, 20)).contains(rsn.lower())
+        func.lower(
+            func.left(
+                func.regexp_replace(Event.raw_message, r"^<img=\d+>\s*", ""),
+                12,  # max OSRS RSN length
+            )
+        ).contains(rsn.lower())
         for rsn in linked_rsns
     ]
     unknown_rows: list[Event] = []

@@ -180,8 +180,14 @@ _COMBAT_TIER_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+_COMBAT_TIER_UNLOCK_PATTERN = re.compile(
+    r"^(?P<player>.+?) has unlocked the "
+    r"(?P<difficulty>easy|medium|hard|elite|master|grandmaster) tier of rewards from Combat Achievements[!.]?$",
+    re.IGNORECASE,
+)
+
 _PET_PATTERNS = [
-    re.compile(r"^(?P<player>.+?) has a funny feeling like they'?re being followed"),
+    re.compile(r"^(?P<player>.+?) has a funny feeling like (?:they'?re|he's|she's) being followed"),
     re.compile(
         r"^(?P<player>.+?) feels something weird sneaking into (?:their|his|her) backpack"
     ),
@@ -258,7 +264,11 @@ def classify(message: str) -> BroadcastType:
         return BroadcastType.QUEST
     if _DIARY_PATTERN.match(message):
         return BroadcastType.DIARY
-    if _COMBAT_ACH_PATTERN.match(message) or _COMBAT_TIER_PATTERN.match(message):
+    if (
+        _COMBAT_ACH_PATTERN.match(message)
+        or _COMBAT_TIER_PATTERN.match(message)
+        or _COMBAT_TIER_UNLOCK_PATTERN.match(message)
+    ):
         return BroadcastType.COMBAT_ACHIEVEMENT
     if any(p.match(message) for p in _PET_PATTERNS):
         return BroadcastType.PET
@@ -357,6 +367,14 @@ def parse_achievement(message: str) -> ParsedAchievement | None:
             difficulty=diff.lower() if diff else None,
         )
     if m := _COMBAT_TIER_PATTERN.match(message):
+        diff = m.group("difficulty").lower()
+        return ParsedAchievement(
+            player_name=m.group("player"),
+            kind="combat_achievement",
+            name=f"{diff} tier",
+            difficulty=diff,
+        )
+    if m := _COMBAT_TIER_UNLOCK_PATTERN.match(message):
         diff = m.group("difficulty").lower()
         return ParsedAchievement(
             player_name=m.group("player"),
