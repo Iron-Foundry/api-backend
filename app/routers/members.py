@@ -483,19 +483,12 @@ async def member_feed(
     return items[skip : skip + limit]
 
 
-class MeStats(BaseModel):
-    collection_log_slots: int
-    collection_log_slots_max: int
-    total_loot_value: int
-    rank_tier: str | None
-
-
-@router.get("/me/stats", response_model=MeStats)
+@router.get("/me/stats")
 async def get_me_stats(
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> MeStats:
-    discord_user_id = int(current_user["discord_user_id"])
+) -> dict:
+    discord_user_id = int(current_user["sub"])
 
     user_result = await session.execute(
         select(
@@ -514,12 +507,12 @@ async def get_me_stats(
         )
         rank_tier = ranking_result.scalar_one_or_none()
 
-    return MeStats(
-        collection_log_slots=user_row.collection_log_slots if user_row else 0,
-        collection_log_slots_max=user_row.collection_log_slots_max if user_row else 0,
-        total_loot_value=user_row.total_loot_value if user_row else 0,
-        rank_tier=rank_tier,
-    )
+    return {
+        "collection_log_slots": user_row.collection_log_slots if user_row else 0,
+        "collection_log_slots_max": user_row.collection_log_slots_max if user_row else 0,
+        "total_loot_value": user_row.total_loot_value if user_row else 0,
+        "rank_tier": rank_tier,
+    }
 
 
 @router.get("/me/tickets")
