@@ -50,7 +50,9 @@ async def list_badges(
     limit: int = Query(default=50, le=200),
 ) -> list[dict]:
     """Return all badges. Any authenticated user can fetch the list."""
-    result = await session.execute(select(Badge).order_by(Badge.name).offset(skip).limit(limit))
+    result = await session.execute(
+        select(Badge).order_by(Badge.name).offset(skip).limit(limit)
+    )
     return [
         {
             "id": str(b.id),

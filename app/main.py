@@ -224,7 +224,9 @@ async def lifespan(app: FastAPI):
         )
         await ranking_service.start()
     else:
-        logger.warning("WOM_GROUP_ID not set - name change, clan stats, and ranking services disabled")
+        logger.warning(
+            "WOM_GROUP_ID not set - name change, clan stats, and ranking services disabled"
+        )
         wom_service = None
     app.state.ranking_service = ranking_service
     yield

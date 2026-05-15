@@ -64,7 +64,11 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["party_id"], ["parties.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_party_chat_messages_party_sent", "party_chat_messages", ["party_id", "sent_at"])
+    op.create_index(
+        "ix_party_chat_messages_party_sent",
+        "party_chat_messages",
+        ["party_id", "sent_at"],
+    )
 
 
 def downgrade() -> None:

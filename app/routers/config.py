@@ -186,7 +186,11 @@ async def set_party_ping_roles(
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     """Update the party ping roles list. Requires rank-mappings edit permission."""
-    roles = [r.model_dump() for r in body.roles if r.discord_role_id.strip() and r.label.strip()]
+    roles = [
+        r.model_dump()
+        for r in body.roles
+        if r.discord_role_id.strip() and r.label.strip()
+    ]
     await _set_config_value(_PARTY_PING_ROLES_KEY, {"roles": roles}, session)
     return {"roles": roles}
 
@@ -240,6 +244,7 @@ async def get_ranking_config(
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     from app.services.ranking_service import _DEFAULT_CONFIG
+
     data = await _get_config_value(_RANKING_CONFIG_KEY, session)
     if not data:
         return _DEFAULT_CONFIG

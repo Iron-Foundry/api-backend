@@ -20,36 +20,146 @@ Vibe = Literal["learning", "chill", "sweat"]
 
 VIBE_EMOJI: dict[str, str] = {
     "learning": "🎓",
-    "chill":    "😌",
-    "sweat":    "💪",
+    "chill": "😌",
+    "sweat": "💪",
 }
 
 VIBE_COLOUR: dict[str, int] = {
     "learning": 0x5865F2,
-    "chill":    0x57F287,
-    "sweat":    0xED4245,
+    "chill": 0x57F287,
+    "sweat": 0xED4245,
 }
 
 _WORDLIST = [
-    "abyssal","ancient","anvil","arcane","armadyl","arrow","axe",
-    "bandos","barrows","berserker","brimstone","bronze","brutal",
-    "cannonball","chaos","chimera","coffer","coral","crystal",
-    "dagannoth","dark","death","defender","demon","divine","dragon",
-    "dragonfire","dusk","dwarf","elder","eternal","fighter","fire",
-    "flask","forest","fury","ghost","giant","gloves","goblin",
-    "golem","granite","guthix","hammer","helm","hunter","hydra",
-    "infernal","iron","jad","justiciar","karambwan","kraken","lance",
-    "lava","lobster","magic","manta","maple","marble","master",
-    "monk","mortar","mud","mystic","nature","needle","nex",
-    "nightmare","oak","obsidian","onyx","oracle","pegasian","pickaxe",
-    "prayer","quartz","quest","ranger","rapier","rune","sacred",
-    "saradomin","scimitar","seed","shark","shield","silver","skeleton",
-    "slayer","smoke","snow","soul","spade","spectral","staff","steel",
-    "storm","sword","teak","thorn","titan","toad","tome","torch",
-    "torva","toxic","trident","tuna","twisted","vanguard","venom",
-    "vigour","viper","void","vorkath","warhammer","warped","water",
-    "whip","willow","wings","witch","wolf","wrath","yew",
-    "zamorak","zenyte","zulrah",
+    "abyssal",
+    "ancient",
+    "anvil",
+    "arcane",
+    "armadyl",
+    "arrow",
+    "axe",
+    "bandos",
+    "barrows",
+    "berserker",
+    "brimstone",
+    "bronze",
+    "brutal",
+    "cannonball",
+    "chaos",
+    "chimera",
+    "coffer",
+    "coral",
+    "crystal",
+    "dagannoth",
+    "dark",
+    "death",
+    "defender",
+    "demon",
+    "divine",
+    "dragon",
+    "dragonfire",
+    "dusk",
+    "dwarf",
+    "elder",
+    "eternal",
+    "fighter",
+    "fire",
+    "flask",
+    "forest",
+    "fury",
+    "ghost",
+    "giant",
+    "gloves",
+    "goblin",
+    "golem",
+    "granite",
+    "guthix",
+    "hammer",
+    "helm",
+    "hunter",
+    "hydra",
+    "infernal",
+    "iron",
+    "jad",
+    "justiciar",
+    "karambwan",
+    "kraken",
+    "lance",
+    "lava",
+    "lobster",
+    "magic",
+    "manta",
+    "maple",
+    "marble",
+    "master",
+    "monk",
+    "mortar",
+    "mud",
+    "mystic",
+    "nature",
+    "needle",
+    "nex",
+    "nightmare",
+    "oak",
+    "obsidian",
+    "onyx",
+    "oracle",
+    "pegasian",
+    "pickaxe",
+    "prayer",
+    "quartz",
+    "quest",
+    "ranger",
+    "rapier",
+    "rune",
+    "sacred",
+    "saradomin",
+    "scimitar",
+    "seed",
+    "shark",
+    "shield",
+    "silver",
+    "skeleton",
+    "slayer",
+    "smoke",
+    "snow",
+    "soul",
+    "spade",
+    "spectral",
+    "staff",
+    "steel",
+    "storm",
+    "sword",
+    "teak",
+    "thorn",
+    "titan",
+    "toad",
+    "tome",
+    "torch",
+    "torva",
+    "toxic",
+    "trident",
+    "tuna",
+    "twisted",
+    "vanguard",
+    "venom",
+    "vigour",
+    "viper",
+    "void",
+    "vorkath",
+    "warhammer",
+    "warped",
+    "water",
+    "whip",
+    "willow",
+    "wings",
+    "witch",
+    "wolf",
+    "wrath",
+    "yew",
+    "zamorak",
+    "zenyte",
+    "zulrah",
 ]
 
 
@@ -58,6 +168,7 @@ def _generate_hub_code() -> str:
 
 
 # ── Queries ───────────────────────────────────────────────────────────────────
+
 
 def _with_members(q):
     return q.options(selectinload(PartyDB.members))
@@ -82,6 +193,7 @@ async def list_active_parties(session: AsyncSession) -> list[PartyDB]:
 
 
 # ── Mutators ──────────────────────────────────────────────────────────────────
+
 
 def _recalc_status(party: PartyDB) -> None:
     if party.status == "closed":
@@ -161,8 +273,9 @@ async def add_member(
 
 async def remove_member(session: AsyncSession, party: PartyDB, user_id: str) -> bool:
     result = await session.execute(
-        delete(PartyMemberDB)
-        .where(PartyMemberDB.party_id == party.id, PartyMemberDB.user_id == user_id)
+        delete(PartyMemberDB).where(
+            PartyMemberDB.party_id == party.id, PartyMemberDB.user_id == user_id
+        )
     )
     if result.rowcount == 0:
         return False
@@ -201,7 +314,9 @@ async def add_chat_message(
     return msg
 
 
-async def get_chat_messages(session: AsyncSession, party_id: str, limit: int = 50) -> list[PartyChatMessageDB]:
+async def get_chat_messages(
+    session: AsyncSession, party_id: str, limit: int = 50
+) -> list[PartyChatMessageDB]:
     result = await session.execute(
         select(PartyChatMessageDB)
         .where(PartyChatMessageDB.party_id == party_id)
@@ -216,8 +331,7 @@ async def expire_parties(session: AsyncSession) -> list[PartyDB]:
     now = datetime.now(timezone.utc)
     result = await session.execute(
         _with_members(
-            select(PartyDB)
-            .where(PartyDB.status != "closed", PartyDB.expires_at <= now)
+            select(PartyDB).where(PartyDB.status != "closed", PartyDB.expires_at <= now)
         )
     )
     parties = list(result.scalars().all())
@@ -230,8 +344,11 @@ async def expire_parties(session: AsyncSession) -> list[PartyDB]:
 
 # ── Serialisers ───────────────────────────────────────────────────────────────
 
+
 def party_to_dict(party: PartyDB, viewer_id: str | None = None) -> dict:
-    is_member = viewer_id is not None and any(m.user_id == viewer_id for m in party.members)
+    is_member = viewer_id is not None and any(
+        m.user_id == viewer_id for m in party.members
+    )
     return {
         "id": party.id,
         "activity": party.activity,
@@ -245,7 +362,12 @@ def party_to_dict(party: PartyDB, viewer_id: str | None = None) -> dict:
         "max_size": party.max_size,
         "member_count": len(party.members),
         "members": [
-            {"user_id": m.user_id, "username": m.username, "rsn": m.rsn, "joined_at": m.joined_at.isoformat()}
+            {
+                "user_id": m.user_id,
+                "username": m.username,
+                "rsn": m.rsn,
+                "joined_at": m.joined_at.isoformat(),
+            }
             for m in party.members
         ],
         "ping_role_ids": party.ping_role_ids or [],

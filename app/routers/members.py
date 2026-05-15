@@ -16,7 +16,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Event, Ticket, User, UserAccount
+from app.db.models import Event, PlayerRanking, Ticket, User, UserAccount
 from app.dependencies import get_current_user, get_session
 from app.services.rsn_cascade import backfill_user_from_rsn
 
@@ -242,7 +242,9 @@ async def member_feed(
         .where(
             or_(
                 Event.user_id == discord_user_id,
-                func.replace(func.lower(Event.player_name), "\xa0", " ").in_(rsn_lower_list),
+                func.replace(func.lower(Event.player_name), "\xa0", " ").in_(
+                    rsn_lower_list
+                ),
             )
         )
         .order_by(Event.timestamp.desc())
@@ -439,7 +441,9 @@ async def member_feed(
                 {
                     "type": "league_area",
                     "timestamp": ts,
-                    "label": "Final League area" if area is None else f"League area {area}",
+                    "label": "Final League area"
+                    if area is None
+                    else f"League area {area}",
                     "detail": None,
                     "value": None,
                 }
@@ -477,6 +481,45 @@ async def member_feed(
 
     items.sort(key=lambda x: x["timestamp"], reverse=True)
     return items[skip : skip + limit]
+
+
+class MeStats(BaseModel):
+    collection_log_slots: int
+    collection_log_slots_max: int
+    total_loot_value: int
+    rank_tier: str | None
+
+
+@router.get("/me/stats", response_model=MeStats)
+async def get_me_stats(
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> MeStats:
+    discord_user_id = int(current_user["discord_user_id"])
+
+    user_result = await session.execute(
+        select(
+            User.collection_log_slots,
+            User.collection_log_slots_max,
+            User.total_loot_value,
+            User.rsn,
+        ).where(User.discord_user_id == discord_user_id)
+    )
+    user_row = user_result.one_or_none()
+
+    rank_tier: str | None = None
+    if user_row and user_row.rsn:
+        ranking_result = await session.execute(
+            select(PlayerRanking.rank).where(PlayerRanking.rsn.ilike(user_row.rsn))
+        )
+        rank_tier = ranking_result.scalar_one_or_none()
+
+    return MeStats(
+        collection_log_slots=user_row.collection_log_slots if user_row else 0,
+        collection_log_slots_max=user_row.collection_log_slots_max if user_row else 0,
+        total_loot_value=user_row.total_loot_value if user_row else 0,
+        rank_tier=rank_tier,
+    )
 
 
 @router.get("/me/tickets")
@@ -758,9 +801,7 @@ async def set_primary_account(
     )
 
     await session.commit()
-    logger.info(
-        "members/accounts: user {} set primary {!r}", discord_user_id, row.rsn
-    )
+    logger.info("members/accounts: user {} set primary {!r}", discord_user_id, row.rsn)
     return {"id": row.id, "rsn": row.rsn, "is_primary": True}
 
 
@@ -808,6 +849,4 @@ async def delete_account(
 
     await session.delete(row)
     await session.commit()
-    logger.info(
-        "members/accounts: user {} removed RSN {!r}", discord_user_id, row.rsn
-    )
+    logger.info("members/accounts: user {} removed RSN {!r}", discord_user_id, row.rsn)

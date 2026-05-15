@@ -87,9 +87,18 @@ class ClanStatsService:
         member_count = raw.get("memberCount", 0)
         total_xp = sum(m.get("player", {}).get("exp", 0) for m in memberships)
         total_ehb = round(sum(m.get("player", {}).get("ehb", 0.0) for m in memberships))
-        cox_kc = metric_totals["chambers_of_xeric"] + metric_totals["chambers_of_xeric_challenge_mode"]
-        tob_kc = metric_totals["theatre_of_blood"] + metric_totals["theatre_of_blood_hard_mode"]
-        toa_kc = metric_totals["tombs_of_amascut"] + metric_totals["tombs_of_amascut_expert_mode"]
+        cox_kc = (
+            metric_totals["chambers_of_xeric"]
+            + metric_totals["chambers_of_xeric_challenge_mode"]
+        )
+        tob_kc = (
+            metric_totals["theatre_of_blood"]
+            + metric_totals["theatre_of_blood_hard_mode"]
+        )
+        toa_kc = (
+            metric_totals["tombs_of_amascut"]
+            + metric_totals["tombs_of_amascut_expert_mode"]
+        )
 
         stmt = pg_insert(ClanStats).values(
             id=1,

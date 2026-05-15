@@ -29,10 +29,31 @@ from tqdm import tqdm
 
 METRICS: list[str] = [
     # Skills
-    "overall", "attack", "defence", "strength", "hitpoints", "ranged", "prayer",
-    "magic", "cooking", "woodcutting", "fletching", "fishing", "firemaking",
-    "crafting", "smithing", "mining", "herblore", "agility", "thieving", "slayer",
-    "farming", "runecrafting", "hunter", "construction", "sailing",
+    "overall",
+    "attack",
+    "defence",
+    "strength",
+    "hitpoints",
+    "ranged",
+    "prayer",
+    "magic",
+    "cooking",
+    "woodcutting",
+    "fletching",
+    "fishing",
+    "firemaking",
+    "crafting",
+    "smithing",
+    "mining",
+    "herblore",
+    "agility",
+    "thieving",
+    "slayer",
+    "farming",
+    "runecrafting",
+    "hunter",
+    "construction",
+    "sailing",
     # Bosses
     "abyssal_sire",
     "alchemical_hydra",
@@ -103,13 +124,24 @@ METRICS: list[str] = [
     "zalcano",
     "zulrah",
     # Activities
-    "bounty_hunter_hunter", "bounty_hunter_rogue", "clue_scrolls_all",
-    "clue_scrolls_beginner", "clue_scrolls_easy", "clue_scrolls_elite",
-    "clue_scrolls_hard", "clue_scrolls_master", "clue_scrolls_medium",
-    "colosseum_glory", "collections_logged", "guardians_of_the_rift",
-    "last_man_standing", "pvp_arena", "soul_wars_zeal",
+    "bounty_hunter_hunter",
+    "bounty_hunter_rogue",
+    "clue_scrolls_all",
+    "clue_scrolls_beginner",
+    "clue_scrolls_easy",
+    "clue_scrolls_elite",
+    "clue_scrolls_hard",
+    "clue_scrolls_master",
+    "clue_scrolls_medium",
+    "colosseum_glory",
+    "collections_logged",
+    "guardians_of_the_rift",
+    "last_man_standing",
+    "pvp_arena",
+    "soul_wars_zeal",
     # Computed
-    "ehp", "ehb",
+    "ehp",
+    "ehb",
 ]
 
 WOM_BASE = "https://api.wiseoldman.net/v2"
@@ -134,7 +166,7 @@ async def _get(
             continue
 
         if resp.is_success:
-            limit     = resp.headers.get("RateLimit-Limit", "?")
+            limit = resp.headers.get("RateLimit-Limit", "?")
             remaining = resp.headers.get("RateLimit-Remaining", "?")
             reset_in_raw = resp.headers.get("RateLimit-Reset", "0")
             bucket = f"{remaining}/{limit}"
@@ -157,14 +189,18 @@ async def _get(
         if bar:
             bar.set_postfix_str(f"HTTP {resp.status_code} attempt {attempt + 1}")
         if attempt < 2:
-            await asyncio.sleep(2 ** attempt)
+            await asyncio.sleep(2**attempt)
 
     raise RuntimeError(f"All retries exhausted for {path}")
 
 
-async def fetch_competition(comp_id: int, api_key: str | None, discord: str | None) -> dict:
+async def fetch_competition(
+    comp_id: int, api_key: str | None, discord: str | None
+) -> dict:
     headers: dict[str, str] = {
-        "User-Agent": f"IronFoundry/1.0 (discord: @{discord})" if discord else "IronFoundry/1.0",
+        "User-Agent": f"IronFoundry/1.0 (discord: @{discord})"
+        if discord
+        else "IronFoundry/1.0",
     }
     if api_key:
         headers["x-api-key"] = api_key
@@ -180,7 +216,9 @@ async def fetch_competition(comp_id: int, api_key: str | None, discord: str | No
             team = p.get("teamName") or "No Team"
             player = p["player"]["displayName"]
             teams.setdefault(team, {}).setdefault(player, {})
-        tqdm.write(f"  {len(teams)} teams, {sum(len(v) for v in teams.values())} players seeded")
+        tqdm.write(
+            f"  {len(teams)} teams, {sum(len(v) for v in teams.values())} players seeded"
+        )
 
         with tqdm(METRICS, unit="metric", dynamic_ncols=True, file=sys.stderr) as bar:
             for metric in bar:
@@ -207,7 +245,9 @@ async def fetch_competition(comp_id: int, api_key: str | None, discord: str | No
                     if gained:
                         team = p.get("teamName") or "No Team"
                         player = p["player"]["displayName"]
-                        teams.setdefault(team, {}).setdefault(player, {})[metric] = gained
+                        teams.setdefault(team, {}).setdefault(player, {})[metric] = (
+                            gained
+                        )
 
     return {
         "competition_id": comp_id,
@@ -219,13 +259,19 @@ async def fetch_competition(comp_id: int, api_key: str | None, discord: str | No
 def main() -> None:
     import argparse
 
-    parser = argparse.ArgumentParser(description="Export compact team/player/metric gained data for a WOM competition.")
+    parser = argparse.ArgumentParser(
+        description="Export compact team/player/metric gained data for a WOM competition."
+    )
     parser.add_argument("--comp-id", type=int, required=True)
     parser.add_argument("--out", type=str, default=None)
     parser.add_argument("--stdout", action="store_true")
     args = parser.parse_args()
 
-    result = asyncio.run(fetch_competition(args.comp_id, os.getenv("WOM_API_KEY"), os.getenv("WOM_DISCORD")))
+    result = asyncio.run(
+        fetch_competition(
+            args.comp_id, os.getenv("WOM_API_KEY"), os.getenv("WOM_DISCORD")
+        )
+    )
 
     payload = json.dumps(result, indent=2, ensure_ascii=False)
 

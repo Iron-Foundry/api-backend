@@ -50,10 +50,20 @@ from app.services.parser import (
         ),
         # All difficulty tiers
         ("X has completed an easy combat task: Task Name.", "X", "easy", "Task Name"),
-        ("X has completed a medium combat task: Task Name.", "X", "medium", "Task Name"),
+        (
+            "X has completed a medium combat task: Task Name.",
+            "X",
+            "medium",
+            "Task Name",
+        ),
         ("X has completed a hard combat task: Task Name.", "X", "hard", "Task Name"),
         ("X has completed an elite combat task: Task Name.", "X", "elite", "Task Name"),
-        ("X has completed a master combat task: Task Name.", "X", "master", "Task Name"),
+        (
+            "X has completed a master combat task: Task Name.",
+            "X",
+            "master",
+            "Task Name",
+        ),
         (
             "X has completed a grandmaster combat task: Task Name.",
             "X",
@@ -63,7 +73,12 @@ from app.services.parser import (
         # Case-insensitive difficulty
         ("X has completed an Easy combat task: Task.", "X", "easy", "Task"),
         ("X has completed an Elite combat task: Task.", "X", "elite", "Task"),
-        ("X has completed a Grandmaster combat task: Task.", "X", "grandmaster", "Task"),
+        (
+            "X has completed a Grandmaster combat task: Task.",
+            "X",
+            "grandmaster",
+            "Task",
+        ),
         # Legacy format - no difficulty
         (
             "X has completed the combat achievement: Task Name.",
@@ -208,8 +223,16 @@ def test_classify_personal_best(message: str) -> None:
     "message,player,tier",
     [
         ("<img=22> ImNotCreg has unlocked their tier 2 League relic!", "ImNotCreg", 2),
-        ("<img=22> cardoorvis has unlocked their tier 3 League relic!", "cardoorvis", 3),
-        ("<img=22> ImaPixelLoL has unlocked their tier 4 League relic!", "ImaPixelLoL", 4),
+        (
+            "<img=22> cardoorvis has unlocked their tier 3 League relic!",
+            "cardoorvis",
+            3,
+        ),
+        (
+            "<img=22> ImaPixelLoL has unlocked their tier 4 League relic!",
+            "ImaPixelLoL",
+            4,
+        ),
         ("<img=22> Meymer has unlocked their tier 8 League relic!", "Meymer", 8),
     ],
 )
@@ -265,7 +288,11 @@ def test_classify_league_rank(message: str) -> None:
         ("<img=22> AZ 5 Pets has unlocked their 4th League area!", "AZ 5 Pets", 4),
         ("<img=22> Fe Gate has unlocked their final League area!", "Fe Gate", None),
         ("<img=22> UIM HAM has unlocked their 2nd League area!", "UIM HAM", 2),
-        ("<img=22> The Mail Man has unlocked their 2nd League area!", "The Mail Man", 2),
+        (
+            "<img=22> The Mail Man has unlocked their 2nd League area!",
+            "The Mail Man",
+            2,
+        ),
         ("<img=22> X has unlocked their 1st League area!", "X", 1),
         ("<img=22> X has unlocked their 3rd League area!", "X", 3),
     ],

@@ -50,35 +50,107 @@ _DEFAULT_CONFIG: dict[str, Any] = {
         "max": 13034431,
     },
     "skills": [
-        "attack", "strength", "defense", "range", "magic", "prayer", "hitpoints",
-        "slayer", "cooking", "woodcutting", "fletching", "fishing", "firemaking",
-        "crafting", "smithing", "mining", "herblore", "agility", "thieving",
-        "farming", "runecrafting", "hunter", "construction", "sailing",
+        "attack",
+        "strength",
+        "defense",
+        "range",
+        "magic",
+        "prayer",
+        "hitpoints",
+        "slayer",
+        "cooking",
+        "woodcutting",
+        "fletching",
+        "fishing",
+        "firemaking",
+        "crafting",
+        "smithing",
+        "mining",
+        "herblore",
+        "agility",
+        "thieving",
+        "farming",
+        "runecrafting",
+        "hunter",
+        "construction",
+        "sailing",
     ],
-    "kc_tiers": {"tier_1": 0, "tier_2": 50, "tier_3": 100, "tier_4": 250, "tier_5": 750},
+    "kc_tiers": {
+        "tier_1": 0,
+        "tier_2": 50,
+        "tier_3": 100,
+        "tier_4": 250,
+        "tier_5": 750,
+    },
     "tier_1_bosses": [
-        "barrows_chests", "scurrius", "giant_mole", "deranged_archaeologist",
-        "chaos_fanatic", "crazy_archaeologist", "obor", "bryophyta", "amoxliatl",
-        "hespori", "kraken", "shellbane_gryphon", "thermonuclear_smoke_devil",
+        "barrows_chests",
+        "scurrius",
+        "giant_mole",
+        "deranged_archaeologist",
+        "chaos_fanatic",
+        "crazy_archaeologist",
+        "obor",
+        "bryophyta",
+        "amoxliatl",
+        "hespori",
+        "kraken",
+        "shellbane_gryphon",
+        "thermonuclear_smoke_devil",
     ],
     "tier_2_bosses": [
-        "dagannoth_prime", "dagannoth_rex", "dagannoth_supreme", "scorpia",
-        "king_black_dragon", "grotesque_guardians", "calvarion", "sarachnis",
-        "the_hueycoatl", "lunar_chests", "chaos_elemental", "mimic", "vetion",
-        "spindel", "venenatis", "artio", "callisto", "the_royal_titans",
-        "skotizo", "abyssal_sire", "cerberus", "alchemical_hydra",
-        "kril_tsutsaroth", "duke_sucellus", "tztok_jad",
+        "dagannoth_prime",
+        "dagannoth_rex",
+        "dagannoth_supreme",
+        "scorpia",
+        "king_black_dragon",
+        "grotesque_guardians",
+        "calvarion",
+        "sarachnis",
+        "the_hueycoatl",
+        "lunar_chests",
+        "chaos_elemental",
+        "mimic",
+        "vetion",
+        "spindel",
+        "venenatis",
+        "artio",
+        "callisto",
+        "the_royal_titans",
+        "skotizo",
+        "abyssal_sire",
+        "cerberus",
+        "alchemical_hydra",
+        "kril_tsutsaroth",
+        "duke_sucellus",
+        "tztok_jad",
     ],
     "tier_3_bosses": [
-        "general_graardor", "kreearra", "kalphite_queen", "commander_zilyana",
-        "corporeal_beast", "zulrah", "vorkath", "phantom_muspah", "araxxor",
+        "general_graardor",
+        "kreearra",
+        "kalphite_queen",
+        "commander_zilyana",
+        "corporeal_beast",
+        "zulrah",
+        "vorkath",
+        "phantom_muspah",
+        "araxxor",
         "the_gauntlet",
     ],
     "tier_4_bosses": [
-        "nex", "yama", "nightmare", "the_leviathan", "the_whisperer",
-        "vardorvis", "the_corrupted_gauntlet",
+        "nex",
+        "yama",
+        "nightmare",
+        "the_leviathan",
+        "the_whisperer",
+        "vardorvis",
+        "the_corrupted_gauntlet",
     ],
-    "tier_5_bosses": ["tzkal_zuk", "sol_heredit", "phosanis_nightmare", "doom_of_mokhaiotl"],
+    "tier_5_bosses": [
+        "tzkal_zuk",
+        "sol_heredit",
+        "phosanis_nightmare",
+        "doom_of_mokhaiotl",
+    ],
     "raids": {
         "toa": ["tombs_of_amascut", "tombs_of_amascut_expert"],
         "tob": ["theatre_of_blood", "theatre_of_blood_hard_mode"],
@@ -141,7 +213,15 @@ def _assign_rank(points: int, thresholds: dict) -> str:
     return "No Rank"
 
 
-_RANK_ORDER = {"No Rank": 0, "Rank 1": 1, "Rank 2": 2, "Rank 3": 3, "Rank 4": 4, "Rank 5": 5, "Rank 6": 6}
+_RANK_ORDER = {
+    "No Rank": 0,
+    "Rank 1": 1,
+    "Rank 2": 2,
+    "Rank 3": 3,
+    "Rank 4": 4,
+    "Rank 5": 5,
+    "Rank 6": 6,
+}
 
 
 def rank_from_snapshots(
@@ -187,7 +267,9 @@ def rank_from_snapshots(
         # Skill score
         tracked = {s: float(v) for s, v in skills.items() if s in skill_names}
         if tracked:
-            skill_raw = sum(_skill_score(exp, exp_tiers) for exp in tracked.values()) / len(tracked)
+            skill_raw = sum(
+                _skill_score(exp, exp_tiers) for exp in tracked.values()
+            ) / len(tracked)
         else:
             skill_raw = 0.0
 
@@ -196,13 +278,15 @@ def rank_from_snapshots(
         boss_points = int(boss_raw * mults["boss"] * 1000 / 2)
         skill_points = int(skill_raw * mults["skill"] * 1000 / 2)
 
-        results.append({
-            "rsn": rsn,
-            "rank": _assign_rank(points, thresholds),
-            "points": points,
-            "boss_points": boss_points,
-            "skill_points": skill_points,
-        })
+        results.append(
+            {
+                "rsn": rsn,
+                "rank": _assign_rank(points, thresholds),
+                "points": points,
+                "boss_points": boss_points,
+                "skill_points": skill_points,
+            }
+        )
 
     results.sort(key=lambda p: (-_RANK_ORDER.get(p["rank"], 0), -p["points"]))
     return results
@@ -214,7 +298,9 @@ def rank_from_snapshots(
 class RankingService:
     """Fetches WOM player snapshots and ranks the clan once per day."""
 
-    def __init__(self, session_factory, group_id: int, api_key: str | None = None) -> None:  # type: ignore[no-untyped-def]
+    def __init__(
+        self, session_factory, group_id: int, api_key: str | None = None
+    ) -> None:  # type: ignore[no-untyped-def]
         self._session_factory = session_factory
         self._group_id = group_id
         self._api_key = api_key
@@ -227,7 +313,11 @@ class RankingService:
 
     async def start(self) -> None:
         self._task = asyncio.create_task(self._poll_loop(), name="ranking-service")
-        logger.info("RankingService started (group_id={}, poll_interval={}s)", self._group_id, POLL_INTERVAL)
+        logger.info(
+            "RankingService started (group_id={}, poll_interval={}s)",
+            self._group_id,
+            POLL_INTERVAL,
+        )
 
     async def stop(self) -> None:
         if self._task:
@@ -301,9 +391,15 @@ class RankingService:
                     if details:
                         snapshots_raw.append((username, details))
                 except Exception as exc:
-                    logger.warning("RankingService: failed to fetch {}: {}", username, exc)
+                    logger.warning(
+                        "RankingService: failed to fetch {}: {}", username, exc
+                    )
 
-        logger.info("RankingService: fetched {}/{} snapshots", len(snapshots_raw), len(usernames))
+        logger.info(
+            "RankingService: fetched {}/{} snapshots",
+            len(snapshots_raw),
+            len(usernames),
+        )
 
         now = datetime.now(timezone.utc)
         cleaned: list[dict] = []
@@ -320,7 +416,9 @@ class RankingService:
             bosses_data = data.get("bosses", {})
 
             skills = {
-                name: float(info.get("experience", 0) if isinstance(info, dict) else info)
+                name: float(
+                    info.get("experience", 0) if isinstance(info, dict) else info
+                )
                 for name, info in skills_data.items()
                 if name in skill_names
             }
@@ -330,7 +428,9 @@ class RankingService:
             }
 
             cleaned.append({"rsn": rsn, "skills": skills, "bosses": bosses})
-            snapshot_rows.append({"rsn": rsn, "skills": skills, "bosses": bosses, "fetched_at": now})
+            snapshot_rows.append(
+                {"rsn": rsn, "skills": skills, "bosses": bosses, "fetched_at": now}
+            )
 
         ranked = rank_from_snapshots(cleaned, config)
 

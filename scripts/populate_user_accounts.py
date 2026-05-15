@@ -104,7 +104,9 @@ async def run(dry_run: bool) -> None:
 
     async with engine.begin() as conn:
         result = await conn.execute(_NORMALIZE_NBSP_SQL)
-        print(f"Normalized non-breaking spaces in {result.rowcount} event player_name(s).")
+        print(
+            f"Normalized non-breaking spaces in {result.rowcount} event player_name(s)."
+        )
 
     async with engine.begin() as conn:
         result = await conn.execute(_LINK_EVENTS_SQL)

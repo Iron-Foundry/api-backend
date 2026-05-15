@@ -27,7 +27,11 @@ from app.party_store import (
     party_to_dict,
     remove_member,
 )
-from app.services.discord_party import close_party_embed, edit_party_embed, post_party_embed
+from app.services.discord_party import (
+    close_party_embed,
+    edit_party_embed,
+    post_party_embed,
+)
 from app.services.page_permissions import get_admin_bypass_roles
 from app.services.rank_mappings import get_effective_roles
 
@@ -35,6 +39,7 @@ router = APIRouter(prefix="/parties", tags=["parties"])
 
 
 # ── Request models ────────────────────────────────────────────────────────────
+
 
 class CreatePartyRequest(BaseModel):
     activity: Annotated[str, Field(min_length=1, max_length=60)]
@@ -87,6 +92,7 @@ class SendChatRequest(BaseModel):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 async def _require_party(party_id: str, session: AsyncSession):  # type: ignore[return]
     party = await get_party(session, party_id)
     if not party:
@@ -127,13 +133,16 @@ def _resolve_scheduled_at(dt: datetime) -> datetime:
     if dt > now:
         return dt
     today = now.date()
-    candidate = datetime(today.year, today.month, today.day, dt.hour, dt.minute, tzinfo=timezone.utc)
+    candidate = datetime(
+        today.year, today.month, today.day, dt.hour, dt.minute, tzinfo=timezone.utc
+    )
     if candidate > now:
         return candidate
     return now + timedelta(hours=1)
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+
 
 @router.get("")
 async def get_parties(
@@ -177,7 +186,9 @@ async def create_new_party(
         description=body.description.strip() if body.description else None,
         vibe=body.vibe,
         max_size=body.max_size,
-        scheduled_at=_resolve_scheduled_at(body.scheduled_at) if body.scheduled_at else None,
+        scheduled_at=_resolve_scheduled_at(body.scheduled_at)
+        if body.scheduled_at
+        else None,
         ttl_hours=body.ttl_hours,
         ping_role_ids=body.ping_role_ids,
     )
@@ -284,7 +295,9 @@ async def close_party_endpoint(
         raise HTTPException(409, "Party is already closed")
     if party.leader_id != uid:
         if not await _is_staff(int(current_user["sub"]), session):
-            raise HTTPException(403, "Only the party leader or staff can close this party")
+            raise HTTPException(
+                403, "Only the party leader or staff can close this party"
+            )
 
     await close_party(session, party)
     await close_party_embed(party)
@@ -342,5 +355,12 @@ async def send_chat(
 
     uid = str(current_user["sub"])
     username = current_user.get("username", "Unknown")
-    msg = await add_chat_message(session, party_id, user_id=uid, username=username, rsn=None, text=body.text.strip())
+    msg = await add_chat_message(
+        session,
+        party_id,
+        user_id=uid,
+        username=username,
+        rsn=None,
+        text=body.text.strip(),
+    )
     return chat_message_to_dict(msg)

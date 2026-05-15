@@ -131,16 +131,24 @@ class PartyDB(Base):
     description: Mapped[str | None] = mapped_column(Text)
     vibe: Mapped[str] = mapped_column(Text, nullable=False, server_default="chill")
     max_size: Mapped[int] = mapped_column(Integer, nullable=False)
-    ping_role_ids: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    ping_role_ids: Mapped[list] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )
     hub_code: Mapped[str] = mapped_column(Text, nullable=False)
     discord_message_id: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="open")
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
     scheduled_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
-    expires_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
 
     members: Mapped[list[PartyMemberDB]] = relationship(
-        "PartyMemberDB", back_populates="party", cascade="all, delete-orphan",
+        "PartyMemberDB",
+        back_populates="party",
+        cascade="all, delete-orphan",
         order_by="PartyMemberDB.joined_at",
     )
 
@@ -150,11 +158,15 @@ class PartyMemberDB(Base):
     __table_args__ = (UniqueConstraint("party_id", "user_id"),)
 
     id: Mapped[str] = mapped_column(Text, primary_key=True)
-    party_id: Mapped[str] = mapped_column(Text, ForeignKey("parties.id", ondelete="CASCADE"), nullable=False)
+    party_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("parties.id", ondelete="CASCADE"), nullable=False
+    )
     user_id: Mapped[str] = mapped_column(Text, nullable=False)
     username: Mapped[str] = mapped_column(Text, nullable=False)
     rsn: Mapped[str | None] = mapped_column(Text)
-    joined_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    joined_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
 
     party: Mapped[PartyDB] = relationship("PartyDB", back_populates="members")
 
@@ -163,7 +175,9 @@ class PartyChatMessageDB(Base):
     __tablename__ = "party_chat_messages"
 
     id: Mapped[str] = mapped_column(Text, primary_key=True)
-    party_id: Mapped[str] = mapped_column(Text, ForeignKey("parties.id", ondelete="CASCADE"), nullable=False)
+    party_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("parties.id", ondelete="CASCADE"), nullable=False
+    )
     user_id: Mapped[str] = mapped_column(Text, nullable=False)
     username: Mapped[str] = mapped_column(Text, nullable=False)
     rsn: Mapped[str | None] = mapped_column(Text)
@@ -479,10 +493,16 @@ class PlayerRanking(Base):
     rsn: Mapped[str] = mapped_column(Text, primary_key=True)
     rank: Mapped[str] = mapped_column(Text, nullable=False)
     points: Mapped[int] = mapped_column(Integer, nullable=False)
-    boss_points: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
-    skill_points: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    boss_points: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="0"
+    )
+    skill_points: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="0"
+    )
     discord_user_id: Mapped[int | None] = mapped_column(BigInteger)
-    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
 
 
 class PlayerSnapshot(Base):
@@ -491,7 +511,9 @@ class PlayerSnapshot(Base):
     rsn: Mapped[str] = mapped_column(Text, primary_key=True)
     skills: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     bosses: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
-    fetched_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
 
 
 class ContentEntryReaction(Base):

@@ -211,7 +211,9 @@ _COMBAT_TIER_UNLOCK_PATTERN = re.compile(
 )
 
 _PET_PATTERNS = [
-    re.compile(r"^(?P<player>.+?) has a funny feeling like (?:they'?re|he's|she's) being followed"),
+    re.compile(
+        r"^(?P<player>.+?) has a funny feeling like (?:they'?re|he's|she's) being followed"
+    ),
     re.compile(
         r"^(?P<player>.+?) feels something weird sneaking into (?:their|his|her) backpack"
     ),
@@ -540,7 +542,9 @@ def parse_hcim_death(message: str) -> ParsedHcimDeath | None:
 def parse_league_relic(message: str) -> ParsedLeagueRelic | None:
     message = _strip(message)
     if m := _LEAGUE_RELIC_PATTERN.match(message):
-        return ParsedLeagueRelic(player_name=m.group("player"), tier=int(m.group("tier")))
+        return ParsedLeagueRelic(
+            player_name=m.group("player"), tier=int(m.group("tier"))
+        )
     return None
 
 

@@ -918,7 +918,9 @@ async def competition_overtime(
         return json.loads(fresh)
 
     if await valkey.set(lock_key, "1", ex=_COMP_OVERTIME_LOCK_TTL, nx=True):
-        background_tasks.add_task(_build_overtime_cache, comp_id, metric, status, valkey)
+        background_tasks.add_task(
+            _build_overtime_cache, comp_id, metric, status, valkey
+        )
 
     stale = await valkey.get(stale_key)
     if stale:

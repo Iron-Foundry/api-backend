@@ -44,9 +44,7 @@ def upgrade() -> None:
     )
 
     # Case-insensitive global RSN uniqueness
-    op.execute(
-        "CREATE UNIQUE INDEX uq_user_accounts_rsn ON user_accounts (lower(rsn))"
-    )
+    op.execute("CREATE UNIQUE INDEX uq_user_accounts_rsn ON user_accounts (lower(rsn))")
 
     # One primary per user
     op.execute(

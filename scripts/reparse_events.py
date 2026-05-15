@@ -126,10 +126,9 @@ def _reparse_row(
             return None
         # Build data dict from parsed fields (exclude player_name)
         import dataclasses
+
         new_data = {
-            k: v
-            for k, v in dataclasses.asdict(parsed).items()
-            if k != "player_name"
+            k: v for k, v in dataclasses.asdict(parsed).items() if k != "player_name"
         }
         player = getattr(parsed, "player_name", None)
         return kind.value, player, new_data

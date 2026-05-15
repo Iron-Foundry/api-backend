@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from valkey.asyncio import Valkey
 
-from app.db.models import CofferEvent, Event, Leaderboard, MembershipEvent, Metric, User
+from app.db.models import CofferEvent, Leaderboard, MembershipEvent, Metric, User
 from app.dependencies import get_session, get_valkey, verify_clan
 from app.models.clan_chat import ClanChatPayload
 from app.services import parser

@@ -28,18 +28,33 @@ async def run(rsn: str | None, discord_user_id: int | None) -> None:
     engine = create_async_engine(url, echo=False)
 
     async with engine.connect() as conn:
-
         # --- Resolve identity ---
         if discord_user_id:
-            row = (await conn.execute(
-                text("SELECT discord_user_id, rsn FROM users WHERE discord_user_id = :id"),
-                {"id": discord_user_id},
-            )).mappings().one_or_none()
+            row = (
+                (
+                    await conn.execute(
+                        text(
+                            "SELECT discord_user_id, rsn FROM users WHERE discord_user_id = :id"
+                        ),
+                        {"id": discord_user_id},
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
         else:
-            row = (await conn.execute(
-                text("SELECT discord_user_id, rsn FROM users WHERE lower(rsn) = lower(:rsn)"),
-                {"rsn": rsn},
-            )).mappings().one_or_none()
+            row = (
+                (
+                    await conn.execute(
+                        text(
+                            "SELECT discord_user_id, rsn FROM users WHERE lower(rsn) = lower(:rsn)"
+                        ),
+                        {"rsn": rsn},
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
 
         if not row:
             print("User not found in users table.")
@@ -51,18 +66,38 @@ async def run(rsn: str | None, discord_user_id: int | None) -> None:
         print(f"\n=== User: discord_user_id={uid}  users.rsn={primary_rsn!r} ===\n")
 
         # --- user_accounts ---
-        accounts = (await conn.execute(
-            text("SELECT rsn, is_primary FROM user_accounts WHERE discord_user_id = :uid ORDER BY is_primary DESC"),
-            {"uid": uid},
-        )).mappings().all()
+        accounts = (
+            (
+                await conn.execute(
+                    text(
+                        "SELECT rsn, is_primary FROM user_accounts WHERE discord_user_id = :uid ORDER BY is_primary DESC"
+                    ),
+                    {"uid": uid},
+                )
+            )
+            .mappings()
+            .all()
+        )
 
         # --- stats_opt_out check ---
-        flags = (await conn.execute(
-            text("SELECT stats_opt_out FROM users WHERE discord_user_id = :uid"),
-            {"uid": uid},
-        )).mappings().one_or_none()
+        flags = (
+            (
+                await conn.execute(
+                    text(
+                        "SELECT stats_opt_out FROM users WHERE discord_user_id = :uid"
+                    ),
+                    {"uid": uid},
+                )
+            )
+            .mappings()
+            .one_or_none()
+        )
         opted_out = flags["stats_opt_out"] if flags else None
-        opt_flag = "  !! OPTED OUT - broadcasts silently dropped at ingest" if opted_out else ""
+        opt_flag = (
+            "  !! OPTED OUT - broadcasts silently dropped at ingest"
+            if opted_out
+            else ""
+        )
         print(f"stats_opt_out: {opted_out}{opt_flag}\n")
 
         if accounts:
@@ -72,20 +107,28 @@ async def run(rsn: str | None, discord_user_id: int | None) -> None:
         else:
             print("user_accounts: EMPTY (no linked RSNs)")
 
-        all_rsns = [a["rsn"] for a in accounts] or ([primary_rsn] if primary_rsn else [])
+        all_rsns = [a["rsn"] for a in accounts] or (
+            [primary_rsn] if primary_rsn else []
+        )
         print()
 
         # --- Events by user_id ---
-        by_uid = (await conn.execute(
-            text("""
+        by_uid = (
+            (
+                await conn.execute(
+                    text("""
                 SELECT type, count(*) AS cnt,
                        sum(CASE WHEN user_id IS NULL THEN 1 ELSE 0 END) AS unlinked
                 FROM events
                 WHERE user_id = :uid
                 GROUP BY type ORDER BY cnt DESC
             """),
-            {"uid": uid},
-        )).mappings().all()
+                    {"uid": uid},
+                )
+            )
+            .mappings()
+            .all()
+        )
 
         print(f"Events linked by user_id={uid}:")
         if by_uid:
@@ -97,8 +140,10 @@ async def run(rsn: str | None, discord_user_id: int | None) -> None:
 
         # --- Events by player_name for each RSN ---
         for rsn_val in all_rsns:
-            by_name = (await conn.execute(
-                text("""
+            by_name = (
+                (
+                    await conn.execute(
+                        text("""
                     SELECT type, count(*) AS cnt,
                            sum(CASE WHEN user_id IS NULL THEN 1 ELSE 0 END) AS unlinked,
                            sum(CASE WHEN user_id = :uid THEN 1 ELSE 0 END) AS linked_to_user
@@ -106,8 +151,12 @@ async def run(rsn: str | None, discord_user_id: int | None) -> None:
                     WHERE lower(player_name) = lower(:rsn)
                     GROUP BY type ORDER BY cnt DESC
                 """),
-                {"rsn": rsn_val, "uid": uid},
-            )).mappings().all()
+                        {"rsn": rsn_val, "uid": uid},
+                    )
+                )
+                .mappings()
+                .all()
+            )
 
             print(f"Events by player_name={rsn_val!r}:")
             if by_name:
@@ -116,7 +165,7 @@ async def run(rsn: str | None, discord_user_id: int | None) -> None:
                     if r["unlinked"] > 0:
                         flag += f"  !! {r['unlinked']} have user_id=NULL"
                     if r["linked_to_user"] < r["cnt"] and r["unlinked"] == 0:
-                        flag += f"  !! linked to DIFFERENT user"
+                        flag += "  !! linked to DIFFERENT user"
                     print(f"  type={r['type']:<22}  count={r['cnt']}{flag}")
             else:
                 print("  (none - player_name does not match any events)")
@@ -124,15 +173,21 @@ async def run(rsn: str | None, discord_user_id: int | None) -> None:
 
         # --- Fuzzy RSN search across all events ---
         for rsn_val in all_rsns:
-            fuzzy = (await conn.execute(
-                text("""
+            fuzzy = (
+                (
+                    await conn.execute(
+                        text("""
                     SELECT DISTINCT player_name, type
                     FROM events
                     WHERE player_name ILIKE :pattern
                     LIMIT 20
                 """),
-                {"pattern": f"%{rsn_val.replace(' ', '%')}%"},
-            )).mappings().all()
+                        {"pattern": f"%{rsn_val.replace(' ', '%')}%"},
+                    )
+                )
+                .mappings()
+                .all()
+            )
             if fuzzy:
                 print(f"Fuzzy matches for {rsn_val!r}:")
                 for r in fuzzy:
@@ -140,8 +195,10 @@ async def run(rsn: str | None, discord_user_id: int | None) -> None:
                 print()
 
         # --- League event player names (sample) ---
-        league_players = (await conn.execute(
-            text("""
+        league_players = (
+            (
+                await conn.execute(
+                    text("""
                 SELECT DISTINCT player_name, count(*) AS cnt
                 FROM events
                 WHERE type IN ('league_relic', 'league_rank', 'league_area')
@@ -150,7 +207,11 @@ async def run(rsn: str | None, discord_user_id: int | None) -> None:
                 ORDER BY cnt DESC
                 LIMIT 30
             """),
-        )).mappings().all()
+                )
+            )
+            .mappings()
+            .all()
+        )
 
         print("Player names in league events:")
         for r in league_players:
@@ -158,9 +219,17 @@ async def run(rsn: str | None, discord_user_id: int | None) -> None:
         print()
 
         # --- Overall event type summary ---
-        total = (await conn.execute(
-            text("SELECT type, count(*) AS cnt FROM events GROUP BY type ORDER BY cnt DESC LIMIT 20"),
-        )).mappings().all()
+        total = (
+            (
+                await conn.execute(
+                    text(
+                        "SELECT type, count(*) AS cnt FROM events GROUP BY type ORDER BY cnt DESC LIMIT 20"
+                    ),
+                )
+            )
+            .mappings()
+            .all()
+        )
 
         print("Overall events table (top 20 by type):")
         for r in total:
