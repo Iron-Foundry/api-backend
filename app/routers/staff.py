@@ -324,7 +324,8 @@ async def staff_tickets(
         return []
 
     stmt = (
-        select(Ticket)
+        select(Ticket, User.rsn.label("creator_rsn"), User.discord_avatar_url.label("creator_avatar"))
+        .outerjoin(User, User.discord_user_id == Ticket.creator_id)
         .where(Ticket.ticket_type.in_(allowed))
         .order_by(Ticket.ticket_id.desc())
         .offset(skip)
@@ -335,26 +336,26 @@ async def staff_tickets(
 
     result = await session.execute(stmt)
     tickets: list[dict] = []
-    for row in result.scalars():
+    for row in result:
+        t = row.Ticket
         tickets.append(
             {
-                "ticket_id": row.ticket_id,
-                "guild_id": row.guild_id,
-                "ticket_type": row.ticket_type,
-                "status": row.status,
-                "created_at": row.created_at.isoformat() if row.created_at else None,
-                "closed_at": row.closed_at.isoformat() if row.closed_at else None,
-                "last_message_at": row.last_message_at.isoformat()
-                if row.last_message_at
-                else None,
+                "ticket_id": t.ticket_id,
+                "guild_id": t.guild_id,
+                "ticket_type": t.ticket_type,
+                "status": t.status,
+                "created_at": t.created_at.isoformat() if t.created_at else None,
+                "closed_at": t.closed_at.isoformat() if t.closed_at else None,
+                "last_message_at": t.last_message_at.isoformat() if t.last_message_at else None,
                 "creator": {
-                    "id": row.creator_id,
-                    "display_name": row.creator_name,
-                    "avatar_url": None,
+                    "id": t.creator_id,
+                    "display_name": t.creator_name,
+                    "avatar_url": row.creator_avatar,
+                    "rsn": row.creator_rsn,
                 },
-                "closed_by_id": row.closed_by_id,
-                "close_reason": row.close_reason,
-                "staff_note": row.staff_note,
+                "closed_by_id": t.closed_by_id,
+                "close_reason": t.close_reason,
+                "staff_note": t.staff_note,
             }
         )
     return tickets
