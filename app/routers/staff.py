@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -127,8 +127,7 @@ async def staff_members(
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
     search: str | None = None,
-    skip: int = Query(default=0, ge=0),
-    limit: int = Query(default=50, le=200),
+    limit: int = Query(default=1000, ge=1, le=2000),
 ) -> list[dict]:
     """Return all member profiles. Requires staff.members read permission."""
     await _require_rank("staff.members", "read", current_user, session)
@@ -152,7 +151,7 @@ async def staff_members(
         stmt = stmt.where(
             User.rsn.ilike(pattern) | User.discord_username.ilike(pattern)
         )
-    stmt = stmt.order_by(User.join_date.asc().nulls_last()).offset(skip).limit(limit)
+    stmt = stmt.order_by(User.join_date.asc().nulls_last()).limit(limit)
     result = await session.execute(stmt)
     members: list[dict] = []
     for row in result:
@@ -344,30 +343,46 @@ async def staff_tickets(
     )
     user_map = {row.discord_user_id: row for row in user_result}
 
-    missing_closed_ids = {
+    _BOGUS_DATE = date(2026, 4, 14)
+
+    needs_transcript = {
         row.ticket_id for row in ticket_rows
-        if row.status == "closed" and row.closed_at is None
+        if (row.status == "closed" and row.closed_at is None)
+        or (row.created_at and row.created_at.astimezone(timezone.utc).date() == _BOGUS_DATE)
     }
-    transcript_ts_map: dict[int, str] = {}
-    if missing_closed_ids:
+    transcript_ts_map: dict[int, dict[str, str | None]] = {}
+    if needs_transcript:
         ts_rows = await session.execute(
             text(
-                "SELECT ticket_id, entries->-1->>'timestamp' AS last_ts"
+                "SELECT ticket_id,"
+                " entries->0->>'timestamp' AS first_ts,"
+                " entries->-1->>'timestamp' AS last_ts"
                 " FROM transcripts WHERE ticket_id = ANY(:ids)"
             ),
-            {"ids": list(missing_closed_ids)},
+            {"ids": list(needs_transcript)},
         )
         transcript_ts_map = {
-            r.ticket_id: r.last_ts for r in ts_rows if r.last_ts is not None
+            r.ticket_id: {"first_ts": r.first_ts, "last_ts": r.last_ts}
+            for r in ts_rows
         }
 
     tickets: list[dict] = []
     for row in ticket_rows:
         u = user_map.get(row.creator_id)
+        td = transcript_ts_map.get(row.ticket_id, {})
+        bogus_created = (
+            row.created_at is not None
+            and row.created_at.astimezone(timezone.utc).date() == _BOGUS_DATE
+        )
+        created_at = (
+            td.get("first_ts") or row.created_at.isoformat()
+            if bogus_created
+            else (row.created_at.isoformat() if row.created_at else None)
+        )
         closed_at = (
             row.closed_at.isoformat()
             if row.closed_at
-            else transcript_ts_map.get(row.ticket_id)
+            else td.get("last_ts")
         )
         tickets.append(
             {
@@ -375,7 +390,7 @@ async def staff_tickets(
                 "guild_id": row.guild_id,
                 "ticket_type": row.ticket_type,
                 "status": row.status,
-                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "created_at": created_at,
                 "closed_at": closed_at,
                 "last_message_at": row.last_message_at.isoformat() if row.last_message_at else None,
                 "creator": {
