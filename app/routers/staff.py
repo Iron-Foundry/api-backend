@@ -354,7 +354,7 @@ async def staff_tickets(
                 "ticket_type": row.ticket_type,
                 "status": row.status,
                 "created_at": row.created_at.isoformat() if row.created_at else None,
-                "closed_at": row.closed_at.isoformat() if row.closed_at else None,
+                "closed_at": _closed_ts.isoformat() if (_closed_ts := row.closed_at or (row.last_message_at if row.status == "closed" else None)) else None,
                 "last_message_at": row.last_message_at.isoformat() if row.last_message_at else None,
                 "creator": {
                     "id": row.creator_id,
