@@ -9,7 +9,7 @@ from typing import Literal, cast
 from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 from pydantic import BaseModel
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -344,9 +344,31 @@ async def staff_tickets(
     )
     user_map = {row.discord_user_id: row for row in user_result}
 
+    missing_closed_ids = {
+        row.ticket_id for row in ticket_rows
+        if row.status == "closed" and row.closed_at is None
+    }
+    transcript_ts_map: dict[int, str] = {}
+    if missing_closed_ids:
+        ts_rows = await session.execute(
+            text(
+                "SELECT ticket_id, entries->-1->>'timestamp' AS last_ts"
+                " FROM transcripts WHERE ticket_id = ANY(:ids)"
+            ),
+            {"ids": list(missing_closed_ids)},
+        )
+        transcript_ts_map = {
+            r.ticket_id: r.last_ts for r in ts_rows if r.last_ts is not None
+        }
+
     tickets: list[dict] = []
     for row in ticket_rows:
         u = user_map.get(row.creator_id)
+        closed_at = (
+            row.closed_at.isoformat()
+            if row.closed_at
+            else transcript_ts_map.get(row.ticket_id)
+        )
         tickets.append(
             {
                 "ticket_id": row.ticket_id,
@@ -354,7 +376,7 @@ async def staff_tickets(
                 "ticket_type": row.ticket_type,
                 "status": row.status,
                 "created_at": row.created_at.isoformat() if row.created_at else None,
-                "closed_at": _closed_ts.isoformat() if (_closed_ts := row.closed_at or (row.last_message_at if row.status == "closed" else None)) else None,
+                "closed_at": closed_at,
                 "last_message_at": row.last_message_at.isoformat() if row.last_message_at else None,
                 "creator": {
                     "id": row.creator_id,
