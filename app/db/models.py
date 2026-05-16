@@ -65,6 +65,8 @@ class User(Base):
         Boolean, nullable=False, server_default="false"
     )
     recruited_by: Mapped[int | None] = mapped_column(BigInteger)
+    referral_source: Mapped[str | None] = mapped_column(Text)
+    referral_detail: Mapped[str | None] = mapped_column(Text)
     api_key: Mapped[str | None] = mapped_column(Text, unique=True)
     key_is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="false"

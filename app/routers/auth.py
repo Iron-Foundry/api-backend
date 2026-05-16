@@ -314,6 +314,7 @@ async def me(
             User.stats_opt_out,
             User.hide_presence_notifications,
             User.roles_fetched_at,
+            User.referral_source,
         ).where(User.discord_user_id == discord_user_id)
     )
     row = result.one_or_none()
@@ -376,4 +377,5 @@ async def me(
         "hide_presence_notifications": row.hide_presence_notifications
         if row
         else False,
+        "referral_source": row.referral_source if row else None,
     }

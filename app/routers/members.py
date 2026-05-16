@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import os
 import re
 import secrets
 from datetime import datetime, timezone
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 from pydantic import BaseModel
@@ -18,6 +20,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Event, PlayerRanking, Ticket, User, UserAccount
 from app.dependencies import get_current_user, get_session
+
+_DISCORD_BOT_TOKEN = os.getenv("DISCORD_SERVER_TOKEN", "")
+_GUILD_ID = os.getenv("GUILD_ID", "")
+_DISCORD_API = "https://discord.com/api"
+
+_REFERRAL_SOURCES = {"reddit", "osrs_discord", "website", "recruited_by", "instagram", "other"}
 from app.services.rsn_cascade import backfill_user_from_rsn
 
 router = APIRouter(prefix="/members", tags=["members"])
@@ -843,3 +851,75 @@ async def delete_account(
     await session.delete(row)
     await session.commit()
     logger.info("members/accounts: user {} removed RSN {!r}", discord_user_id, row.rsn)
+
+
+class ReferralUpdate(BaseModel):
+    source: str
+    detail: str | None = None
+
+
+@router.patch("/me/referral")
+async def update_referral(
+    body: ReferralUpdate,
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Save how the user found the community. Only accepted once (ignored if already set)."""
+    if body.source not in _REFERRAL_SOURCES:
+        raise HTTPException(status_code=422, detail="Invalid referral source.")
+
+    detail = body.detail.strip() if body.detail else None
+    if body.source == "recruited_by" and not detail:
+        raise HTTPException(status_code=422, detail="Recruiter name required.")
+    if body.source == "other" and not detail:
+        raise HTTPException(status_code=422, detail="Please describe how you found us.")
+
+    discord_user_id = int(current_user["sub"])
+    now = datetime.now(timezone.utc)
+    await session.execute(
+        update(User)
+        .where(User.discord_user_id == discord_user_id, User.referral_source.is_(None))
+        .values(referral_source=body.source, referral_detail=detail, updated_at=now)
+    )
+    await session.commit()
+    logger.info("members/referral: user {} source={!r}", discord_user_id, body.source)
+    return {"ok": True}
+
+
+@router.get("/discord-members")
+async def search_discord_members(
+    q: str = Query(default="", max_length=100),
+    current_user: dict = Depends(get_current_user),
+) -> list[dict]:
+    """Search guild members by username prefix for the recruited-by autocomplete."""
+    if not _DISCORD_BOT_TOKEN or not _GUILD_ID:
+        return []
+
+    query = q.strip()
+    if not query:
+        return []
+
+    headers = {"Authorization": f"Bot {_DISCORD_BOT_TOKEN}"}
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{_DISCORD_API}/guilds/{_GUILD_ID}/members/search",
+                params={"query": query, "limit": 10},
+                headers=headers,
+            )
+        if resp.status_code != 200:
+            logger.warning("discord-members search failed: {}", resp.status_code)
+            return []
+        members = resp.json()
+        return [
+            {
+                "discord_user_id": m["user"]["id"],
+                "username": m["user"].get("global_name") or m["user"]["username"],
+                "avatar": m["user"].get("avatar"),
+            }
+            for m in members
+            if "user" in m
+        ]
+    except Exception as exc:
+        logger.warning("discord-members search error: {}", exc)
+        return []
