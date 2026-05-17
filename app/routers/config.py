@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -19,11 +21,13 @@ from app.services.rank_mappings import get_effective_roles
 router = APIRouter(prefix="/config", tags=["config"])
 
 _GLOBAL_GUILD_ID = 0
+_DISCORD_GUILD_ID = int(os.getenv("GUILD_ID", "0"))
 _RANK_MAPPINGS_KEY = "clan_rank_mappings"
 _PAGE_PERMISSIONS_KEY = "page_permissions"
 _ADMIN_BYPASS_KEY = "admin_bypass_roles"
 _PARTY_PING_ROLES_KEY = "party_ping_roles"
 _RANKING_CONFIG_KEY = "ranking_config"
+_DISCORD_ROLES_KEY = "discord_roles"
 
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
@@ -43,6 +47,29 @@ async def _set_config_value(key: str, value: dict, session: AsyncSession) -> Non
     stmt = (
         pg_insert(Config)
         .values(guild_id=_GLOBAL_GUILD_ID, key=key, value=value)
+        .on_conflict_do_update(
+            index_elements=["guild_id", "key"],
+            set_={"value": value},
+        )
+    )
+    await session.execute(stmt)
+    await session.commit()
+
+
+async def _get_guild_config_value(key: str, session: AsyncSession) -> dict:
+    result = await session.execute(
+        select(Config.value).where(
+            Config.guild_id == _DISCORD_GUILD_ID,
+            Config.key == key,
+        )
+    )
+    return result.scalar_one_or_none() or {}
+
+
+async def _set_guild_config_value(key: str, value: dict, session: AsyncSession) -> None:
+    stmt = (
+        pg_insert(Config)
+        .values(guild_id=_DISCORD_GUILD_ID, key=key, value=value)
         .on_conflict_do_update(
             index_elements=["guild_id", "key"],
             set_={"value": value},
@@ -263,3 +290,150 @@ async def set_ranking_config(
 ) -> dict:
     await _set_config_value(_RANKING_CONFIG_KEY, body, session)
     return body
+
+
+# ── Discord roles config ──────────────────────────────────────────────────────
+
+
+class DiscordRolesConfig(BaseModel):
+    staff_role_id: str = ""
+    senior_staff_role_id: str = ""
+    owner_role_id: str = ""
+    mentor_role_id: str = ""
+
+
+@router.get(
+    "/discord-roles",
+    dependencies=[Depends(require_page_permission("staff.discord-config", "read"))],
+)
+async def get_discord_roles_config(
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Return configured staff Discord role IDs, falling back to env vars."""
+    data = await _get_config_value(_DISCORD_ROLES_KEY, session)
+    return {
+        "staff_role_id": data.get("staff_role_id") or os.getenv("STAFF_ROLE_ID", ""),
+        "senior_staff_role_id": data.get("senior_staff_role_id") or os.getenv("SENIOR_STAFF_ROLE_ID", ""),
+        "owner_role_id": data.get("owner_role_id") or os.getenv("OWNER_ROLE_ID", ""),
+        "mentor_role_id": data.get("mentor_role_id") or os.getenv("MENTOR_ROLE_ID", ""),
+    }
+
+
+@router.put(
+    "/discord-roles",
+    dependencies=[Depends(require_page_permission("staff.discord-config", "edit"))],
+)
+async def set_discord_roles_config(
+    body: DiscordRolesConfig,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Update staff Discord role IDs."""
+    value = body.model_dump()
+    await _set_config_value(_DISCORD_ROLES_KEY, value, session)
+    return value
+
+
+# ── Discord feature configs ───────────────────────────────────────────────────
+
+
+class ActionLogFeatureConfig(BaseModel):
+    forum_channel_id: str = ""
+    enabled: bool = True
+
+
+class BroadcastFeatureConfig(BaseModel):
+    role_id: str = ""
+
+
+class JoinRolesFeatureConfig(BaseModel):
+    role_ids: list[str] = []
+
+
+@router.get(
+    "/discord-feature/action-log",
+    dependencies=[Depends(require_page_permission("staff.discord-config", "read"))],
+)
+async def get_action_log_config(
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    data = await _get_guild_config_value("action_log", session)
+    return {
+        "forum_channel_id": str(data.get("forum_channel_id", "") or ""),
+        "enabled": data.get("enabled", True),
+    }
+
+
+@router.put(
+    "/discord-feature/action-log",
+    dependencies=[Depends(require_page_permission("staff.discord-config", "edit"))],
+)
+async def set_action_log_config(
+    body: ActionLogFeatureConfig,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    # Preserve bot-managed fields (thread_ids, etc.) by merging
+    existing = await _get_guild_config_value("action_log", session)
+    existing.update({"forum_channel_id": body.forum_channel_id, "enabled": body.enabled})
+    await _set_guild_config_value("action_log", existing, session)
+    return {"forum_channel_id": body.forum_channel_id, "enabled": body.enabled}
+
+
+@router.get(
+    "/discord-feature/broadcast",
+    dependencies=[Depends(require_page_permission("staff.discord-config", "read"))],
+)
+async def get_broadcast_config(
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    data = await _get_guild_config_value("broadcast", session)
+    return {"role_id": str(data.get("role_id", "") or "")}
+
+
+@router.put(
+    "/discord-feature/broadcast",
+    dependencies=[Depends(require_page_permission("staff.discord-config", "edit"))],
+)
+async def set_broadcast_config(
+    body: BroadcastFeatureConfig,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    await _set_guild_config_value("broadcast", {"role_id": body.role_id}, session)
+    return {"role_id": body.role_id}
+
+
+@router.get(
+    "/discord-feature/join-roles",
+    dependencies=[Depends(require_page_permission("staff.discord-config", "read"))],
+)
+async def get_join_roles_config(
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    data = await _get_guild_config_value("join_roles", session)
+    return {"role_ids": [str(r) for r in data.get("role_ids", [])]}
+
+
+@router.put(
+    "/discord-feature/join-roles",
+    dependencies=[Depends(require_page_permission("staff.discord-config", "edit"))],
+)
+async def set_join_roles_config(
+    body: JoinRolesFeatureConfig,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    await _set_guild_config_value("join_roles", {"role_ids": body.role_ids}, session)
+    return {"role_ids": body.role_ids}
+
+
+@router.get(
+    "/discord-feature/party-panel",
+    dependencies=[Depends(require_page_permission("staff.discord-config", "read"))],
+)
+async def get_party_panel_config(
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Read-only - party panel channel/message IDs are managed by the bot."""
+    data = await _get_guild_config_value("party_panel", session)
+    return {
+        "channel_id": str(data.get("channel_id", "") or ""),
+        "message_id": str(data.get("message_id", "") or ""),
+    }

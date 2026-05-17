@@ -18,6 +18,7 @@ from app.routers import (
     clan,
     config,
     content,
+    discord as discord_router,
     events,
     members,
     parties,
@@ -267,6 +268,7 @@ app.include_router(assets.router)
 app.include_router(auth.router)
 app.include_router(clan.router)
 app.include_router(config.router)
+app.include_router(discord_router.router)
 app.include_router(events.router)
 app.include_router(ccdispatch.router)
 app.include_router(members.router)
