@@ -23,6 +23,7 @@ from app.routers import (
     members,
     parties,
     ranking,
+    role_panels,
     staff,
     surveys,
 )
@@ -274,6 +275,7 @@ app.include_router(ccdispatch.router)
 app.include_router(members.router)
 app.include_router(parties.router)
 app.include_router(ranking.router)
+app.include_router(role_panels.router)
 app.include_router(staff.router)
 app.include_router(surveys.router)
 app.include_router(badges.router)

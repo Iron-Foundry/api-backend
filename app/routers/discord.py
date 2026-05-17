@@ -39,6 +39,36 @@ async def get_discord_channels() -> dict:
 
 
 @router.get(
+    "/emojis",
+    dependencies=[Depends(require_page_permission("staff.discord-config", "read"))],
+)
+async def get_discord_emojis() -> dict:
+    """Return guild custom emojis."""
+    _check_configured()
+    try:
+        svc = DiscordApiService(_TOKEN)
+        resp = await svc.get(f"/guilds/{_GUILD_ID}/emojis", extra_headers={"Authorization": f"Bot {_TOKEN}"})
+        resp.raise_for_status()
+        emojis = resp.json()
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(502, f"Discord API error: {exc.response.status_code}") from exc
+    except httpx.RequestError as exc:
+        raise HTTPException(502, f"Discord API unreachable: {exc}") from exc
+
+    return {
+        "emojis": [
+            {
+                "id": str(e["id"]),
+                "name": e["name"],
+                "animated": e.get("animated", False),
+            }
+            for e in emojis
+            if e.get("available", True)
+        ]
+    }
+
+
+@router.get(
     "/roles",
     dependencies=[Depends(require_page_permission("staff.discord-config", "read"))],
 )
