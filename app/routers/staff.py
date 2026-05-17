@@ -95,6 +95,52 @@ async def _require_rank(
         raise HTTPException(status_code=403, detail="Permission denied.")
 
 
+_SOURCE_LABELS: dict[str | None, str] = {
+    "reddit": "Reddit",
+    "osrs_discord": "OSRS Discord",
+    "website": "Website",
+    "recruited_by": "Recruited by",
+    "instagram": "Instagram",
+    "other": "Other",
+    None: "Unanswered",
+}
+
+
+@router.get("/referral-stats")
+async def referral_stats(
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Referral source breakdown + recruiter leaderboard."""
+    await _require_rank("staff.home", "read", current_user, session)
+
+    source_rows = await session.execute(
+        select(User.referral_source, func.count().label("count"))
+        .group_by(User.referral_source)
+    )
+    sources = [
+        {
+            "source": row.referral_source,
+            "label": _SOURCE_LABELS.get(row.referral_source, row.referral_source or "Unanswered"),
+            "count": row.count,
+        }
+        for row in source_rows
+    ]
+
+    recruiter_rows = await session.execute(
+        select(User.referral_detail, func.count().label("count"))
+        .where(User.referral_source == "recruited_by")
+        .group_by(User.referral_detail)
+        .order_by(func.count().desc())
+    )
+    recruiters = [
+        {"name": row.referral_detail or "Unknown", "count": row.count}
+        for row in recruiter_rows
+    ]
+
+    return {"sources": sources, "recruiters": recruiters}
+
+
 @router.get("/overview")
 async def staff_overview(
     current_user: dict = Depends(get_current_user),
