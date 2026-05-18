@@ -121,7 +121,7 @@ async def update_role_panel(
     panel.max_selectable = body.max_selectable
     panel.roles = [
         {
-            "role_id": int(r.role_id),
+            "role_id": r.role_id,  # store as string to preserve 64-bit snowflake precision in JSONB
             "label": r.label,
             "description": r.description,
             "emoji": r.emoji,
