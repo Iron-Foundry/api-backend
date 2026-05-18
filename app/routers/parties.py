@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
+from valkey.asyncio import Valkey
 
 from sqlalchemy import func, select
 
-from app.db.models import User, UserAccount
-from app.dependencies import get_current_user, get_optional_user, get_session
+from app.db.models import PartyChatMessageDB, User, UserAccount
+from app.dependencies import get_current_user, get_optional_user, get_session, get_valkey
 from app.party_store import (
     Vibe,
     _recalc_status,
@@ -36,6 +38,16 @@ from app.services.page_permissions import get_admin_bypass_roles
 from app.services.rank_mappings import get_effective_roles
 
 router = APIRouter(prefix="/parties", tags=["parties"])
+
+_NOTIFY_CHANNEL = "foundry:party_notify"
+
+
+async def _notify(valkey: Valkey, user_ids: list[str], message: str) -> None:
+    if not user_ids or not message:
+        return
+    await valkey.publish(
+        _NOTIFY_CHANNEL, json.dumps({"user_ids": user_ids, "message": message})
+    )
 
 
 # ── Request models ────────────────────────────────────────────────────────────
@@ -207,6 +219,7 @@ async def update_party(
     body: UpdatePartyRequest,
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
+    valkey: Valkey = Depends(get_valkey),
 ) -> dict:
     """Edit party details. Leader only."""
     party = await _require_party(party_id, session)
@@ -232,6 +245,13 @@ async def update_party(
 
     await session.commit()
     await edit_party_embed(party)
+
+    all_member_ids = [m.user_id for m in party.members]
+    await _notify(
+        valkey,
+        all_member_ids,
+        f"**{party.activity}** has been updated by the party leader.",
+    )
     return party_to_dict(party, uid)
 
 
@@ -241,6 +261,7 @@ async def join_party(
     body: JoinPartyRequest = Body(default_factory=JoinPartyRequest),
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
+    valkey: Valkey = Depends(get_valkey),
 ) -> dict:
     """Join an open party."""
     party = await _require_party(party_id, session)
@@ -253,10 +274,19 @@ async def join_party(
     if any(m.user_id == uid for m in party.members):
         raise HTTPException(409, "Already in this party")
 
+    existing_ids = [m.user_id for m in party.members]
     username = current_user.get("username", "Unknown")
     rsn = await _get_rsn(int(current_user["sub"]), session, body.rsn_override)
     await add_member(session, party, user_id=uid, username=username, rsn=rsn)
     await edit_party_embed(party)
+
+    joiner_name = rsn or username
+    await _notify(
+        valkey,
+        existing_ids,
+        f"**{joiner_name}** joined **{party.activity}**.\n"
+        f"Spots: {len(party.members)}/{party.max_size}",
+    )
     return party_to_dict(party, uid)
 
 
@@ -265,6 +295,7 @@ async def leave_party(
     party_id: str,
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
+    valkey: Valkey = Depends(get_valkey),
 ) -> dict:
     """Leave a party. Leaders cannot leave - they must close the party instead."""
     party = await _require_party(party_id, session)
@@ -274,10 +305,25 @@ async def leave_party(
         raise HTTPException(400, "Leaders cannot leave - close the party instead")
     if party.status == "closed":
         raise HTTPException(409, "Party is already closed")
+
+    leaving_member = next((m for m in party.members if m.user_id == uid), None)
+    leaving_name = (
+        (leaving_member.rsn or leaving_member.username)
+        if leaving_member
+        else current_user.get("username", "Unknown")
+    )
     if not await remove_member(session, party, uid):
         raise HTTPException(404, "You are not in this party")
 
     await edit_party_embed(party)
+
+    remaining_ids = [m.user_id for m in party.members]
+    await _notify(
+        valkey,
+        remaining_ids,
+        f"**{leaving_name}** left **{party.activity}**.\n"
+        f"Spots: {len(party.members)}/{party.max_size}",
+    )
     return party_to_dict(party, uid)
 
 
@@ -310,6 +356,7 @@ async def kick_member(
     target_user_id: str,
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
+    valkey: Valkey = Depends(get_valkey),
 ) -> dict:
     """Kick a member from the party. Leader only."""
     party = await _require_party(party_id, session)
@@ -321,10 +368,27 @@ async def kick_member(
         raise HTTPException(400, "Cannot kick yourself - close the party instead")
     if party.status == "closed":
         raise HTTPException(409, "Party is closed")
+
+    kicked_member = next((m for m in party.members if m.user_id == target_user_id), None)
+    kicked_name = (
+        (kicked_member.rsn or kicked_member.username) if kicked_member else "A member"
+    )
     if not await remove_member(session, party, target_user_id):
         raise HTTPException(404, "Member not found in this party")
 
     await edit_party_embed(party)
+
+    remaining_ids = [m.user_id for m in party.members]
+    await _notify(
+        valkey,
+        [target_user_id],
+        f"You were removed from **{party.activity}** by the party leader.",
+    )
+    await _notify(
+        valkey,
+        remaining_ids,
+        f"**{kicked_name}** was removed from **{party.activity}** by the leader.",
+    )
     return party_to_dict(party, uid)
 
 
@@ -347,6 +411,7 @@ async def send_chat(
     body: SendChatRequest,
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
+    valkey: Valkey = Depends(get_valkey),
 ) -> dict:
     """Post a chat message to a party."""
     party = await _require_party(party_id, session)
@@ -355,6 +420,17 @@ async def send_chat(
 
     uid = str(current_user["sub"])
     username = current_user.get("username", "Unknown")
+
+    prior_count = (
+        await session.execute(
+            select(func.count(PartyChatMessageDB.id)).where(
+                PartyChatMessageDB.party_id == party_id,
+                PartyChatMessageDB.user_id == uid,
+            )
+        )
+    ).scalar()
+    is_first_message = prior_count == 0
+
     msg = await add_chat_message(
         session,
         party_id,
@@ -363,4 +439,14 @@ async def send_chat(
         rsn=None,
         text=body.text.strip(),
     )
+
+    if is_first_message:
+        others = [m.user_id for m in party.members if m.user_id != uid]
+        await _notify(
+            valkey,
+            others,
+            f"**{username}** sent their first message in **{party.activity}** party chat!\n"
+            f"ironfoundry.cc/parties/{party_id}",
+        )
+
     return chat_message_to_dict(msg)
