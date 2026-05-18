@@ -25,7 +25,7 @@ _DISCORD_BOT_TOKEN = os.getenv("DISCORD_SERVER_TOKEN", "")
 _GUILD_ID = os.getenv("GUILD_ID", "")
 _DISCORD_API = "https://discord.com/api"
 
-_REFERRAL_SOURCES = {"reddit", "osrs_discord", "website", "recruited_by", "instagram", "other"}
+_REFERRAL_SOURCES = {"reddit", "osrs_discord", "website", "recruited_by", "instagram", "other", "prefer_not_to_say"}
 from app.services.rsn_cascade import backfill_user_from_rsn
 
 router = APIRouter(prefix="/members", tags=["members"])
