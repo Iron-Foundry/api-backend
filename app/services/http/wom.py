@@ -253,6 +253,22 @@ class WiseOldManHandler(BaseRequestHandler):
         resp.raise_for_status()
         return resp.json()
 
+    async def get_competition_details_at(
+        self, comp_id: int, *, metric: str, date: datetime
+    ) -> dict:
+        """Fetch competition participant standings as of a specific UTC datetime.
+
+        WOM reconstructs standings from the closest player snapshots it has on
+        record at or before ``date``.
+        """
+        params = {
+            "metric": metric,
+            "date": date.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+        }
+        resp = await self.get(f"/competitions/{comp_id}", params=params)
+        resp.raise_for_status()
+        return resp.json()
+
     async def fetch_metric_total(self, group_id: str | int, metric: str) -> int:
         """Sum kills across all group members for a single WOM metric."""
         total = 0

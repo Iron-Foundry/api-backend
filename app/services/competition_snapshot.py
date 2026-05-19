@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from loguru import logger
 from sqlalchemy import select
@@ -125,6 +125,7 @@ class CompetitionSnapshotService:
 
             for comp in ongoing:
                 comp_id: int = comp["id"]
+                starts_at = datetime.fromisoformat(comp["startsAt"].replace("Z", "+00:00"))
                 metrics: list[str] = metric_map.get(str(comp_id), [])
 
                 for metric in metrics:
@@ -167,6 +168,8 @@ class CompetitionSnapshotService:
                         )
                     )
 
+                    await self._backfill_start_if_needed(wom, comp_id, metric, starts_at)
+
         if not snapshots:
             return
 
@@ -178,4 +181,77 @@ class CompetitionSnapshotService:
             "CompetitionSnapshotService: stored {} snapshot(s) ({})",
             len(snapshots),
             ", ".join(s.metric for s in snapshots),
+        )
+
+    async def _backfill_start_if_needed(
+        self,
+        wom: WiseOldManHandler,
+        comp_id: int,
+        metric: str,
+        starts_at: datetime,
+    ) -> None:
+        """Insert a t=0 snapshot at competition start if our earliest row postdates it.
+
+        WOM is queried for the participant standings as of ``starts_at`` so the
+        chart has a clean baseline anchored to the actual competition start time.
+        Skipped if a snapshot already exists within 10 minutes of ``starts_at``.
+        """
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(CompetitionSnapshot.captured_at)
+                .where(
+                    CompetitionSnapshot.comp_id == comp_id,
+                    CompetitionSnapshot.metric == metric,
+                )
+                .order_by(CompetitionSnapshot.captured_at.asc())
+                .limit(1)
+            )
+            earliest_at: datetime | None = result.scalar_one_or_none()
+
+        if earliest_at is not None and (earliest_at - starts_at) < timedelta(minutes=10):
+            return
+
+        logger.info(
+            "CompetitionSnapshotService: backfilling start snapshot comp={} metric={} starts_at={}",
+            comp_id,
+            metric,
+            starts_at.isoformat(),
+        )
+
+        try:
+            data = await wom.get_competition_details_at(comp_id, metric=metric, date=starts_at)
+        except Exception as exc:
+            logger.warning(
+                "CompetitionSnapshotService: backfill WOM fetch failed comp={} metric={} - {}",
+                comp_id,
+                metric,
+                exc,
+            )
+            return
+
+        standings = []
+        for p in data.get("participations", []):
+            standings.append({
+                "player_name": p["player"]["displayName"],
+                "gained": _safe_gained((p.get("progress") or {}).get("gained")),
+            })
+        standings.sort(key=lambda x: x["gained"], reverse=True)
+        standings = standings[:10]
+
+        async with self._session_factory() as session:
+            session.add(
+                CompetitionSnapshot(
+                    comp_id=comp_id,
+                    metric=metric,
+                    captured_at=starts_at,
+                    series=standings,
+                )
+            )
+            await session.commit()
+
+        logger.info(
+            "CompetitionSnapshotService: backfilled start snapshot comp={} metric={} participants={}",
+            comp_id,
+            metric,
+            len(standings),
         )
