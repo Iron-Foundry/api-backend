@@ -1,13 +1,23 @@
-"""Background service that periodically snapshots competition top-5 progress to DB."""
+"""Background service that periodically snapshots competition standings to DB.
+
+Each poll stores the current gained values for top-10 participants per metric.
+The overtime endpoint reconstructs the time series from these snapshots.
+
+Competition list is read from the shared Valkey cache written by the competitions
+endpoint, avoiding a redundant WOM call. WOM is only hit directly when the cache
+is cold.
+"""
 
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 from datetime import datetime, timezone
 
 from loguru import logger
 from sqlalchemy import select
+from valkey.asyncio import Valkey
 
 from app.db.models import CompetitionSnapshot, Config
 from app.services.http import WiseOldManHandler
@@ -18,14 +28,27 @@ _WOM_GROUP_ID = os.getenv("WOM_GROUP_ID", "9403")
 _GLOBAL_GUILD_ID = 0
 _COMP_METRIC_MAP_KEY = "competition_metric_map"
 
+# Mirror of the keys written by the competitions endpoint in clan.py
+_COMPS_FRESH_KEY = "clan:competitions_fresh"
+_COMPS_STALE_KEY = "clan:competitions_stale"
+
 POLL_INTERVAL = 1800  # 30 minutes
 
 
-class CompetitionSnapshotService:
-    """Snapshots ongoing competition top-5 progress to DB every 30 minutes."""
+def _safe_gained(v: object) -> float:
+    return max(0.0, float(v)) if isinstance(v, (int, float)) else 0.0
 
-    def __init__(self, session_factory) -> None:  # type: ignore[no-untyped-def]
+
+class CompetitionSnapshotService:
+    """Snapshots ongoing competition standings to DB every 30 minutes.
+
+    Stored series format per row: [{player_name, gained}]
+    The overtime endpoint reconstructs the chart series from all stored rows.
+    """
+
+    def __init__(self, session_factory, valkey: Valkey) -> None:  # type: ignore[no-untyped-def]
         self._session_factory = session_factory
+        self._valkey = valkey
         self._task: asyncio.Task[None] | None = None
 
     async def start(self) -> None:
@@ -66,14 +89,30 @@ class CompetitionSnapshotService:
             logger.debug("CompetitionSnapshotService: no metric map configured - skipping")
             return
 
+        # Prefer the already-warm Valkey comp cache over a fresh WOM round-trip.
+        ongoing: list[dict] = []
+        for cache_key in (_COMPS_FRESH_KEY, _COMPS_STALE_KEY):
+            raw = await self._valkey.get(cache_key)
+            if raw:
+                comps: list[dict] = json.loads(raw)
+                ongoing = [c for c in comps if c.get("status") == "ongoing"]
+                logger.debug(
+                    "CompetitionSnapshotService: read {} competition(s) from Valkey cache",
+                    len(ongoing),
+                )
+                break
+
         snapshots: list[CompetitionSnapshot] = []
         now = datetime.now(timezone.utc)
 
         async with WiseOldManHandler(
             api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT
         ) as wom:
-            all_comps = await wom.get_all_group_competitions(_WOM_GROUP_ID)
-            ongoing = [c for c in all_comps if c.get("status") == "ongoing"]
+            if not ongoing:
+                # Cache cold - fetch comp list from WOM directly.
+                logger.info("CompetitionSnapshotService: Valkey cache cold, fetching from WOM")
+                all_comps = await wom.get_all_group_competitions(_WOM_GROUP_ID)
+                ongoing = [c for c in all_comps if c.get("status") == "ongoing"]
 
             if not ongoing:
                 logger.debug("CompetitionSnapshotService: no ongoing competitions")
@@ -90,7 +129,7 @@ class CompetitionSnapshotService:
 
                 for metric in metrics:
                     try:
-                        raw = await wom.get_competition_top5_progress(comp_id, metric)
+                        data = await wom.get_competition_details(comp_id, metric=metric)
                     except Exception as exc:
                         logger.warning(
                             "CompetitionSnapshotService: WOM fetch failed comp={} metric={} - {}",
@@ -100,24 +139,20 @@ class CompetitionSnapshotService:
                         )
                         continue
 
-                    series = [
-                        {
-                            "player_name": entry["player"]["displayName"],
-                            "history": [
-                                {
-                                    "date": h["date"],
-                                    "value": h.get("gained", h.get("value", 0)),
-                                }
-                                for h in entry.get("history", [])
-                            ],
-                        }
-                        for entry in raw
-                        if entry.get("player") and entry.get("history") is not None
-                    ]
+                    standings = []
+                    for p in data.get("participations", []):
+                        progress = p.get("progress") or {}
+                        standings.append({
+                            "player_name": p["player"]["displayName"],
+                            "gained": _safe_gained(progress.get("gained")),
+                        })
 
-                    if not series or not any(e["history"] for e in series):
+                    standings.sort(key=lambda x: x["gained"], reverse=True)
+                    standings = standings[:10]
+
+                    if not standings or all(s["gained"] == 0 for s in standings):
                         logger.debug(
-                            "CompetitionSnapshotService: skip empty snapshot comp={} metric={}",
+                            "CompetitionSnapshotService: skip - no gains yet comp={} metric={}",
                             comp_id,
                             metric,
                         )
@@ -128,7 +163,7 @@ class CompetitionSnapshotService:
                             comp_id=comp_id,
                             metric=metric,
                             captured_at=now,
-                            series=series,
+                            series=standings,
                         )
                     )
 
@@ -140,6 +175,7 @@ class CompetitionSnapshotService:
             await session.commit()
 
         logger.info(
-            "CompetitionSnapshotService: stored {} snapshot(s)",
+            "CompetitionSnapshotService: stored {} snapshot(s) ({})",
             len(snapshots),
+            ", ".join(s.metric for s in snapshots),
         )

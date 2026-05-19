@@ -227,7 +227,7 @@ async def lifespan(app: FastAPI):
             api_key=WOM_API_KEY,
         )
         await ranking_service.start()
-        snapshot_service = CompetitionSnapshotService(app.state.session_factory)
+        snapshot_service = CompetitionSnapshotService(app.state.session_factory, app.state.valkey)
         await snapshot_service.start()
     else:
         logger.warning(

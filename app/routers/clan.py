@@ -146,7 +146,6 @@ _COMP_METRIC_UPCOMING_FRESH_TTL = 15 * 60
 _COMP_METRIC_FINISHED_FRESH_TTL = 60 * 60
 _COMP_METRIC_STALE_TTL = 2 * 60 * 60
 _COMP_METRIC_LOCK_TTL = 60
-_COMP_OVERTIME_LOCK_TTL = 60
 
 
 def _comp_metric_keys(comp_id: int, metric: str) -> tuple[str, str, str]:
@@ -160,11 +159,6 @@ def _comp_metric_fresh_ttl(status: str) -> int:
     if status == "upcoming":
         return _COMP_METRIC_UPCOMING_FRESH_TTL
     return _COMP_METRIC_FINISHED_FRESH_TTL
-
-
-def _comp_overtime_keys(comp_id: int, metric: str) -> tuple[str, str, str]:
-    base = f"clan:comp:{comp_id}:overtime:{metric}"
-    return f"{base}:fresh", f"{base}:stale", f"{base}:lock"
 
 
 async def _build_kc_cache(valkey: Valkey) -> None:
@@ -656,50 +650,6 @@ async def _build_metric_detail_cache(
         await valkey.delete(lock_key)
 
 
-async def _build_overtime_cache(
-    comp_id: int, metric: str, status: str, valkey: Valkey
-) -> None:
-    """Fetch competition top-5 progress from WOM and write to Valkey cache."""
-    fresh_key, stale_key, lock_key = _comp_overtime_keys(comp_id, metric)
-    logger.info("comp overtime cache: hydrating comp={} metric={}", comp_id, metric)
-    try:
-        async with WiseOldManHandler(
-            api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT
-        ) as wom:
-            raw = await wom.get_competition_top5_progress(comp_id, metric)
-
-        series = [
-            {
-                "player_name": entry["player"]["displayName"],
-                "history": [
-                    {"date": h["date"], "value": h.get("gained", h.get("value", 0))}
-                    for h in entry.get("history", [])
-                ],
-            }
-            for entry in raw
-            if entry.get("player") and entry.get("history") is not None
-        ]
-
-        payload = json.dumps({"comp_id": comp_id, "metric": metric, "series": series})
-        fresh_ttl = _comp_metric_fresh_ttl(status)
-        await valkey.setex(fresh_key, fresh_ttl, payload)
-        await valkey.setex(stale_key, _COMP_METRIC_STALE_TTL, payload)
-        logger.info(
-            "comp overtime cache: wrote comp={} metric={} series={}",
-            comp_id,
-            metric,
-            len(series),
-        )
-    except Exception as exc:
-        logger.error(
-            "comp overtime cache: hydration failed comp={} metric={} - {}",
-            comp_id,
-            metric,
-            exc,
-        )
-    finally:
-        await valkey.delete(lock_key)
-
 
 async def _build_competitions_cache(valkey: Valkey) -> None:
     """Fetch all group competitions from WOM and write to Valkey cache. Lock already held by caller."""
@@ -896,14 +846,15 @@ async def competition_metric_detail(
 @router.get("/competitions/{comp_id}/overtime")
 async def competition_overtime(
     comp_id: int,
-    background_tasks: BackgroundTasks,
     metric: str = Query(..., description="WOM metric key"),
     valkey: Valkey = Depends(get_valkey),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Top-5 player progress over time for a specific metric. Stale-while-revalidate."""
-    fresh_key, stale_key, lock_key = _comp_overtime_keys(comp_id, metric)
+    """Top-5 player progress over time, reconstructed from DB snapshots.
 
+    Each snapshot row stores [{player_name, gained}] taken every 30 minutes by
+    CompetitionSnapshotService. This endpoint stitches them into a chart series.
+    """
     status = "ongoing"
     for cache_key in (_COMPS_FRESH_KEY, _COMPS_STALE_KEY):
         raw = await valkey.get(cache_key)
@@ -914,43 +865,35 @@ async def competition_overtime(
                 status = match.get("status", "ongoing")
             break
 
-    # Check DB for a persisted snapshot - authoritative for finished competitions
-    # and for ongoing competitions with a fresh enough snapshot (< 35 min old).
     db_result = await session.execute(
         select(CompetitionSnapshot)
         .where(
             CompetitionSnapshot.comp_id == comp_id,
             CompetitionSnapshot.metric == metric,
         )
-        .order_by(CompetitionSnapshot.captured_at.desc())
-        .limit(1)
+        .order_by(CompetitionSnapshot.captured_at.asc())
     )
-    db_snap = db_result.scalar_one_or_none()
-    if db_snap:
-        age = datetime.now(timezone.utc) - db_snap.captured_at
+    db_snaps = db_result.scalars().all()
+
+    if db_snaps:
+        age = datetime.now(timezone.utc) - db_snaps[-1].captured_at
         if status == "finished" or age < timedelta(minutes=35):
-            return {"comp_id": comp_id, "metric": metric, "series": db_snap.series}
-
-    fresh = await valkey.get(fresh_key)
-    if fresh:
-        return json.loads(fresh)
-
-    if await valkey.set(lock_key, "1", ex=_COMP_OVERTIME_LOCK_TTL, nx=True):
-        background_tasks.add_task(
-            _build_overtime_cache, comp_id, metric, status, valkey
-        )
-
-    stale = await valkey.get(stale_key)
-    if stale:
-        return json.loads(stale)
-
-    try:
-        await _build_overtime_cache(comp_id, metric, status, valkey)
-        fresh = await valkey.get(fresh_key)
-        if fresh:
-            return json.loads(fresh)
-    except Exception as exc:
-        logger.error("comp overtime: sync fetch failed - {}", exc)
+            players: dict[str, list[dict]] = {}
+            for snap in db_snaps:
+                for standing in snap.series:
+                    name = standing["player_name"]
+                    if name not in players:
+                        players[name] = []
+                    players[name].append({
+                        "date": snap.captured_at.isoformat(),
+                        "value": standing["gained"],
+                    })
+            series = sorted(
+                [{"player_name": n, "history": h} for n, h in players.items()],
+                key=lambda p: p["history"][-1]["value"] if p["history"] else 0,
+                reverse=True,
+            )[:5]
+            return {"comp_id": comp_id, "metric": metric, "series": series}
 
     raise HTTPException(status_code=503, detail="Timeline data not yet available.")
 
