@@ -229,13 +229,10 @@ class CompetitionSnapshotService:
             )
             return
 
-        standings = []
-        for p in data.get("participations", []):
-            standings.append({
-                "player_name": p["player"]["displayName"],
-                "gained": _safe_gained((p.get("progress") or {}).get("gained")),
-            })
-        standings.sort(key=lambda x: x["gained"], reverse=True)
+        standings = [
+            {"player_name": p["player"]["displayName"], "gained": 0.0}
+            for p in data.get("participations", [])
+        ]
         standings = standings[:10]
 
         async with self._session_factory() as session:
