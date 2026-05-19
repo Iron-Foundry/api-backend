@@ -3,10 +3,12 @@ FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim
 WORKDIR /app
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --no-install-project --compile-bytecode
 
 COPY . .
-RUN uv sync --frozen --no-dev
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --compile-bytecode
 
 EXPOSE 8000
 
