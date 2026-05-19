@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Never
 
 import httpx
@@ -16,7 +16,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from valkey.asyncio import Valkey
 
-from app.db.models import ClanStats, Config, Event, Leaderboard, Metric, User
+from app.db.models import ClanStats, CompetitionSnapshot, Config, Event, Leaderboard, Metric, User
 from app.dependencies import get_current_user, get_session, get_valkey
 from app.services.competitions import (
     CreateCompetitionInput,
@@ -899,6 +899,7 @@ async def competition_overtime(
     background_tasks: BackgroundTasks,
     metric: str = Query(..., description="WOM metric key"),
     valkey: Valkey = Depends(get_valkey),
+    session: AsyncSession = Depends(get_session),
 ) -> dict:
     """Top-5 player progress over time for a specific metric. Stale-while-revalidate."""
     fresh_key, stale_key, lock_key = _comp_overtime_keys(comp_id, metric)
@@ -912,6 +913,23 @@ async def competition_overtime(
             if match:
                 status = match.get("status", "ongoing")
             break
+
+    # Check DB for a persisted snapshot - authoritative for finished competitions
+    # and for ongoing competitions with a fresh enough snapshot (< 35 min old).
+    db_result = await session.execute(
+        select(CompetitionSnapshot)
+        .where(
+            CompetitionSnapshot.comp_id == comp_id,
+            CompetitionSnapshot.metric == metric,
+        )
+        .order_by(CompetitionSnapshot.captured_at.desc())
+        .limit(1)
+    )
+    db_snap = db_result.scalar_one_or_none()
+    if db_snap:
+        age = datetime.now(timezone.utc) - db_snap.captured_at
+        if status == "finished" or age < timedelta(minutes=35):
+            return {"comp_id": comp_id, "metric": metric, "series": db_snap.series}
 
     fresh = await valkey.get(fresh_key)
     if fresh:

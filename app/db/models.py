@@ -14,6 +14,7 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     ForeignKey,
+    Index,
     Integer,
     Text,
     ARRAY,
@@ -516,6 +517,21 @@ class PlayerSnapshot(Base):
     fetched_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False
     )
+
+
+class CompetitionSnapshot(Base):
+    """Periodic snapshot of top-5 competition progress. One row per (comp_id, metric, poll)."""
+
+    __tablename__ = "competition_snapshots"
+    __table_args__ = (
+        Index("ix_competition_snapshots_lookup", "comp_id", "metric", "captured_at"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    comp_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    metric: Mapped[str] = mapped_column(Text, nullable=False)
+    captured_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    series: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
 
 
 class ContentEntryReaction(Base):

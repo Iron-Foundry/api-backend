@@ -30,6 +30,7 @@ from app.routers import (
 from app.routers.ccdispatch import split_message
 from app.services.connection_manager import connection_manager
 from app.services.clan_stats import ClanStatsService
+from app.services.competition_snapshot import CompetitionSnapshotService
 from app.services.discord_party import close_party_embed
 from app.services.name_change import WomNameChangeService
 from app.services.ranking_service import RankingService
@@ -208,6 +209,7 @@ async def lifespan(app: FastAPI):
     )
     clan_stats_service: ClanStatsService | None = None
     ranking_service: RankingService | None = None
+    snapshot_service: CompetitionSnapshotService | None = None
     if WOM_GROUP_ID:
         wom_service: WomNameChangeService | None = WomNameChangeService(
             app.state.session_factory,
@@ -225,6 +227,8 @@ async def lifespan(app: FastAPI):
             api_key=WOM_API_KEY,
         )
         await ranking_service.start()
+        snapshot_service = CompetitionSnapshotService(app.state.session_factory)
+        await snapshot_service.start()
     else:
         logger.warning(
             "WOM_GROUP_ID not set - name change, clan stats, and ranking services disabled"
@@ -248,6 +252,8 @@ async def lifespan(app: FastAPI):
         await clan_stats_service.stop()
     if ranking_service:
         await ranking_service.stop()
+    if snapshot_service:
+        await snapshot_service.stop()
     if app.state.engine:
         logger.info("Closing PostgreSQL connection...")
         await app.state.engine.dispose()
