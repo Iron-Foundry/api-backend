@@ -3,17 +3,19 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from valkey.asyncio import Valkey
 
 from sqlalchemy import func, select
 
-from app.db.models import PartyChatMessageDB, User, UserAccount
+from app.db.models import PartyChatMessageDB, PartyDB, PartyNotificationPreferences, User, UserAccount
 from app.dependencies import get_current_user, get_optional_user, get_session, get_valkey
 from app.party_store import (
     Vibe,
@@ -40,6 +42,7 @@ from app.services.rank_mappings import get_effective_roles
 router = APIRouter(prefix="/parties", tags=["parties"])
 
 _NOTIFY_CHANNEL = "foundry:party_notify"
+_SITE_URL = os.getenv("FRONTEND_URL", "https://ironfoundry.cc").split(",")[0].strip().rstrip("/")
 
 
 async def _notify(valkey: Valkey, user_ids: list[str], message: str) -> None:
@@ -48,6 +51,38 @@ async def _notify(valkey: Valkey, user_ids: list[str], message: str) -> None:
     await valkey.publish(
         _NOTIFY_CHANNEL, json.dumps({"user_ids": user_ids, "message": message})
     )
+
+
+async def _dispatch_party_notifications(
+    session: AsyncSession,
+    valkey: Valkey,
+    party: object,
+) -> None:
+    """DM opted-in users when a party is created, excluding the leader."""
+    p: PartyDB = party  # type: ignore[assignment]
+    if not p.notification_category_ids:
+        return
+
+    result = await session.execute(select(PartyNotificationPreferences))
+    all_prefs = result.scalars().all()
+
+    cat_set = set(p.notification_category_ids)
+    leader_id = int(p.leader_id)
+    user_ids = [
+        str(pref.user_id)
+        for pref in all_prefs
+        if pref.user_id != leader_id and bool(cat_set & set(pref.category_ids or []))
+    ]
+    if not user_ids:
+        return
+
+    vibe_emoji = {"learning": "🎓", "chill": "😌", "sweat": "💪"}.get(p.vibe, "")
+    msg = (
+        f"{vibe_emoji} **New party: {p.activity}**\n"
+        f"Led by {p.leader_username} - {len(p.members)}/{p.max_size} members\n"
+        f"{_SITE_URL}/parties"
+    )
+    await _notify(valkey, user_ids, msg)
 
 
 # ── Request models ────────────────────────────────────────────────────────────
@@ -60,7 +95,7 @@ class CreatePartyRequest(BaseModel):
     max_size: Annotated[int, Field(ge=1, le=100)]
     scheduled_at: datetime | None = None
     ttl_hours: Annotated[float, Field(ge=0.5, le=24)] = 4.0
-    ping_role_ids: list[str] = []
+    notification_category_ids: list[str] = []
     rsn_override: str | None = None
 
     @field_validator("activity")
@@ -84,7 +119,7 @@ class UpdatePartyRequest(BaseModel):
     vibe: Vibe | None = None
     max_size: Annotated[int | None, Field(ge=1, le=100)] = None
     scheduled_at: datetime | None = None
-    ping_role_ids: list[str] | None = None
+    notification_category_ids: list[str] | None = None
 
     @field_validator("activity")
     @classmethod
@@ -183,6 +218,7 @@ async def create_new_party(
     body: CreatePartyRequest,
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
+    valkey: Valkey = Depends(get_valkey),
 ) -> dict:
     """Create a party. The creator is automatically added as leader/first member."""
     uid = str(current_user["sub"])
@@ -202,7 +238,7 @@ async def create_new_party(
         if body.scheduled_at
         else None,
         ttl_hours=body.ttl_hours,
-        ping_role_ids=body.ping_role_ids,
+        notification_category_ids=body.notification_category_ids,
     )
 
     message_id = await post_party_embed(party)
@@ -210,6 +246,7 @@ async def create_new_party(
         party.discord_message_id = message_id
         await session.commit()
 
+    await _dispatch_party_notifications(session, valkey, party)
     return party_to_dict(party, uid)
 
 
@@ -240,8 +277,8 @@ async def update_party(
         _recalc_status(party)
     if body.scheduled_at is not None:
         party.scheduled_at = _resolve_scheduled_at(body.scheduled_at)
-    if body.ping_role_ids is not None:
-        party.ping_role_ids = body.ping_role_ids
+    if body.notification_category_ids is not None:
+        party.notification_category_ids = body.notification_category_ids
 
     await session.commit()
     await edit_party_embed(party)
@@ -403,6 +440,47 @@ async def get_chat(
     _ = party  # existence check only
     messages = await get_chat_messages(session, party_id)
     return [chat_message_to_dict(m) for m in messages]
+
+
+@router.get("/notifications")
+async def get_notification_preferences(
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Return the current user's party notification preferences."""
+    uid = int(current_user["sub"])
+    result = await session.execute(
+        select(PartyNotificationPreferences).where(
+            PartyNotificationPreferences.user_id == uid
+        )
+    )
+    prefs = result.scalar_one_or_none()
+    return {"category_ids": prefs.category_ids if prefs else []}
+
+
+class UpdateNotificationPrefsRequest(BaseModel):
+    category_ids: list[str] = []
+
+
+@router.put("/notifications")
+async def update_notification_preferences(
+    body: UpdateNotificationPrefsRequest,
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Upsert the current user's party notification preferences."""
+    uid = int(current_user["sub"])
+    stmt = (
+        pg_insert(PartyNotificationPreferences)
+        .values(user_id=uid, category_ids=body.category_ids)
+        .on_conflict_do_update(
+            index_elements=["user_id"],
+            set_={"category_ids": body.category_ids},
+        )
+    )
+    await session.execute(stmt)
+    await session.commit()
+    return {"category_ids": body.category_ids}
 
 
 @router.post("/{party_id}/chat", status_code=201)

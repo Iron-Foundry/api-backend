@@ -213,7 +213,7 @@ async def create_party(
     max_size: int,
     scheduled_at: datetime | None,
     ttl_hours: float,
-    ping_role_ids: list[str],
+    notification_category_ids: list[str],
 ) -> PartyDB:
     now = datetime.now(timezone.utc)
     party_id = str(uuid.uuid4())
@@ -226,7 +226,7 @@ async def create_party(
         description=description,
         vibe=vibe,
         max_size=max_size,
-        ping_role_ids=ping_role_ids,
+        notification_category_ids=notification_category_ids,
         hub_code=_generate_hub_code(),
         status="open",
         created_at=now,
@@ -370,7 +370,7 @@ def party_to_dict(party: PartyDB, viewer_id: str | None = None) -> dict:
             }
             for m in party.members
         ],
-        "ping_role_ids": party.ping_role_ids or [],
+        "notification_category_ids": party.notification_category_ids or [],
         "status": party.status,
         "created_at": party.created_at.isoformat(),
         "scheduled_at": party.scheduled_at.isoformat() if party.scheduled_at else None,

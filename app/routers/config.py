@@ -25,7 +25,7 @@ _DISCORD_GUILD_ID = int(os.getenv("GUILD_ID", "0"))
 _RANK_MAPPINGS_KEY = "clan_rank_mappings"
 _PAGE_PERMISSIONS_KEY = "page_permissions"
 _ADMIN_BYPASS_KEY = "admin_bypass_roles"
-_PARTY_PING_ROLES_KEY = "party_ping_roles"
+_NOTIFICATION_CATEGORIES_KEY = "party_notification_categories"
 _RANKING_CONFIG_KEY = "ranking_config"
 _DISCORD_ROLES_KEY = "discord_roles"
 
@@ -182,44 +182,46 @@ async def get_admin_bypass_roles_endpoint(
     return {"roles": roles}
 
 
-# ── Party ping roles ─────────────────────────────────────────────────────────
+# ── Party notification categories ─────────────────────────────────────────────
 
 
-class PartyPingRoleEntry(BaseModel):
-    discord_role_id: str
+class NotificationCategoryEntry(BaseModel):
+    id: str
     label: str
 
 
-class PartyPingRolesBody(BaseModel):
-    roles: list[PartyPingRoleEntry]
+class NotificationCategoriesBody(BaseModel):
+    categories: list[NotificationCategoryEntry]
 
 
-@router.get("/party-ping-roles")
-async def get_party_ping_roles(
+@router.get("/party-notification-categories")
+async def get_notification_categories(
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Return the list of Discord roles that party leaders can ping. Any authenticated user."""
-    data = await _get_config_value(_PARTY_PING_ROLES_KEY, session)
-    return {"roles": data.get("roles", [])}
+    """Return the list of notification categories. Any authenticated user."""
+    data = await _get_config_value(_NOTIFICATION_CATEGORIES_KEY, session)
+    return {"categories": data.get("categories", [])}
 
 
 @router.put(
-    "/party-ping-roles",
+    "/party-notification-categories",
     dependencies=[Depends(require_page_permission("staff.rank-mappings", "edit"))],
 )
-async def set_party_ping_roles(
-    body: PartyPingRolesBody,
+async def set_notification_categories(
+    body: NotificationCategoriesBody,
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Update the party ping roles list. Requires rank-mappings edit permission."""
-    roles = [
-        r.model_dump()
-        for r in body.roles
-        if r.discord_role_id.strip() and r.label.strip()
+    """Update the party notification categories list. Requires rank-mappings edit permission."""
+    categories = [
+        c.model_dump()
+        for c in body.categories
+        if c.id.strip() and c.label.strip()
     ]
-    await _set_config_value(_PARTY_PING_ROLES_KEY, {"roles": roles}, session)
-    return {"roles": roles}
+    await _set_config_value(
+        _NOTIFICATION_CATEGORIES_KEY, {"categories": categories}, session
+    )
+    return {"categories": categories}
 
 
 # ── Admin bypass roles ────────────────────────────────────────────────────────
