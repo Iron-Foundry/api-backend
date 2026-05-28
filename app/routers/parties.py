@@ -53,6 +53,10 @@ async def _notify(valkey: Valkey, user_ids: list[str], message: str) -> None:
     )
 
 
+_VIBE_COLOR = {"learning": 0x5865F2, "chill": 0x57F287, "sweat": 0xED4245}
+_VIBE_LABEL = {"learning": "Learning", "chill": "Chill", "sweat": "Sweat"}
+
+
 async def _dispatch_party_notifications(
     session: AsyncSession,
     valkey: Valkey,
@@ -76,13 +80,31 @@ async def _dispatch_party_notifications(
     if not user_ids:
         return
 
-    vibe_emoji = {"learning": "🎓", "chill": "😌", "sweat": "💪"}.get(p.vibe, "")
-    msg = (
-        f"{vibe_emoji} **New party: {p.activity}**\n"
-        f"Led by {p.leader_username} - {len(p.members)}/{p.max_size} members\n"
-        f"{_SITE_URL}/parties"
+    leader_name = p.leader_rsn or p.leader_username
+    fields = [
+        {"name": "Leader", "value": leader_name, "inline": True},
+        {"name": "Vibe", "value": _VIBE_LABEL.get(p.vibe, p.vibe.capitalize()), "inline": True},
+        {"name": "Size", "value": f"{len(p.members)}/{p.max_size}", "inline": True},
+    ]
+    if p.scheduled_at:
+        ts = int(p.scheduled_at.timestamp())
+        fields.append({"name": "Scheduled", "value": f"<t:{ts}:f>", "inline": False})
+
+    expires_ts = int(p.expires_at.timestamp())
+    fields.append({"name": "Expires", "value": f"<t:{expires_ts}:R>", "inline": False})
+
+    embed: dict = {
+        "title": f"New Party: {p.activity}",
+        "color": _VIBE_COLOR.get(p.vibe, 0x57F287),
+        "fields": fields,
+        "url": f"{_SITE_URL}/parties",
+    }
+    if p.description:
+        embed["description"] = p.description
+
+    await valkey.publish(
+        _NOTIFY_CHANNEL, json.dumps({"user_ids": user_ids, "embed": embed})
     )
-    await _notify(valkey, user_ids, msg)
 
 
 # ── Request models ────────────────────────────────────────────────────────────
