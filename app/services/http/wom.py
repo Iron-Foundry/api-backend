@@ -288,23 +288,38 @@ class WiseOldManHandler(BaseRequestHandler):
         return total
 
     async def fetch_kc_metric(
-        self, group_id: str | int, metric: str, top_n: int = 10
+        self, group_id: str | int, metric: str, top_n: int = 600
     ) -> list[dict] | None:
-        """Fetch top top_n players for one WOM metric."""
+        """Fetch up to top_n players for one WOM metric, paginating as needed."""
+        page_size = 50
+        offset = 0
+        results: list[dict] = []
         try:
-            resp = await self._get_with_rate_limit(
-                f"/groups/{group_id}/hiscores",
-                params={"metric": metric, "limit": top_n, "offset": 0},
-            )
+            while len(results) < top_n:
+                fetch = min(page_size, top_n - len(results))
+                resp = await self._get_with_rate_limit(
+                    f"/groups/{group_id}/hiscores",
+                    params={"metric": metric, "limit": fetch, "offset": offset},
+                )
+                if not resp.is_success:
+                    break
+                page = resp.json()
+                if not page:
+                    break
+                for e in page:
+                    if (e.get("data", {}).get("kills") or 0) > 0:
+                        results.append(
+                            {
+                                "player_name": e["player"]["displayName"],
+                                "kills": e["data"]["kills"],
+                            }
+                        )
+                if len(page) < fetch:
+                    break
+                offset += fetch
         except Exception:
             return None
-        if not resp.is_success:
-            return None
-        return [
-            {"player_name": e["player"]["displayName"], "kills": e["data"]["kills"]}
-            for e in resp.json()
-            if (e.get("data", {}).get("kills") or 0) > 0
-        ]
+        return results or None
 
     # ------------------------------------------------------------------
     # Competition cache

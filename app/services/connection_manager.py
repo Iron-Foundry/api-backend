@@ -13,6 +13,7 @@ class ClientConnection:
 class ConnectionManager:
     def __init__(self) -> None:
         self._connections: dict[int, dict[UUID, ClientConnection]] = {}
+        self._messages_dispatched: int = 0
 
     def connect(self, ws: WebSocket, guild_id: int, verification_code: str) -> UUID:
         conn_id = uuid4()
@@ -33,16 +34,30 @@ class ConnectionManager:
 
     async def broadcast(self, guild_id: int, message: str) -> None:
         dead: list[UUID] = []
+        sent = 0
         for conn_id, client in list(self._connections.get(guild_id, {}).items()):
             try:
                 await client.ws.send_text(message)
+                sent += 1
             except Exception:
                 dead.append(conn_id)
         for conn_id in dead:
             self.disconnect(conn_id, guild_id)
+        self._messages_dispatched += sent
 
     def connection_count(self, guild_id: int) -> int:
         return len(self._connections.get(guild_id, {}))
+
+    def total_connections(self) -> int:
+        return sum(len(v) for v in self._connections.values())
+
+    def active_guild_count(self) -> int:
+        return sum(1 for v in self._connections.values() if v)
+
+    def drain_messages_dispatched(self) -> int:
+        """Return and reset the messages-dispatched counter (GIL-safe swap)."""
+        n, self._messages_dispatched = self._messages_dispatched, 0
+        return n
 
     async def send_to(self, conn_id: UUID, guild_id: int, message: str) -> bool:
         client = self._connections.get(guild_id, {}).get(conn_id)
@@ -50,6 +65,7 @@ class ConnectionManager:
             return False
         try:
             await client.ws.send_text(message)
+            self._messages_dispatched += 1
             return True
         except Exception:
             self.disconnect(conn_id, guild_id)

@@ -1,10 +1,11 @@
 import asyncio
 import json
 import os
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from valkey.asyncio import Valkey
@@ -20,7 +21,10 @@ from app.routers import (
     content,
     discord as discord_router,
     events,
+    feedback,
+    frenzy,
     members,
+    metrics,
     parties,
     ranking,
     role_panels,
@@ -32,6 +36,9 @@ from app.services.connection_manager import connection_manager
 from app.services.clan_stats import ClanStatsService
 from app.services.competition_snapshot import CompetitionSnapshotService
 from app.services.discord_party import close_party_embed
+from app.services.endpoint_metrics import EndpointMetricsCollector, EndpointMetricsService
+from app.services.metric_compaction import MetricCompactionService
+from app.services.websocket_metrics import WebSocketMetricsService
 from app.services.name_change import WomNameChangeService
 from app.services.ranking_service import RankingService
 
@@ -200,6 +207,7 @@ async def lifespan(app: FastAPI):
 
     logger.info("Connecting to Valkey at {}...", VALKEY_URI)
     app.state.valkey = Valkey.from_url(VALKEY_URI)
+    await frenzy.warm_osrs_caches(app.state.valkey)
     subscriber_task = asyncio.create_task(
         _discord_chat_subscriber(VALKEY_URI, app.state.session_factory),
         name="discord-chat-subscriber",
@@ -235,7 +243,20 @@ async def lifespan(app: FastAPI):
         )
         wom_service = None
     app.state.ranking_service = ranking_service
+    compaction_service = MetricCompactionService(app.state.session_factory)
+    await compaction_service.start()
+    endpoint_metrics_service = EndpointMetricsService(
+        app.state.endpoint_metrics_collector, app.state.session_factory
+    )
+    await endpoint_metrics_service.start()
+    ws_metrics_service = WebSocketMetricsService(
+        connection_manager, app.state.session_factory
+    )
+    await ws_metrics_service.start()
     yield
+    await ws_metrics_service.stop()
+    await endpoint_metrics_service.stop()
+    await compaction_service.stop()
     subscriber_task.cancel()
     expiry_task.cancel()
     try:
@@ -263,6 +284,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="The Foundry API", lifespan=lifespan)
 
+_collector = EndpointMetricsCollector()
+app.state.endpoint_metrics_collector = _collector
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_ALLOWED_ORIGINS,
@@ -271,9 +295,23 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
+
+@app.middleware("http")
+async def _request_metrics_middleware(request: Request, call_next):
+    req_bytes = int(request.headers.get("content-length", 0))
+    start = time.monotonic()
+    response = await call_next(request)
+    duration_ms = (time.monotonic() - start) * 1000
+    resp_bytes = int(response.headers.get("content-length", 0))
+    route = request.scope.get("route")
+    path = route.path if route else request.url.path
+    _collector.record(request.method, path, response.status_code, duration_ms, req_bytes, resp_bytes)
+    return response
+
 app.include_router(assets.router)
 app.include_router(auth.router)
 app.include_router(clan.router)
+app.include_router(metrics.router)
 app.include_router(config.router)
 app.include_router(discord_router.router)
 app.include_router(events.router)
@@ -284,8 +322,10 @@ app.include_router(ranking.router)
 app.include_router(role_panels.router)
 app.include_router(staff.router)
 app.include_router(surveys.router)
+app.include_router(feedback.router)
 app.include_router(badges.router)
 app.include_router(content.router)
+app.include_router(frenzy.router)
 
 
 @app.get("/health")

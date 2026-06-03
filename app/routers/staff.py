@@ -115,13 +115,16 @@ async def referral_stats(
     await _require_rank("staff.home", "read", current_user, session)
 
     source_rows = await session.execute(
-        select(User.referral_source, func.count().label("count"))
-        .group_by(User.referral_source)
+        select(User.referral_source, func.count().label("count")).group_by(
+            User.referral_source
+        )
     )
     sources = [
         {
             "source": row.referral_source,
-            "label": _SOURCE_LABELS.get(row.referral_source, row.referral_source or "Unanswered"),
+            "label": _SOURCE_LABELS.get(
+                row.referral_source, row.referral_source or "Unanswered"
+            ),
             "count": row.count,
         }
         for row in source_rows
@@ -343,6 +346,58 @@ async def update_member_rsn(
     return {"discord_user_id": discord_user_id, "rsn": new_rsn}
 
 
+class StaffCascadeBody(BaseModel):
+    old_rsn: str | None = None
+
+
+@router.post("/members/{discord_user_id}/rsn/cascade")
+async def force_rsn_cascade(
+    discord_user_id: int,
+    body: StaffCascadeBody = StaffCascadeBody(),
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Force a full RSN cascade for a member.
+
+    By default sweeps all historical RSNs in user_accounts → current RSN.
+    Supply old_rsn to explicitly cascade a name that predates user_accounts
+    (e.g. a missed rename from before the multi-account system was added).
+    """
+    await _require_rank("staff.members", "edit", current_user, session)
+
+    user_result = await session.execute(
+        select(User.rsn).where(User.discord_user_id == discord_user_id)
+    )
+    user_row = user_result.one_or_none()
+    if not user_row:
+        raise HTTPException(status_code=404, detail="Member not found.")
+
+    current_rsn: str | None = user_row.rsn
+    if not current_rsn:
+        raise HTTPException(status_code=400, detail="Member has no RSN set.")
+
+    old_rsn = body.old_rsn.strip() if body.old_rsn else current_rsn
+    if old_rsn and not _RSN_RE.match(old_rsn):
+        raise HTTPException(
+            status_code=422,
+            detail="old_rsn must be 1-12 characters: letters, numbers, spaces, hyphens, underscores.",
+        )
+
+    await cascade_rsn_change(session, old_rsn, current_rsn)
+    logger.info(
+        "staff/rsn: force cascade for user {} ({!r} -> {!r})",
+        discord_user_id,
+        old_rsn,
+        current_rsn,
+    )
+
+    return {
+        "discord_user_id": str(discord_user_id),
+        "rsn": current_rsn,
+        "from_rsn": old_rsn,
+    }
+
+
 @router.get("/tickets")
 async def staff_tickets(
     limit: int = Query(default=50, ge=1, le=200),
@@ -392,9 +447,13 @@ async def staff_tickets(
     _BOGUS_DATE = date(2026, 4, 14)
 
     needs_transcript = {
-        row.ticket_id for row in ticket_rows
+        row.ticket_id
+        for row in ticket_rows
         if (row.status == "closed" and row.closed_at is None)
-        or (row.created_at and row.created_at.astimezone(timezone.utc).date() == _BOGUS_DATE)
+        or (
+            row.created_at
+            and row.created_at.astimezone(timezone.utc).date() == _BOGUS_DATE
+        )
     }
     transcript_ts_map: dict[int, dict[str, str | None]] = {}
     if needs_transcript:
@@ -408,8 +467,7 @@ async def staff_tickets(
             {"ids": list(needs_transcript)},
         )
         transcript_ts_map = {
-            r.ticket_id: {"first_ts": r.first_ts, "last_ts": r.last_ts}
-            for r in ts_rows
+            r.ticket_id: {"first_ts": r.first_ts, "last_ts": r.last_ts} for r in ts_rows
         }
 
     tickets: list[dict] = []
@@ -425,11 +483,7 @@ async def staff_tickets(
             if bogus_created
             else (row.created_at.isoformat() if row.created_at else None)
         )
-        closed_at = (
-            row.closed_at.isoformat()
-            if row.closed_at
-            else td.get("last_ts")
-        )
+        closed_at = row.closed_at.isoformat() if row.closed_at else td.get("last_ts")
         tickets.append(
             {
                 "ticket_id": row.ticket_id,
@@ -438,7 +492,9 @@ async def staff_tickets(
                 "status": row.status,
                 "created_at": created_at,
                 "closed_at": closed_at,
-                "last_message_at": row.last_message_at.isoformat() if row.last_message_at else None,
+                "last_message_at": row.last_message_at.isoformat()
+                if row.last_message_at
+                else None,
                 "creator": {
                     "id": row.creator_id,
                     "display_name": row.creator_name,

@@ -8,23 +8,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import (
     CofferEvent,
     Event,
+    FrenzySubmission,
     Leaderboard,
     MembershipEvent,
+    PlayerRanking,
+    PlayerSnapshot,
     Ticket,
     User,
     UserAccount,
 )
 
 
-async def cascade_rsn_change(session: AsyncSession, old_rsn: str, new_rsn: str) -> None:
-    """Rename player_name across all PG tables when a user changes their RSN.
-
-    Commits the transaction internally.
-    """
-    now = datetime.now(timezone.utc)
-
+async def _cascade_rsn_single(
+    session: AsyncSession, old_rsn: str, new_rsn: str, now: datetime
+) -> None:
+    """Update all data tables for one old_rsn → new_rsn substitution. Does not commit."""
     await session.execute(
-        update(User).where(User.rsn == old_rsn).values(rsn=new_rsn, updated_at=now)
+        update(User)
+        .where(func.lower(User.rsn) == old_rsn.lower())
+        .values(rsn=new_rsn, updated_at=now)
     )
 
     await session.execute(
@@ -60,11 +62,76 @@ async def cascade_rsn_change(session: AsyncSession, old_rsn: str, new_rsn: str) 
         .values(player_name=new_rsn)
     )
 
+    # Leaderboard has a composite PK (player_name, activity, variant).
+    # Delete old_rsn rows that would conflict with an existing new_rsn row,
+    # then update the remainder.
+    await session.execute(
+        text(
+            "DELETE FROM leaderboards"
+            " WHERE lower(player_name) = lower(:old_rsn)"
+            " AND EXISTS ("
+            "   SELECT 1 FROM leaderboards l2"
+            "   WHERE l2.player_name = :new_rsn"
+            "   AND l2.activity = leaderboards.activity"
+            "   AND l2.variant = leaderboards.variant"
+            " )"
+        ),
+        {"old_rsn": old_rsn, "new_rsn": new_rsn},
+    )
     await session.execute(
         update(Leaderboard)
         .where(func.lower(Leaderboard.player_name) == old_rsn.lower())
         .values(player_name=new_rsn)
     )
+
+    await session.execute(
+        update(PlayerRanking)
+        .where(func.lower(PlayerRanking.rsn) == old_rsn.lower())
+        .values(rsn=new_rsn)
+    )
+
+    await session.execute(
+        update(PlayerSnapshot)
+        .where(func.lower(PlayerSnapshot.rsn) == old_rsn.lower())
+        .values(rsn=new_rsn)
+    )
+
+    await session.execute(
+        update(FrenzySubmission)
+        .where(func.lower(FrenzySubmission.player_rsn) == old_rsn.lower())
+        .values(player_rsn=new_rsn)
+    )
+
+
+async def cascade_rsn_change(session: AsyncSession, old_rsn: str, new_rsn: str) -> None:
+    """Rename player_name across all PG tables when a user changes their RSN.
+
+    Looks up all historical RSNs linked to the same user via user_accounts and
+    cascades each one → new_rsn, ensuring previously-missed renames are caught.
+    Commits the transaction internally.
+    """
+    now = datetime.now(timezone.utc)
+
+    user_result = await session.execute(
+        select(UserAccount.discord_user_id).where(
+            func.lower(UserAccount.rsn) == old_rsn.lower()
+        )
+    )
+    discord_user_id = user_result.scalar_one_or_none()
+
+    if discord_user_id:
+        all_rsns_result = await session.execute(
+            select(UserAccount.rsn).where(
+                UserAccount.discord_user_id == discord_user_id,
+                func.lower(UserAccount.rsn) != new_rsn.lower(),
+            )
+        )
+        historical_rsns = [row[0] for row in all_rsns_result]
+    else:
+        historical_rsns = [old_rsn]
+
+    for rsn in historical_rsns:
+        await _cascade_rsn_single(session, rsn, new_rsn, now)
 
     await session.execute(
         update(UserAccount)

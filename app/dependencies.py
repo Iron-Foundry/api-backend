@@ -12,6 +12,7 @@ from app.db.models import User
 
 JWT_SECRET = os.getenv("JWT_SECRET", "change-me")
 _ALGORITHM = "HS256"
+_METRICS_API_KEY = os.getenv("METRICS_API_KEY", "")
 
 
 def get_valkey(request: Request) -> Valkey:
@@ -49,6 +50,12 @@ async def get_optional_user(
         return jwt.decode(token, JWT_SECRET, algorithms=[_ALGORITHM])
     except JWTError:
         return None
+
+
+async def verify_metrics_key(verification_code: str = Header(...)) -> None:
+    """Validate the verification-code header against the METRICS_API_KEY env var."""
+    if not _METRICS_API_KEY or verification_code != _METRICS_API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid metrics API key")
 
 
 async def verify_clan(

@@ -7,12 +7,13 @@ the single source of truth for alembic autogenerate.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    Date,
     ForeignKey,
     Index,
     Integer,
@@ -501,8 +502,10 @@ class RolePanel(Base):
 
 class PlayerRanking(Base):
     __tablename__ = "player_rankings"
+    __table_args__ = (UniqueConstraint("rsn", name="uq_player_rankings_rsn"),)
 
-    rsn: Mapped[str] = mapped_column(Text, primary_key=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    rsn: Mapped[str] = mapped_column(Text, nullable=False)
     rank: Mapped[str] = mapped_column(Text, nullable=False)
     points: Mapped[int] = mapped_column(Integer, nullable=False)
     boss_points: Mapped[int] = mapped_column(
@@ -519,8 +522,10 @@ class PlayerRanking(Base):
 
 class PlayerSnapshot(Base):
     __tablename__ = "player_snapshots"
+    __table_args__ = (UniqueConstraint("rsn", name="uq_player_snapshots_rsn"),)
 
-    rsn: Mapped[str] = mapped_column(Text, primary_key=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    rsn: Mapped[str] = mapped_column(Text, nullable=False)
     skills: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     bosses: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     fetched_at: Mapped[datetime] = mapped_column(
@@ -539,7 +544,9 @@ class CompetitionSnapshot(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     comp_id: Mapped[int] = mapped_column(Integer, nullable=False)
     metric: Mapped[str] = mapped_column(Text, nullable=False)
-    captured_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    captured_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
     series: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
 
 
@@ -561,4 +568,277 @@ class ContentEntryReaction(Base):
     discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False
+    )
+
+
+class FrenzyTemplate(Base):
+    __tablename__ = "frenzy_templates"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    tiers: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    activities: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    milestones: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    multipliers: Mapped[list] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )
+    version_number: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="1"
+    )
+    created_by: Mapped[int | None] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+
+
+class FrenzyTemplateVersion(Base):
+    __tablename__ = "frenzy_template_versions"
+    __table_args__ = (
+        Index("ix_frenzy_template_versions_lookup", "template_id", "version_number"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    template_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("frenzy_templates.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    tiers: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    activities: Mapped[list] = mapped_column(JSONB, nullable=False)
+    milestones: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    multipliers: Mapped[list] = mapped_column(JSONB, nullable=False)
+    edited_by: Mapped[int | None] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+
+
+class FrenzyEvent(Base):
+    __tablename__ = "frenzy_events"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    template_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("frenzy_templates.id"),
+        nullable=False,
+    )
+    wom_comp_id: Mapped[int | None] = mapped_column(Integer)
+    leaderboard_metrics: Mapped[list] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )
+    trusted_sources: Mapped[list] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )
+    starts_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    ends_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+    created_by: Mapped[int | None] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+
+
+class FrenzyTeam(Base):
+    __tablename__ = "frenzy_teams"
+    __table_args__ = (UniqueConstraint("event_id", "slug", name="uq_frenzy_team_slug"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    event_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("frenzy_events.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    slug: Mapped[str] = mapped_column(Text, nullable=False)
+    icon_url: Mapped[str | None] = mapped_column(Text)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    participants: Mapped[list] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )
+    item_progress: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
+    activity_progress: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
+    milestone_progress: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+
+
+class FrenzySubmission(Base):
+    __tablename__ = "frenzy_submissions"
+    __table_args__ = (
+        Index("ix_frenzy_submissions_team_status", "team_id", "status"),
+        Index(
+            "ix_frenzy_submissions_event_status", "event_id", "status", "submitted_at"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    event_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("frenzy_events.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    team_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("frenzy_teams.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    player_rsn: Mapped[str] = mapped_column(Text, nullable=False)
+    source: Mapped[str] = mapped_column(Text, nullable=False)
+    submission_type: Mapped[str] = mapped_column(Text, nullable=False)
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="pending")
+    auto_approved: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+    reviewed_by: Mapped[int | None] = mapped_column(BigInteger)
+    reviewed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    review_notes: Mapped[str | None] = mapped_column(Text)
+    submitted_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+
+
+class Feedback(Base):
+    __tablename__ = "feedback"
+    __table_args__ = (
+        Index("ix_feedback_type_status", "type", "status"),
+        Index("ix_feedback_discord_user", "discord_user_id"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    # suggestion | bug
+    type: Mapped[str] = mapped_column(Text, nullable=False)
+    discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    is_anonymous: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    # { steps_to_reproduce } for bugs; {} for suggestions
+    extra: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    # open | in-review | implemented | wont-fix | solved | closed
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="open")
+    # list of Asset UUIDs (as strings)
+    attachment_ids: Mapped[list] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+
+
+class FeedbackReaction(Base):
+    __tablename__ = "feedback_reactions"
+
+    feedback_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("feedback.id", ondelete="CASCADE"),
+        nullable=False,
+        primary_key=True,
+    )
+    discord_user_id: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, primary_key=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+
+
+class FeedbackReply(Base):
+    __tablename__ = "feedback_replies"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    feedback_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("feedback.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    is_pinned: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+
+
+class ServiceStatus(Base):
+    """Live health snapshot for each reporting service. Upserted on every report."""
+
+    __tablename__ = "service_status"
+
+    service_name: Mapped[str] = mapped_column(Text, primary_key=True)
+    is_healthy: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    last_seen: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    version: Mapped[str | None] = mapped_column(Text)
+    uptime_seconds: Mapped[int | None] = mapped_column(BigInteger)
+    summary_metrics: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
+
+
+class MetricRecord(Base):
+    """Raw time-series metric record. Kept for 3 months, then compacted."""
+
+    __tablename__ = "metric_records"
+    __table_args__ = (
+        Index("ix_metric_records_lookup", "service_name", "module_name", "recorded_at"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    service_name: Mapped[str] = mapped_column(Text, nullable=False)
+    module_name: Mapped[str] = mapped_column(Text, nullable=False)
+    recorded_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+    metrics: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+
+
+class MetricRecordCompact(Base):
+    """Daily aggregate of metric_records older than 3 months."""
+
+    __tablename__ = "metric_records_compact"
+    __table_args__ = (
+        UniqueConstraint(
+            "service_name", "module_name", "date", name="uq_metric_compact_day"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    service_name: Mapped[str] = mapped_column(Text, nullable=False)
+    module_name: Mapped[str] = mapped_column(Text, nullable=False)
+    date: Mapped[date] = mapped_column(Date, nullable=False)
+    sample_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    metrics_agg: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
     )

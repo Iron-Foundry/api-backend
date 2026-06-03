@@ -473,42 +473,86 @@ async def clan_leaderboards(session: AsyncSession = Depends(get_session)) -> lis
             Leaderboard.time_seconds,
         )
     )
+    rows = result.scalars().all()
+
+    names = {r.player_name.lower() for r in rows if r.player_name}
+    rank_map: dict[str, str | None] = {}
+    if names:
+        rank_rows = await session.execute(
+            select(func.lower(User.rsn), User.clan_rank).where(
+                func.lower(User.rsn).in_(list(names))
+            )
+        )
+        rank_map = {row[0]: row[1] for row in rank_rows}
+
     return [
         {
             "player_name": r.player_name,
             "activity": r.activity,
             "variant": r.variant,
             "time_seconds": r.time_seconds,
+            "clan_rank": rank_map.get(r.player_name.lower()) if r.player_name else None,
         }
-        for r in result.scalars()
+        for r in rows
     ]
+
+
+async def _enrich_with_clan_rank(
+    entries_by_name: dict[str, list[dict]],
+    session: AsyncSession,
+) -> None:
+    """Mutate entry dicts in-place, adding clan_rank looked up by player_name."""
+    names = list(entries_by_name.keys())
+    if not names:
+        return
+    rank_rows = await session.execute(
+        select(func.lower(User.rsn), User.clan_rank).where(
+            func.lower(User.rsn).in_(names)
+        )
+    )
+    rank_map: dict[str, str | None] = {row[0]: row[1] for row in rank_rows}
+    for name, entry_list in entries_by_name.items():
+        cr = rank_map.get(name)
+        for e in entry_list:
+            e["clan_rank"] = cr
 
 
 @router.get("/leaderboards/killcounts")
 async def killcount_leaderboard(
     background_tasks: BackgroundTasks,
     valkey: Valkey = Depends(get_valkey),
+    session: AsyncSession = Depends(get_session),
 ) -> list[dict]:
-    """Top-10 players per boss, served from cache.
+    """Top players per boss (up to 600), served from cache.
 
     Fresh cache TTL is 15 minutes.  When it expires a background refresh is
     scheduled (rate-limit-aware, sequential WOM fetches).  While the refresh
     runs the stale cache (48 h) is returned so the page never shows empty data.
     """
     fresh = await valkey.get(_KC_FRESH_KEY)
-    if fresh:
-        return json.loads(fresh)
+    data: list[dict] = json.loads(fresh) if fresh else []
 
-    background_tasks.add_task(_build_kc_cache, valkey)
+    if not data:
+        background_tasks.add_task(_build_kc_cache, valkey)
+        stale = await valkey.get(_KC_STALE_KEY)
+        data = json.loads(stale) if stale else []
 
-    stale = await valkey.get(_KC_STALE_KEY)
-    return json.loads(stale) if stale else []
+    if data:
+        entries_by_name: dict[str, list[dict]] = {}
+        for boss in data:
+            for e in boss.get("entries", []):
+                key = e["player_name"].lower()
+                entries_by_name.setdefault(key, []).append(e)
+        await _enrich_with_clan_rank(entries_by_name, session)
+
+    return data
 
 
 @router.get("/leaderboards/leagues")
 async def leagues_leaderboard(
     background_tasks: BackgroundTasks,
     valkey: Valkey = Depends(get_valkey),
+    session: AsyncSession = Depends(get_session),
 ) -> list[dict]:
     """Return clan members ranked by total Clue Scrolls completed, served from cache.
 
@@ -516,13 +560,18 @@ async def leagues_leaderboard(
     stale fallback for 48 h while a background refresh runs.
     """
     fresh = await valkey.get(_LEAGUES_FRESH_KEY)
-    if fresh:
-        return json.loads(fresh)
+    data: list[dict] = json.loads(fresh) if fresh else []
 
-    background_tasks.add_task(_build_leagues_cache, valkey)
+    if not data:
+        background_tasks.add_task(_build_leagues_cache, valkey)
+        stale = await valkey.get(_LEAGUES_STALE_KEY)
+        data = json.loads(stale) if stale else []
 
-    stale = await valkey.get(_LEAGUES_STALE_KEY)
-    return json.loads(stale) if stale else []
+    if data:
+        entries_by_name = {e["player_name"].lower(): [e] for e in data}
+        await _enrich_with_clan_rank(entries_by_name, session)
+
+    return data
 
 
 @router.get("/leaderboards/collection-log")
@@ -564,14 +613,26 @@ async def collection_log_leaderboard(
         .group_by(Event.player_name)
         .order_by(slots_col.desc().nulls_last())
     )
+    rows = [r for r in result if r.player_name and r.player_name.lower() not in opt_out_rsns]
+
+    names = {r.player_name.lower() for r in rows}
+    rank_map: dict[str, str | None] = {}
+    if names:
+        rank_rows = await session.execute(
+            select(func.lower(User.rsn), User.clan_rank).where(
+                func.lower(User.rsn).in_(list(names))
+            )
+        )
+        rank_map = {row[0]: row[1] for row in rank_rows}
+
     return [
         {
             "player_name": r.player_name,
             "slots": r.slots or 0,
             "slots_max": global_slots_max,
+            "clan_rank": rank_map.get(r.player_name.lower()),
         }
-        for r in result
-        if r.player_name and r.player_name.lower() not in opt_out_rsns
+        for r in rows
     ]
 
 

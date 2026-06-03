@@ -42,15 +42,26 @@ _RANK_ORDER = {
 }
 
 
-def _compute_breakdown(players: list[dict]) -> dict:
-    if not players:
-        return {
-            "avg_boss_pct": 0.0,
-            "avg_skill_pct": 0.0,
-            "rank_distribution": {},
-        }
+async def _get_all_deduplicated(session: AsyncSession) -> list[PlayerRanking]:
+    """Fetch and deduplicate all PlayerRanking rows, sorted by rank then points."""
+    rows = (await session.execute(select(PlayerRanking))).scalars().all()
+    best_per_user: dict[int, PlayerRanking] = {}
+    unlinked: list[PlayerRanking] = []
+    for r in rows:
+        if r.discord_user_id is None:
+            unlinked.append(r)
+        else:
+            prev = best_per_user.get(r.discord_user_id)
+            if prev is None or r.points > prev.points:
+                best_per_user[r.discord_user_id] = r
+    result = list(best_per_user.values()) + unlinked
+    result.sort(key=lambda r: (-_RANK_ORDER.get(r.rank, 0), -r.points))
+    return result
 
-    rank_dist: dict[str, int] = {}
+
+def _compute_breakdown(players: list[dict]) -> dict:
+    # Pre-populate all known WOM ranks with 0 so callers always get every slot
+    rank_dist: dict[str, int] = {r: 0 for r in _RANK_ORDER}
     boss_pcts: list[float] = []
 
     for p in players:
@@ -88,6 +99,50 @@ async def get_ranking_status(
         "last_error": svc.last_error,
         "service_active": True,
         "is_running": svc.is_running,
+    }
+
+
+@router.get("/stats")
+async def get_ranking_stats(session: AsyncSession = Depends(get_session)) -> dict:
+    """Full WOM + clan rank distribution across all ranked players. Public, never paginated."""
+    all_deduplicated = await _get_all_deduplicated(session)
+
+    breakdown = _compute_breakdown(
+        [
+            {
+                "rank": r.rank,
+                "boss_points": r.boss_points,
+                "skill_points": r.skill_points,
+            }
+            for r in all_deduplicated
+        ]
+    )
+
+    user_ids = [r.discord_user_id for r in all_deduplicated if r.discord_user_id]
+    clan_rank_dist: dict[str, int] = {}
+    rank_overlap: dict[str, dict[str, int]] = {}
+    if user_ids:
+        clan_rows = await session.execute(
+            select(User.discord_user_id, User.clan_rank).where(
+                User.discord_user_id.in_(user_ids),
+                User.clan_rank.is_not(None),
+            )
+        )
+        clan_rank_by_user: dict[int, str] = {row.discord_user_id: row.clan_rank for row in clan_rows}
+        for r in all_deduplicated:
+            clan_rank = clan_rank_by_user.get(r.discord_user_id) if r.discord_user_id else None
+            if clan_rank:
+                clan_rank_dist[clan_rank] = clan_rank_dist.get(clan_rank, 0) + 1
+                wom_bucket = rank_overlap.setdefault(r.rank, {})
+                wom_bucket[clan_rank] = wom_bucket.get(clan_rank, 0) + 1
+
+    return {
+        "total": len(all_deduplicated),
+        "rank_distribution": breakdown["rank_distribution"],
+        "clan_rank_distribution": clan_rank_dist,
+        "rank_overlap": rank_overlap,
+        "avg_boss_pct": breakdown["avg_boss_pct"],
+        "avg_skill_pct": breakdown["avg_skill_pct"],
     }
 
 
@@ -136,39 +191,16 @@ async def get_ranking_results(
     skip: int = 0,
     limit: int = 100,
     rank_filter: str | None = None,
-    _: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Paginated ranked player list. All authenticated users.
+    """Paginated ranked player list. Public. Use /ranking/stats for distribution data."""
+    all_deduplicated = await _get_all_deduplicated(session)
 
-    For users with multiple linked RSNs, only the highest-scoring alt is shown
-    (best alt wins).
-    """
-    stmt = select(PlayerRanking)
-    if rank_filter:
-        stmt = stmt.where(PlayerRanking.rank == rank_filter)
-
-    all_rows = await session.execute(stmt)
-    all_rankings = all_rows.scalars().all()
-
-    # Deduplicate: keep best-scoring entry per discord_user_id
-    best_per_user: dict[int, PlayerRanking] = {}
-    unlinked: list[PlayerRanking] = []
-    for r in all_rankings:
-        if r.discord_user_id is None:
-            unlinked.append(r)
-        else:
-            prev = best_per_user.get(r.discord_user_id)
-            if prev is None or r.points > prev.points:
-                best_per_user[r.discord_user_id] = r
-
-    deduplicated = list(best_per_user.values()) + unlinked
-
-    # Apply rank filter to deduplicated list (already filtered by stmt, but unlinked rows
-    # with wrong rank could slip through if no filter - stmt handles this)
-
-    # Sort by rank order then points descending
-    deduplicated.sort(key=lambda r: (-_RANK_ORDER.get(r.rank, 0), -r.points))
+    deduplicated = (
+        [r for r in all_deduplicated if r.rank == rank_filter]
+        if rank_filter
+        else all_deduplicated
+    )
 
     total = len(deduplicated)
     page = deduplicated[skip : skip + limit]
@@ -181,18 +213,19 @@ async def get_ranking_results(
     for row in alt_map_result:
         alt_map[row.discord_user_id].append(row.rsn)
 
-    # Fetch linked usernames
+    # Fetch linked usernames and clan ranks
     user_ids = [r.discord_user_id for r in page if r.discord_user_id]
     username_map: dict[int, str] = {}
+    clan_rank_map: dict[int, str | None] = {}
     if user_ids:
         users_result = await session.execute(
-            select(User.discord_user_id, User.discord_username).where(
+            select(User.discord_user_id, User.discord_username, User.clan_rank).where(
                 User.discord_user_id.in_(user_ids)
             )
         )
-        username_map = {
-            row.discord_user_id: row.discord_username for row in users_result
-        }
+        for row in users_result:
+            username_map[row.discord_user_id] = row.discord_username
+            clan_rank_map[row.discord_user_id] = row.clan_rank
 
     players = [
         {
@@ -203,6 +236,9 @@ async def get_ranking_results(
             "skill_points": r.skill_points,
             "discord_user_id": r.discord_user_id,
             "username": username_map.get(r.discord_user_id)
+            if r.discord_user_id
+            else None,
+            "clan_rank": clan_rank_map.get(r.discord_user_id)
             if r.discord_user_id
             else None,
             "alts": [
@@ -220,7 +256,6 @@ async def get_ranking_results(
     return {
         "players": players,
         "total": total,
-        "breakdown": _compute_breakdown(players),
     }
 
 
