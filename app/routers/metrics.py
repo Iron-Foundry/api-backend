@@ -171,13 +171,8 @@ async def services_uptime(
             """
             SELECT service_name, (recorded_at AT TIME ZONE 'UTC')::date AS day
             FROM metric_records
-            WHERE recorded_at >= CURRENT_DATE - :days * interval '1 day'
+            WHERE recorded_at >= CURRENT_DATE - CAST(:days AS INTEGER) * interval '1 day'
             GROUP BY service_name, day
-            UNION
-            SELECT service_name, date AS day
-            FROM metric_records_compact
-            WHERE date >= CURRENT_DATE - :days
-            GROUP BY service_name, date
             """
         ),
         {"days": days},
@@ -189,13 +184,9 @@ async def services_uptime(
     first_seen_rows = await session.execute(
         text(
             """
-            SELECT service_name, MIN(day) FROM (
-                SELECT service_name, (recorded_at AT TIME ZONE 'UTC')::date AS day
-                FROM metric_records
-                UNION ALL
-                SELECT service_name, date AS day
-                FROM metric_records_compact
-            ) t GROUP BY service_name
+            SELECT service_name, MIN((recorded_at AT TIME ZONE 'UTC')::date)
+            FROM metric_records
+            GROUP BY service_name
             """
         )
     )
@@ -289,6 +280,59 @@ async def metrics_bandwidth(
         "total_req_bytes": int(raw_req) + int(compact_req),
         "total_resp_bytes": int(raw_resp) + int(compact_resp),
     }
+
+
+@router.get("/metrics/wom-rate-limit")
+async def wom_rate_limit_metrics(
+    minutes: int = Query(default=60, ge=5, le=1440),
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[dict]:
+    """Return WOM rate-limit snapshots from DB (last N minutes) merged with in-memory."""
+    await _require_staff(current_user, session)
+    from app.services.http.wom_queue import get_wom_queue
+
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=minutes)
+    db_rows = (
+        await session.execute(
+            select(MetricRecord)
+            .where(
+                MetricRecord.service_name == "api-backend",
+                MetricRecord.module_name == "wom_rate_limit",
+                MetricRecord.recorded_at >= cutoff,
+            )
+            .order_by(MetricRecord.recorded_at)
+        )
+    ).scalars().all()
+
+    seen_ts: set[float] = set()
+    result: list[dict] = []
+
+    for row in db_rows:
+        ts = row.recorded_at.timestamp()
+        seen_ts.add(round(ts, 1))
+        result.append({
+            "ts": ts,
+            "remaining": row.metrics.get("remaining", 100),
+            "reservedUsed": row.metrics.get("reserved_used", 0),
+            "queueHigh": row.metrics.get("queue_high", 0),
+            "queueNormal": row.metrics.get("queue_normal", 0),
+            "queueLow": row.metrics.get("queue_low", 0),
+        })
+
+    for s in get_wom_queue().snapshot_history():
+        if round(s.ts, 1) not in seen_ts:
+            result.append({
+                "ts": s.ts,
+                "remaining": s.remaining,
+                "reservedUsed": s.reserved_used,
+                "queueHigh": s.queue_high,
+                "queueNormal": s.queue_normal,
+                "queueLow": s.queue_low,
+            })
+
+    result.sort(key=lambda r: r["ts"])
+    return result
 
 
 @router.get("/metrics/history")

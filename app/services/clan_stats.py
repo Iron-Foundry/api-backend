@@ -10,7 +10,7 @@ from loguru import logger
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.db.models import ClanStats
-from app.services.http import WiseOldManHandler
+from app.services.http import WiseOldManHandler, WomPriority
 
 POLL_INTERVAL = 3600  # 1 hour
 
@@ -64,7 +64,7 @@ class ClanStatsService:
         logger.info("ClanStatsService: fetching WOM stats (group={})", _WOM_GROUP_ID)
 
         async with WiseOldManHandler(
-            api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT
+            api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT, priority=WomPriority.LOW
         ) as wom:
             group_data, *raid_totals = await asyncio.gather(
                 wom.get_group(_WOM_GROUP_ID),

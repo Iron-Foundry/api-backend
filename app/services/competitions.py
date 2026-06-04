@@ -7,7 +7,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.services.http import WiseOldManHandler
+from app.services.http import WiseOldManHandler, WomPriority
 
 
 class CompetitionTeam(BaseModel):
@@ -81,7 +81,7 @@ async def create_competition(
         payload["groupVerificationCode"] = group_key
 
     async with WiseOldManHandler(
-        api_key=api_key, discord_contact=discord_contact
+        api_key=api_key, discord_contact=discord_contact, priority=WomPriority.HIGH
     ) as wom:
         return await wom.create_competition(payload)
 
@@ -105,7 +105,7 @@ async def edit_competition(
         payload["endsAt"] = data.ends_at.isoformat()
 
     async with WiseOldManHandler(
-        api_key=api_key, discord_contact=discord_contact
+        api_key=api_key, discord_contact=discord_contact, priority=WomPriority.HIGH
     ) as wom:
         return await wom.edit_competition(comp_id, payload)
 
@@ -119,6 +119,6 @@ async def delete_competition(
 ) -> None:
     payload = {"verificationCode": group_key}
     async with WiseOldManHandler(
-        api_key=api_key, discord_contact=discord_contact
+        api_key=api_key, discord_contact=discord_contact, priority=WomPriority.HIGH
     ) as wom:
         await wom.delete_competition(comp_id, payload)

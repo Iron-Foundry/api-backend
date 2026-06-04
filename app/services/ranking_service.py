@@ -13,6 +13,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.db.models import Config, PlayerRanking, PlayerSnapshot, UserAccount
 from app.services.http.wom import WiseOldManHandler
+from app.services.http.wom_queue import WomPriority
 
 POLL_INTERVAL = 86400  # 24 hours
 
@@ -377,7 +378,7 @@ class RankingService:
         logger.info("RankingService: fetching group {} from WOM", self._group_id)
 
         async with WiseOldManHandler(
-            api_key=self._api_key, discord_contact=_WOM_DISCORD_CONTACT
+            api_key=self._api_key, discord_contact=_WOM_DISCORD_CONTACT, priority=WomPriority.LOW
         ) as wom:
             group_data = await wom.get_group(self._group_id)
             memberships = group_data.get("memberships", [])

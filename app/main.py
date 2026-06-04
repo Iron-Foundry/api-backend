@@ -36,11 +36,12 @@ from app.services.connection_manager import connection_manager
 from app.services.clan_stats import ClanStatsService
 from app.services.competition_snapshot import CompetitionSnapshotService
 from app.services.discord_party import close_party_embed
-from app.services.ccingest_metrics import CcIngestMetricsService
 from app.services.ccingest_metrics import collector as ccingest_collector
 from app.services.endpoint_metrics import EndpointMetricsCollector, EndpointMetricsService
 from app.services.metric_compaction import MetricCompactionService
 from app.services.websocket_metrics import WebSocketMetricsService
+from app.services.http.wom_queue import init_wom_queue
+from app.services.wom_metrics import WomMetricsService
 from app.services.name_change import WomNameChangeService
 from app.services.ranking_service import RankingService
 
@@ -207,6 +208,9 @@ async def lifespan(app: FastAPI):
         app.state.engine = None
         app.state.session_factory = None
 
+    wom_queue = init_wom_queue()
+    await wom_queue.start()
+
     logger.info("Connecting to Valkey at {}...", VALKEY_URI)
     app.state.valkey = Valkey.from_url(VALKEY_URI)
     await frenzy.warm_osrs_caches(app.state.valkey)
@@ -252,15 +256,13 @@ async def lifespan(app: FastAPI):
     )
     await endpoint_metrics_service.start()
     ws_metrics_service = WebSocketMetricsService(
-        connection_manager, app.state.session_factory
+        connection_manager, app.state.session_factory, ccingest_collector
     )
     await ws_metrics_service.start()
-    ccingest_metrics_service = CcIngestMetricsService(
-        ccingest_collector, app.state.session_factory
-    )
-    await ccingest_metrics_service.start()
+    wom_metrics_service = WomMetricsService(app.state.session_factory)
+    await wom_metrics_service.start()
     yield
-    await ccingest_metrics_service.stop()
+    await wom_metrics_service.stop()
     await ws_metrics_service.stop()
     await endpoint_metrics_service.stop()
     await compaction_service.stop()
@@ -282,6 +284,7 @@ async def lifespan(app: FastAPI):
         await ranking_service.stop()
     if snapshot_service:
         await snapshot_service.stop()
+    await wom_queue.stop()
     if app.state.engine:
         logger.info("Closing PostgreSQL connection...")
         await app.state.engine.dispose()

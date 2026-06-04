@@ -5,7 +5,7 @@ import asyncio
 from loguru import logger
 
 from app.services.feed_event import insert_feed_event
-from app.services.http import WiseOldManHandler
+from app.services.http import WiseOldManHandler, WomPriority
 from app.services.rsn_cascade import cascade_rsn_change
 
 POLL_INTERVAL = 1800  # 30 minutes
@@ -54,7 +54,7 @@ class WomNameChangeService:
             logger.warning("WomNameChangeService: no session_factory - skipping")
             return
 
-        wom = WiseOldManHandler(group_key=self._group_key, api_key=self._api_key)
+        wom = WiseOldManHandler(group_key=self._group_key, api_key=self._api_key, priority=WomPriority.NORMAL)
         changes: list[dict] = await wom.get_group_name_changes(self._group_id)
 
         approved = [

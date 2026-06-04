@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import ClassVar
@@ -12,37 +11,7 @@ import httpx
 from loguru import logger
 
 from app.services.http.base import BaseRequestHandler
-
-# Shared rate-limit bucket - one bucket for all WiseOldManHandler instances.
-# WOM uses express-rate-limit with standardHeaders (IETF draft):
-#   RateLimit-Remaining: <n>
-#   RateLimit-Reset: <seconds until window ends>  (delta, not epoch)
-_rl_remaining: int = 60
-_rl_reset_at: float = 0.0  # time.monotonic() deadline
-
-
-def _rl_update(headers: httpx.Headers) -> None:
-    global _rl_remaining, _rl_reset_at
-    raw_remaining = headers.get("ratelimit-remaining")
-    raw_reset = headers.get("ratelimit-reset")
-    if raw_remaining is not None:
-        try:
-            _rl_remaining = int(raw_remaining)
-        except ValueError:
-            pass
-    if raw_reset is not None:
-        try:
-            _rl_reset_at = time.monotonic() + float(raw_reset)
-        except ValueError:
-            pass
-
-
-async def _rl_proactive_sleep() -> None:
-    if _rl_remaining <= 1:
-        wait = _rl_reset_at - time.monotonic()
-        if wait > 0:
-            logger.debug("wom: rate limit bucket exhausted, sleeping {:.1f}s", wait)
-            await asyncio.sleep(wait + 0.25)
+from app.services.http.wom_queue import WomPriority, get_wom_queue
 
 
 @dataclass
@@ -88,9 +57,11 @@ class WiseOldManHandler(BaseRequestHandler):
         discord_contact: str | None = None,
         group_key: str | None = None,
         timeout: float | None = None,
+        priority: WomPriority = WomPriority.NORMAL,
     ) -> None:
         super().__init__(timeout=timeout)
         self._group_key = group_key
+        self._priority = priority
 
         user_agent = (
             f"IronFoundry/1.0 (discord: @{discord_contact})"
@@ -112,12 +83,14 @@ class WiseOldManHandler(BaseRequestHandler):
         *,
         params: dict | None = None,
     ) -> httpx.Response:
-        """GET with shared-bucket proactive sleep and 429 retry."""
+        """GET via priority queue with proactive sleep and 429 retry."""
+        queue = get_wom_queue()
         resp: httpx.Response | None = None
         for attempt in range(3):
-            await _rl_proactive_sleep()
-            resp = await self.get(path, params=params)
-            _rl_update(resp.headers)
+            resp = await queue.submit(
+                lambda p=path, pa=params: self.get(p, params=pa),
+                self._priority,
+            )
             if resp.status_code != 429:
                 return resp
             retry_after = float(resp.headers.get("retry-after", "5"))
@@ -137,17 +110,21 @@ class WiseOldManHandler(BaseRequestHandler):
         *,
         json: dict | None = None,
     ) -> httpx.Response:
-        """POST/PUT/DELETE with shared-bucket proactive sleep and 429 retry."""
+        """POST/PUT/DELETE via priority queue with proactive sleep and 429 retry."""
+        queue = get_wom_queue()
         resp: httpx.Response | None = None
         for attempt in range(3):
-            await _rl_proactive_sleep()
             if method == "post":
-                resp = await self.post(path, json=json)
+                async def _coro(p: str = path, j: dict | None = json) -> httpx.Response:
+                    return await self.post(p, json=j)
             elif method == "put":
-                resp = await self.put(path, json=json)
+                async def _coro(p: str = path, j: dict | None = json) -> httpx.Response:  # type: ignore[misc]
+                    return await self.put(p, json=j)
             else:
-                resp = await self.delete(path, json=json)
-            _rl_update(resp.headers)
+                async def _coro(p: str = path, j: dict | None = json) -> httpx.Response:  # type: ignore[misc]
+                    return await self.delete(p, json=j)
+
+            resp = await queue.submit(_coro, self._priority)
             if resp.status_code != 429:
                 return resp
             retry_after = float(resp.headers.get("retry-after", "5"))
@@ -217,9 +194,12 @@ class WiseOldManHandler(BaseRequestHandler):
     async def get_group_name_changes(
         self, group_id: str | int, *, limit: int = 50
     ) -> list[dict]:
-        resp = await self.get(
-            f"/groups/{group_id}/name-changes",
-            params={"limit": limit},
+        queue = get_wom_queue()
+        resp = await queue.submit(
+            lambda gid=group_id, lim=limit: self.get(
+                f"/groups/{gid}/name-changes", params={"limit": lim}
+            ),
+            self._priority,
         )
         resp.raise_for_status()
         return resp.json()
@@ -249,7 +229,11 @@ class WiseOldManHandler(BaseRequestHandler):
         self, comp_id: int, *, metric: str | None = None
     ) -> dict:
         params: dict | None = {"metric": metric} if metric else None
-        resp = await self.get(f"/competitions/{comp_id}", params=params)
+        queue = get_wom_queue()
+        resp = await queue.submit(
+            lambda cid=comp_id, p=params: self.get(f"/competitions/{cid}", params=p),
+            self._priority,
+        )
         resp.raise_for_status()
         return resp.json()
 
@@ -265,7 +249,11 @@ class WiseOldManHandler(BaseRequestHandler):
             "metric": metric,
             "date": date.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
         }
-        resp = await self.get(f"/competitions/{comp_id}", params=params)
+        queue = get_wom_queue()
+        resp = await queue.submit(
+            lambda cid=comp_id, p=params: self.get(f"/competitions/{cid}", params=p),
+            self._priority,
+        )
         resp.raise_for_status()
         return resp.json()
 

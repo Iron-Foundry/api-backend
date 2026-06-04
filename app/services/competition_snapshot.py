@@ -20,7 +20,7 @@ from sqlalchemy import select
 from valkey.asyncio import Valkey
 
 from app.db.models import CompetitionSnapshot, Config
-from app.services.http import WiseOldManHandler
+from app.services.http import WiseOldManHandler, WomPriority
 
 _WOM_API_KEY = os.getenv("WOM_API_KEY")
 _WOM_DISCORD_CONTACT = os.getenv("WOM_DISCORD_CONTACT")
@@ -106,7 +106,7 @@ class CompetitionSnapshotService:
         now = datetime.now(timezone.utc)
 
         async with WiseOldManHandler(
-            api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT
+            api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT, priority=WomPriority.NORMAL
         ) as wom:
             if not ongoing:
                 # Cache cold - fetch comp list from WOM directly.

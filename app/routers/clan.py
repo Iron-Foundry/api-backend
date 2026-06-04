@@ -25,7 +25,7 @@ from app.services.competitions import (
     delete_competition,
     edit_competition,
 )
-from app.services.http import WiseOldManHandler
+from app.services.http import WiseOldManHandler, WomPriority
 from app.services.page_permissions import require_page_permission
 
 router = APIRouter(prefix="/clan", tags=["clan"])
@@ -172,6 +172,7 @@ async def _build_kc_cache(valkey: Valkey) -> None:
             api_key=_WOM_API_KEY,
             discord_contact=_WOM_DISCORD_CONTACT,
             timeout=15.0,
+            priority=WomPriority.LOW,
         ) as wom:
             out: list[dict] = []
             for metric, display_name in _KC_METRICS.items():
@@ -207,6 +208,7 @@ async def _build_leagues_cache(valkey: Valkey) -> None:
             api_key=_WOM_API_KEY,
             discord_contact=_WOM_DISCORD_CONTACT,
             timeout=15.0,
+            priority=WomPriority.LOW,
         ) as wom:
             while True:
                 page = await wom.get_group_hiscores(
@@ -271,7 +273,7 @@ async def _build_name_changes_cache(valkey: Valkey) -> None:
     logger.info("name-changes cache: hydrating from WOM (group={})", _WOM_GROUP_ID)
     try:
         wom = WiseOldManHandler(
-            api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT
+            api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT, priority=WomPriority.NORMAL
         )
         changes = await wom.get_group_name_changes(_WOM_GROUP_ID, limit=50)
         result = [
@@ -644,7 +646,7 @@ async def _build_metric_detail_cache(
     logger.info("comp metric cache: hydrating comp={} metric={}", comp_id, metric)
     try:
         async with WiseOldManHandler(
-            api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT
+            api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT, priority=WomPriority.NORMAL
         ) as wom:
             data = await wom.get_competition_details(comp_id, metric=metric)
 
@@ -717,7 +719,7 @@ async def _build_competitions_cache(valkey: Valkey) -> None:
     logger.info("competitions cache: hydrating from WOM (group={})", _WOM_GROUP_ID)
     try:
         wom = WiseOldManHandler(
-            api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT
+            api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT, priority=WomPriority.NORMAL
         )
         comps = await wom.get_all_group_competitions(_WOM_GROUP_ID)
         if comps:
@@ -976,7 +978,7 @@ async def competition_details(
                 metric = match.get("metric") or None
             break
 
-    wom = WiseOldManHandler(api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT)
+    wom = WiseOldManHandler(api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT, priority=WomPriority.HIGH)
     try:
         data = await wom.get_cached_competition(comp_id, metric=metric)
     except httpx.HTTPStatusError as exc:
