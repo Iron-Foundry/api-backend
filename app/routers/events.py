@@ -15,6 +15,7 @@ from app.db.models import CofferEvent, Leaderboard, MembershipEvent, Metric, Use
 from app.dependencies import get_session, get_valkey, verify_clan
 from app.models.clan_chat import ClanChatPayload
 from app.services import parser
+from app.services.ccingest_metrics import collector as ccingest_collector
 from app.services.dispatcher import is_duplicate, publish
 from app.services.feed_event import insert_feed_event
 from app.services.parser import BroadcastType
@@ -123,6 +124,7 @@ async def _handle_broadcast(
 ) -> None:
     """Classify and store a clan broadcast message (sender == clan name)."""
     kind = parser.classify(payload.message)
+    ccingest_collector.record(kind.value)
 
     if await _any_opted_out(session, _broadcast_player_names(kind, payload.message)):
         return
@@ -684,11 +686,13 @@ async def ingest_chat(
                 clan["guild_id"],
                 payload.sender,
             )
+            ccingest_collector.record("duplicate")
             continue
 
         if is_broadcast:
             await _handle_broadcast(payload, clan, session, valkey)
         else:
+            ccingest_collector.record("chat")
             dispatch_data = {
                 "player_name": payload.sender,
                 "rank": payload.rank,

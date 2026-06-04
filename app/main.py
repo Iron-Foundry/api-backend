@@ -36,6 +36,8 @@ from app.services.connection_manager import connection_manager
 from app.services.clan_stats import ClanStatsService
 from app.services.competition_snapshot import CompetitionSnapshotService
 from app.services.discord_party import close_party_embed
+from app.services.ccingest_metrics import CcIngestMetricsService
+from app.services.ccingest_metrics import collector as ccingest_collector
 from app.services.endpoint_metrics import EndpointMetricsCollector, EndpointMetricsService
 from app.services.metric_compaction import MetricCompactionService
 from app.services.websocket_metrics import WebSocketMetricsService
@@ -253,7 +255,12 @@ async def lifespan(app: FastAPI):
         connection_manager, app.state.session_factory
     )
     await ws_metrics_service.start()
+    ccingest_metrics_service = CcIngestMetricsService(
+        ccingest_collector, app.state.session_factory
+    )
+    await ccingest_metrics_service.start()
     yield
+    await ccingest_metrics_service.stop()
     await ws_metrics_service.stop()
     await endpoint_metrics_service.stop()
     await compaction_service.stop()
