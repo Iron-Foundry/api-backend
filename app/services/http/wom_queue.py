@@ -27,15 +27,15 @@ from typing import Any, Callable
 import httpx
 from loguru import logger
 
-_HIGH_RESERVE = 5    # slots 96-100: HIGH only
+_HIGH_RESERVE = 5  # slots 96-100: HIGH only
 _NORMAL_RESERVE = 20  # slots 76-95: HIGH + NORMAL
-_LOW_RESERVE = 75    # slots 1-75:  all priorities
+_LOW_RESERVE = 75  # slots 1-75:  all priorities
 
 
 class WomPriority(IntEnum):
-    HIGH = 0    # user-triggered (router endpoints)
+    HIGH = 0  # user-triggered (router endpoints)
     NORMAL = 1  # regular background services
-    LOW = 2     # bulk / paginated background ops
+    LOW = 2  # bulk / paginated background ops
 
 
 @dataclass
@@ -92,14 +92,18 @@ class WomRequestQueue:
                 pass
         logger.info("WomRequestQueue stopped")
 
-    def submit(self, coro_fn: Callable[[], Any], priority: WomPriority) -> asyncio.Future:
+    def submit(
+        self, coro_fn: Callable[[], Any], priority: WomPriority
+    ) -> asyncio.Future:
         """Enqueue a WOM request. Returns a Future resolved with the httpx.Response."""
         loop = asyncio.get_event_loop()
         future: asyncio.Future[httpx.Response] = loop.create_future()
         seq = self._seq
         self._seq += 1
         self._count[priority] += 1
-        self._queue.put_nowait(_QueueItem(priority=priority, seq=seq, coro_fn=coro_fn, future=future))
+        self._queue.put_nowait(
+            _QueueItem(priority=priority, seq=seq, coro_fn=coro_fn, future=future)
+        )
         return future
 
     def snapshot_history(self) -> list[WomSnapshot]:
@@ -140,14 +144,18 @@ class WomRequestQueue:
                 await asyncio.sleep(wait + 0.25)
 
     def _record_snapshot(self) -> None:
-        self._history.append(WomSnapshot(
-            ts=time.time(),
-            remaining=self._rl_remaining,
-            reserved_used=max(0, (_HIGH_RESERVE + _NORMAL_RESERVE) - self._rl_remaining),
-            queue_high=self._count[WomPriority.HIGH],
-            queue_normal=self._count[WomPriority.NORMAL],
-            queue_low=self._count[WomPriority.LOW],
-        ))
+        self._history.append(
+            WomSnapshot(
+                ts=time.time(),
+                remaining=self._rl_remaining,
+                reserved_used=max(
+                    0, (_HIGH_RESERVE + _NORMAL_RESERVE) - self._rl_remaining
+                ),
+                queue_high=self._count[WomPriority.HIGH],
+                queue_normal=self._count[WomPriority.NORMAL],
+                queue_low=self._count[WomPriority.LOW],
+            )
+        )
 
     async def _consumer(self) -> None:
         while True:

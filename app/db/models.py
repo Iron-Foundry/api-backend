@@ -799,7 +799,9 @@ class ServiceStatus(Base):
 
     service_name: Mapped[str] = mapped_column(Text, primary_key=True)
     is_healthy: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    last_seen: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    last_seen: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
     version: Mapped[str | None] = mapped_column(Text)
     uptime_seconds: Mapped[int | None] = mapped_column(BigInteger)
     summary_metrics: Mapped[dict] = mapped_column(

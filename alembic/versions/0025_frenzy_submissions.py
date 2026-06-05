@@ -48,7 +48,9 @@ def upgrade() -> None:
         sa.Column("payload", JSONB(), nullable=False, server_default="{}"),
         # pending | approved | rejected
         sa.Column("status", sa.Text(), nullable=False, server_default="'pending'"),
-        sa.Column("auto_approved", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column(
+            "auto_approved", sa.Boolean(), nullable=False, server_default="false"
+        ),
         sa.Column("reviewed_by", sa.BigInteger(), nullable=True),
         sa.Column("reviewed_at", sa.TIMESTAMP(timezone=True), nullable=True),
         sa.Column("review_notes", sa.Text(), nullable=True),

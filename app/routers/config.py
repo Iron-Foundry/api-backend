@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import os
+from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Request
+from loguru import logger
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -28,6 +30,17 @@ _ADMIN_BYPASS_KEY = "admin_bypass_roles"
 _NOTIFICATION_CATEGORIES_KEY = "party_notification_categories"
 _RANKING_CONFIG_KEY = "ranking_config"
 _DISCORD_ROLES_KEY = "discord_roles"
+_SERVICE_TOGGLES_KEY = "service_toggles"
+
+_ALL_SERVICE_KEYS: list[str] = [
+    "wom_name_change",
+    "clan_stats",
+    "ranking",
+    "competition_snapshot",
+    "metric_compaction",
+    "discord_chat",
+    "party_expiry",
+]
 
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
@@ -77,6 +90,14 @@ async def _set_guild_config_value(key: str, value: dict, session: AsyncSession) 
     )
     await session.execute(stmt)
     await session.commit()
+
+
+async def get_service_toggles(session: AsyncSession) -> dict[str, bool]:
+    """Return service toggle states, defaulting to True for any unset key."""
+    data = await _get_config_value(_SERVICE_TOGGLES_KEY, session)
+    defaults: dict[str, bool] = {k: True for k in _ALL_SERVICE_KEYS}
+    defaults.update({k: bool(v) for k, v in data.items() if k in defaults})
+    return defaults
 
 
 # ── Rank mappings ─────────────────────────────────────────────────────────────
@@ -214,9 +235,7 @@ async def set_notification_categories(
 ) -> dict:
     """Update the party notification categories list. Requires rank-mappings edit permission."""
     categories = [
-        c.model_dump()
-        for c in body.categories
-        if c.id.strip() and c.label.strip()
+        c.model_dump() for c in body.categories if c.id.strip() and c.label.strip()
     ]
     await _set_config_value(
         _NOTIFICATION_CATEGORIES_KEY, {"categories": categories}, session
@@ -315,7 +334,8 @@ async def get_discord_roles_config(
     data = await _get_config_value(_DISCORD_ROLES_KEY, session)
     return {
         "staff_role_id": data.get("staff_role_id") or os.getenv("STAFF_ROLE_ID", ""),
-        "senior_staff_role_id": data.get("senior_staff_role_id") or os.getenv("SENIOR_STAFF_ROLE_ID", ""),
+        "senior_staff_role_id": data.get("senior_staff_role_id")
+        or os.getenv("SENIOR_STAFF_ROLE_ID", ""),
         "owner_role_id": data.get("owner_role_id") or os.getenv("OWNER_ROLE_ID", ""),
         "mentor_role_id": data.get("mentor_role_id") or os.getenv("MENTOR_ROLE_ID", ""),
     }
@@ -375,7 +395,9 @@ async def set_action_log_config(
 ) -> dict:
     # Preserve bot-managed fields (thread_ids, etc.) by merging
     existing = await _get_guild_config_value("action_log", session)
-    existing.update({"forum_channel_id": body.forum_channel_id, "enabled": body.enabled})
+    existing.update(
+        {"forum_channel_id": body.forum_channel_id, "enabled": body.enabled}
+    )
     await _set_guild_config_value("action_log", existing, session)
     return {"forum_channel_id": body.forum_channel_id, "enabled": body.enabled}
 
@@ -439,3 +461,53 @@ async def get_party_panel_config(
         "channel_id": str(data.get("channel_id", "") or ""),
         "message_id": str(data.get("message_id", "") or ""),
     }
+
+
+# ── Service toggles ───────────────────────────────────────────────────────────
+
+
+class ServiceToggleBody(BaseModel):
+    enabled: bool
+
+
+@router.get(
+    "/services/toggles",
+    dependencies=[Depends(require_page_permission("staff.services", "read"))],
+)
+async def get_service_toggles_endpoint(
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, bool]:
+    """Return current enabled/disabled state for all background services."""
+    return await get_service_toggles(session)
+
+
+@router.put(
+    "/services/toggles/{service_key}",
+    dependencies=[Depends(require_page_permission("staff.services", "edit"))],
+)
+async def set_service_toggle(
+    service_key: str,
+    body: ServiceToggleBody,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, bool]:
+    """Enable or disable a background service. Persists to DB and applies at runtime."""
+    if service_key not in _ALL_SERVICE_KEYS:
+        raise HTTPException(
+            status_code=404, detail=f"Unknown service key: {service_key}"
+        )
+    current = await get_service_toggles(session)
+    current[service_key] = body.enabled
+    await _set_config_value(_SERVICE_TOGGLES_KEY, current, session)
+    registry: dict[str, Any] = getattr(request.app.state, "service_registry", {})
+    svc = registry.get(service_key)
+    if svc is not None:
+        if body.enabled and not svc.is_running:
+            await svc.start()
+        elif not body.enabled and svc.is_running:
+            await svc.stop()
+    else:
+        logger.warning(
+            "Service {} not in registry (may require WOM_GROUP_ID)", service_key
+        )
+    return current

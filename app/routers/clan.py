@@ -16,7 +16,16 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from valkey.asyncio import Valkey
 
-from app.db.models import ClanStats, CompetitionSnapshot, Config, Event, Leaderboard, Metric, User
+from app.db.models import (
+    ClanStats,
+    CompetitionSnapshot,
+    Config,
+    Event,
+    Leaderboard,
+    Metric,
+    User,
+    UserAccount,
+)
 from app.dependencies import get_current_user, get_session, get_valkey
 from app.services.competitions import (
     CreateCompetitionInput,
@@ -273,7 +282,9 @@ async def _build_name_changes_cache(valkey: Valkey) -> None:
     logger.info("name-changes cache: hydrating from WOM (group={})", _WOM_GROUP_ID)
     try:
         wom = WiseOldManHandler(
-            api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT, priority=WomPriority.NORMAL
+            api_key=_WOM_API_KEY,
+            discord_contact=_WOM_DISCORD_CONTACT,
+            priority=WomPriority.NORMAL,
         )
         changes = await wom.get_group_name_changes(_WOM_GROUP_ID, limit=50)
         result = [
@@ -477,46 +488,90 @@ async def clan_leaderboards(session: AsyncSession = Depends(get_session)) -> lis
     )
     rows = result.scalars().all()
 
-    names = {r.player_name.lower() for r in rows if r.player_name}
-    rank_map: dict[str, str | None] = {}
-    if names:
-        rank_rows = await session.execute(
-            select(func.lower(User.rsn), User.clan_rank).where(
-                func.lower(User.rsn).in_(list(names))
-            )
-        )
-        rank_map = {row[0]: row[1] for row in rank_rows}
-
-    return [
+    entries_by_name: dict[str, list[dict]] = {}
+    result_dicts = [
         {
             "player_name": r.player_name,
             "activity": r.activity,
             "variant": r.variant,
             "time_seconds": r.time_seconds,
-            "clan_rank": rank_map.get(r.player_name.lower()) if r.player_name else None,
+            "clan_rank": None,
+            "discord_rank": None,
         }
         for r in rows
     ]
+    for e in result_dicts:
+        if e["player_name"]:
+            entries_by_name.setdefault(e["player_name"].lower(), []).append(e)
+    await _enrich_with_ranks(entries_by_name, session)
+    return result_dicts
 
 
-async def _enrich_with_clan_rank(
+async def _enrich_with_ranks(
     entries_by_name: dict[str, list[dict]],
     session: AsyncSession,
 ) -> None:
-    """Mutate entry dicts in-place, adding clan_rank looked up by player_name."""
+    """Mutate entry dicts in-place, adding clan_rank and discord_rank.
+
+    discord_rank is the highest-order progression label from the user's
+    Discord roles, but only for primary accounts. Alts get discord_rank=None
+    so the frontend falls back to their own clan_rank.
+    """
     names = list(entries_by_name.keys())
     if not names:
         return
-    rank_rows = await session.execute(
-        select(func.lower(User.rsn), User.clan_rank).where(
-            func.lower(User.rsn).in_(names)
+
+    cfg_result = await session.execute(
+        select(Config.value).where(
+            Config.guild_id == 0, Config.key == "clan_rank_mappings"
         )
     )
-    rank_map: dict[str, str | None] = {row[0]: row[1] for row in rank_rows}
+    cfg = cfg_result.scalar_one_or_none() or {}
+    role_id_to_rank: dict[str, tuple[int, str]] = {
+        m["discord_role_id"]: (m.get("order", 0), m.get("label", ""))
+        for m in cfg.get("mappings", [])
+        if m.get("discord_role_id") and m.get("label")
+    }
+
+    def _highest_discord_rank(discord_roles: list) -> str | None:
+        best_order, best_label = -1, None
+        for rid in discord_roles:
+            if rid in role_id_to_rank:
+                order, label = role_id_to_rank[rid]
+                if order > best_order:
+                    best_order, best_label = order, label
+        return best_label
+
+    rank_map: dict[str, tuple[str | None, str | None]] = {}
+
+    ua_rows = await session.execute(
+        select(
+            func.lower(UserAccount.rsn),
+            User.clan_rank,
+            User.discord_roles,
+            UserAccount.is_primary,
+        )
+        .join(User, User.discord_user_id == UserAccount.discord_user_id)
+        .where(func.lower(UserAccount.rsn).in_(names))
+    )
+    for rsn, clan_rank, discord_roles, is_primary in ua_rows:
+        dr = _highest_discord_rank(discord_roles or []) if is_primary else None
+        rank_map[rsn] = (clan_rank, dr)
+
+    legacy_rows = await session.execute(
+        select(func.lower(User.rsn), User.clan_rank, User.discord_roles).where(
+            func.lower(User.rsn).in_(names), User.rsn.isnot(None)
+        )
+    )
+    for rsn, clan_rank, discord_roles in legacy_rows:
+        if rsn not in rank_map:
+            rank_map[rsn] = (clan_rank, _highest_discord_rank(discord_roles or []))
+
     for name, entry_list in entries_by_name.items():
-        cr = rank_map.get(name)
+        clan_rank, discord_rank = rank_map.get(name, (None, None))
         for e in entry_list:
-            e["clan_rank"] = cr
+            e["clan_rank"] = clan_rank
+            e["discord_rank"] = discord_rank
 
 
 @router.get("/leaderboards/killcounts")
@@ -545,7 +600,7 @@ async def killcount_leaderboard(
             for e in boss.get("entries", []):
                 key = e["player_name"].lower()
                 entries_by_name.setdefault(key, []).append(e)
-        await _enrich_with_clan_rank(entries_by_name, session)
+        await _enrich_with_ranks(entries_by_name, session)
 
     return data
 
@@ -571,7 +626,7 @@ async def leagues_leaderboard(
 
     if data:
         entries_by_name = {e["player_name"].lower(): [e] for e in data}
-        await _enrich_with_clan_rank(entries_by_name, session)
+        await _enrich_with_ranks(entries_by_name, session)
 
     return data
 
@@ -615,27 +670,26 @@ async def collection_log_leaderboard(
         .group_by(Event.player_name)
         .order_by(slots_col.desc().nulls_last())
     )
-    rows = [r for r in result if r.player_name and r.player_name.lower() not in opt_out_rsns]
+    rows = [
+        r for r in result if r.player_name and r.player_name.lower() not in opt_out_rsns
+    ]
 
-    names = {r.player_name.lower() for r in rows}
-    rank_map: dict[str, str | None] = {}
-    if names:
-        rank_rows = await session.execute(
-            select(func.lower(User.rsn), User.clan_rank).where(
-                func.lower(User.rsn).in_(list(names))
-            )
-        )
-        rank_map = {row[0]: row[1] for row in rank_rows}
-
-    return [
+    result_dicts = [
         {
             "player_name": r.player_name,
             "slots": r.slots or 0,
             "slots_max": global_slots_max,
-            "clan_rank": rank_map.get(r.player_name.lower()),
+            "clan_rank": None,
+            "discord_rank": None,
         }
         for r in rows
     ]
+    entries_by_name_clog: dict[str, list[dict]] = {}
+    for e in result_dicts:
+        if e["player_name"]:
+            entries_by_name_clog.setdefault(e["player_name"].lower(), []).append(e)
+    await _enrich_with_ranks(entries_by_name_clog, session)
+    return result_dicts
 
 
 async def _build_metric_detail_cache(
@@ -646,7 +700,9 @@ async def _build_metric_detail_cache(
     logger.info("comp metric cache: hydrating comp={} metric={}", comp_id, metric)
     try:
         async with WiseOldManHandler(
-            api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT, priority=WomPriority.NORMAL
+            api_key=_WOM_API_KEY,
+            discord_contact=_WOM_DISCORD_CONTACT,
+            priority=WomPriority.NORMAL,
         ) as wom:
             data = await wom.get_competition_details(comp_id, metric=metric)
 
@@ -713,13 +769,14 @@ async def _build_metric_detail_cache(
         await valkey.delete(lock_key)
 
 
-
 async def _build_competitions_cache(valkey: Valkey) -> None:
     """Fetch all group competitions from WOM and write to Valkey cache. Lock already held by caller."""
     logger.info("competitions cache: hydrating from WOM (group={})", _WOM_GROUP_ID)
     try:
         wom = WiseOldManHandler(
-            api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT, priority=WomPriority.NORMAL
+            api_key=_WOM_API_KEY,
+            discord_contact=_WOM_DISCORD_CONTACT,
+            priority=WomPriority.NORMAL,
         )
         comps = await wom.get_all_group_competitions(_WOM_GROUP_ID)
         if comps:
@@ -947,10 +1004,12 @@ async def competition_overtime(
                     name = standing["player_name"]
                     if name not in players:
                         players[name] = []
-                    players[name].append({
-                        "date": snap.captured_at.isoformat(),
-                        "value": standing["gained"],
-                    })
+                    players[name].append(
+                        {
+                            "date": snap.captured_at.isoformat(),
+                            "value": standing["gained"],
+                        }
+                    )
             series = sorted(
                 [{"player_name": n, "history": h} for n, h in players.items()],
                 key=lambda p: p["history"][-1]["value"] if p["history"] else 0,
@@ -978,7 +1037,11 @@ async def competition_details(
                 metric = match.get("metric") or None
             break
 
-    wom = WiseOldManHandler(api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT, priority=WomPriority.HIGH)
+    wom = WiseOldManHandler(
+        api_key=_WOM_API_KEY,
+        discord_contact=_WOM_DISCORD_CONTACT,
+        priority=WomPriority.HIGH,
+    )
     try:
         data = await wom.get_cached_competition(comp_id, metric=metric)
     except httpx.HTTPStatusError as exc:

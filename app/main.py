@@ -1,9 +1,6 @@
-import asyncio
-import json
 import os
 import time
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,19 +28,23 @@ from app.routers import (
     staff,
     surveys,
 )
-from app.routers.ccdispatch import split_message
 from app.services.connection_manager import connection_manager
 from app.services.clan_stats import ClanStatsService
 from app.services.competition_snapshot import CompetitionSnapshotService
-from app.services.discord_party import close_party_embed
+from app.services.discord_chat import DiscordChatService
 from app.services.ccingest_metrics import collector as ccingest_collector
-from app.services.endpoint_metrics import EndpointMetricsCollector, EndpointMetricsService
+from app.services.endpoint_metrics import (
+    EndpointMetricsCollector,
+    EndpointMetricsService,
+)
 from app.services.metric_compaction import MetricCompactionService
+from app.services.party_expiry import PartyExpiryService
 from app.services.websocket_metrics import WebSocketMetricsService
 from app.services.http.wom_queue import init_wom_queue
 from app.services.wom_metrics import WomMetricsService
 from app.services.name_change import WomNameChangeService
 from app.services.ranking_service import RankingService
+from app.routers.config import get_service_toggles, _ALL_SERVICE_KEYS
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 VALKEY_URI = os.getenv("VALKEY_URI", "redis://localhost:6379")
@@ -53,147 +54,6 @@ WOM_API_KEY = os.getenv("WOM_API_KEY")
 WOM_CLAN_NAME = os.getenv("WOM_CLAN_NAME", "Iron Foundry")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 _ALLOWED_ORIGINS = [o.strip() for o in FRONTEND_URL.split(",") if o.strip()]
-
-
-async def _discord_chat_subscriber(valkey_uri: str, session_factory) -> None:  # type: ignore[no-untyped-def]
-    """Subscribe to Discord clan chat messages and broadcast them to RuneLite clients."""
-    from sqlalchemy.dialects.postgresql import insert as pg_insert
-
-    from app.db.models import Metric
-
-    spacebar_counts: dict[int, int] = {}
-    while True:
-        sub = Valkey.from_url(valkey_uri, socket_timeout=None)
-        try:
-            async with sub.pubsub() as ps:
-                await ps.subscribe("foundry:discord_chat")
-                logger.info(
-                    "discord_chat_subscriber: subscribed to foundry:discord_chat"
-                )
-                async for raw in ps.listen():
-                    if raw["type"] != "message":
-                        continue
-                    logger.debug(
-                        "discord_chat_subscriber: received raw message: {}", raw["data"]
-                    )
-                    try:
-                        data = json.loads(raw["data"])
-                        guild_id: int = int(
-                            data.get("guild_id") or data.get("guild_name", 0)
-                        )
-                        text: str = data["message"]
-                        logger.info(
-                            "discord_chat_subscriber: forwarding [{}/{}] → {} client(s)",
-                            guild_id,
-                            data.get("sender", "?"),
-                            connection_manager.connection_count(guild_id),
-                        )
-                        for part in split_message(text):
-                            msg = json.dumps(
-                                {
-                                    "message_type": "ToClanChat",
-                                    "message": {
-                                        "sender": data["sender"],
-                                        "rank": data.get("rank"),
-                                        "message": part,
-                                    },
-                                }
-                            )
-                            await connection_manager.broadcast(guild_id, msg)
-                        if not text.strip():
-                            spacebar_counts[guild_id] = (
-                                spacebar_counts.get(guild_id, 0) + 1
-                            )
-                            count = spacebar_counts[guild_id]
-                            if count == 2:
-                                sys_text: str | None = "Spacebar check started!"
-                            elif count > 2:
-                                sys_text = f"Spacebar check: {count}"
-                            else:
-                                sys_text = None
-                            if sys_text:
-                                await connection_manager.broadcast(
-                                    guild_id,
-                                    json.dumps(
-                                        {
-                                            "message_type": "ToClanChat",
-                                            "message": {
-                                                "sender": "System",
-                                                "rank": None,
-                                                "message": sys_text,
-                                            },
-                                        }
-                                    ),
-                                )
-                            if count >= 2:
-                                record_id = f"longest_spacebar_check_{guild_id}"
-                                now = datetime.now(timezone.utc)
-                                stmt = (
-                                    pg_insert(Metric)
-                                    .values(
-                                        id=record_id,
-                                        count=count,
-                                        achieved_at=now,
-                                        last_updated=now,
-                                    )
-                                    .on_conflict_do_update(
-                                        index_elements=["id"],
-                                        set_={
-                                            "count": count,
-                                            "last_updated": now,
-                                        },
-                                        where=Metric.count < count,
-                                    )
-                                )
-                                async with session_factory() as session:
-                                    await session.execute(stmt)
-                                    await session.commit()
-                        else:
-                            prev = spacebar_counts.get(guild_id, 0)
-                            spacebar_counts[guild_id] = 0
-                            if prev >= 2:
-                                await connection_manager.broadcast(
-                                    guild_id,
-                                    json.dumps(
-                                        {
-                                            "message_type": "ToClanChat",
-                                            "message": {
-                                                "sender": "System",
-                                                "rank": None,
-                                                "message": f"Spacebar check failed at {prev}!",
-                                            },
-                                        }
-                                    ),
-                                )
-                    except Exception as exc:
-                        logger.warning("discord_chat_subscriber error: {}", exc)
-        except asyncio.CancelledError:
-            logger.info("discord_chat_subscriber: shutting down")
-            await sub.aclose()
-            return
-        except Exception as exc:
-            logger.warning(
-                "discord_chat_subscriber: connection lost ({}), reconnecting in 5s", exc
-            )
-            await sub.aclose()
-            await asyncio.sleep(5)
-
-
-async def _party_expiry_task(session_factory) -> None:  # type: ignore[no-untyped-def]
-    """Close expired parties every 60 seconds."""
-    from app.party_store import expire_parties
-
-    while True:
-        await asyncio.sleep(60)
-        if not session_factory:
-            continue
-        try:
-            async with session_factory() as session:
-                for party in await expire_parties(session):
-                    logger.info("party_expiry: closing expired party {}", party.id)
-                    await close_party_embed(party)
-        except Exception as exc:
-            logger.warning("party_expiry: error - {}", exc)
 
 
 @asynccontextmanager
@@ -214,16 +74,25 @@ async def lifespan(app: FastAPI):
     logger.info("Connecting to Valkey at {}...", VALKEY_URI)
     app.state.valkey = Valkey.from_url(VALKEY_URI)
     await frenzy.warm_osrs_caches(app.state.valkey)
-    subscriber_task = asyncio.create_task(
-        _discord_chat_subscriber(VALKEY_URI, app.state.session_factory),
-        name="discord-chat-subscriber",
-    )
-    expiry_task = asyncio.create_task(
-        _party_expiry_task(app.state.session_factory), name="party-expiry"
-    )
-    clan_stats_service: ClanStatsService | None = None
-    ranking_service: RankingService | None = None
-    snapshot_service: CompetitionSnapshotService | None = None
+
+    # Read toggle state from DB; fall back to all-enabled if DB unavailable
+    if app.state.session_factory:
+        try:
+            async with app.state.session_factory() as _s:
+                toggles = await get_service_toggles(_s)
+        except Exception as exc:
+            logger.warning(
+                "Could not read service toggles ({}), defaulting all enabled", exc
+            )
+            toggles = {k: True for k in _ALL_SERVICE_KEYS}
+    else:
+        toggles = {k: True for k in _ALL_SERVICE_KEYS}
+
+    # Build all service instances
+    discord_chat_svc = DiscordChatService(VALKEY_URI, app.state.session_factory)
+    party_expiry_svc = PartyExpiryService(app.state.session_factory)
+    compaction_service = MetricCompactionService(app.state.session_factory)
+
     if WOM_GROUP_ID:
         wom_service: WomNameChangeService | None = WomNameChangeService(
             app.state.session_factory,
@@ -232,25 +101,44 @@ async def lifespan(app: FastAPI):
             WOM_CLAN_NAME,
             api_key=WOM_API_KEY,
         )
-        await wom_service.start()
-        clan_stats_service = ClanStatsService(app.state.session_factory)
-        await clan_stats_service.start()
-        ranking_service = RankingService(
+        clan_stats_service: ClanStatsService | None = ClanStatsService(
+            app.state.session_factory
+        )
+        ranking_service: RankingService | None = RankingService(
             app.state.session_factory,
             int(WOM_GROUP_ID),
             api_key=WOM_API_KEY,
         )
-        await ranking_service.start()
-        snapshot_service = CompetitionSnapshotService(app.state.session_factory, app.state.valkey)
-        await snapshot_service.start()
+        snapshot_service: CompetitionSnapshotService | None = (
+            CompetitionSnapshotService(app.state.session_factory, app.state.valkey)
+        )
     else:
         logger.warning(
-            "WOM_GROUP_ID not set - name change, clan stats, and ranking services disabled"
+            "WOM_GROUP_ID not set - name change, clan stats, ranking and snapshot services disabled"
         )
         wom_service = None
+        clan_stats_service = None
+        ranking_service = None
+        snapshot_service = None
+
     app.state.ranking_service = ranking_service
-    compaction_service = MetricCompactionService(app.state.session_factory)
-    await compaction_service.start()
+    app.state.service_registry = {
+        "discord_chat": discord_chat_svc,
+        "party_expiry": party_expiry_svc,
+        "metric_compaction": compaction_service,
+        "wom_name_change": wom_service,
+        "clan_stats": clan_stats_service,
+        "ranking": ranking_service,
+        "competition_snapshot": snapshot_service,
+    }
+
+    # Start only enabled services
+    for key, svc in app.state.service_registry.items():
+        if svc is not None and toggles.get(key, True):
+            await svc.start()
+        elif svc is not None:
+            logger.info("Service {} disabled by config - skipping start", key)
+
     endpoint_metrics_service = EndpointMetricsService(
         app.state.endpoint_metrics_collector, app.state.session_factory
     )
@@ -265,25 +153,9 @@ async def lifespan(app: FastAPI):
     await wom_metrics_service.stop()
     await ws_metrics_service.stop()
     await endpoint_metrics_service.stop()
-    await compaction_service.stop()
-    subscriber_task.cancel()
-    expiry_task.cancel()
-    try:
-        await subscriber_task
-    except asyncio.CancelledError:
-        pass
-    try:
-        await expiry_task
-    except asyncio.CancelledError:
-        pass
-    if wom_service:
-        await wom_service.stop()
-    if clan_stats_service:
-        await clan_stats_service.stop()
-    if ranking_service:
-        await ranking_service.stop()
-    if snapshot_service:
-        await snapshot_service.stop()
+    for key, svc in app.state.service_registry.items():
+        if svc is not None and svc.is_running:
+            await svc.stop()
     await wom_queue.stop()
     if app.state.engine:
         logger.info("Closing PostgreSQL connection...")
@@ -315,8 +187,11 @@ async def _request_metrics_middleware(request: Request, call_next):
     resp_bytes = int(response.headers.get("content-length", 0))
     route = request.scope.get("route")
     path = route.path if route else request.url.path
-    _collector.record(request.method, path, response.status_code, duration_ms, req_bytes, resp_bytes)
+    _collector.record(
+        request.method, path, response.status_code, duration_ms, req_bytes, resp_bytes
+    )
     return response
+
 
 app.include_router(assets.router)
 app.include_router(auth.router)

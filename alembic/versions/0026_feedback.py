@@ -55,7 +55,9 @@ def upgrade() -> None:
         sa.Column("discord_user_id", sa.BigInteger(), nullable=False, primary_key=True),
         sa.Column("created_at", sa.TIMESTAMP(timezone=True), nullable=False),
     )
-    op.create_index("ix_feedback_reactions_feedback_id", "feedback_reactions", ["feedback_id"])
+    op.create_index(
+        "ix_feedback_reactions_feedback_id", "feedback_reactions", ["feedback_id"]
+    )
 
     op.create_table(
         "feedback_replies",
@@ -72,7 +74,9 @@ def upgrade() -> None:
         sa.Column("created_at", sa.TIMESTAMP(timezone=True), nullable=False),
         sa.Column("updated_at", sa.TIMESTAMP(timezone=True), nullable=False),
     )
-    op.create_index("ix_feedback_replies_feedback_id", "feedback_replies", ["feedback_id"])
+    op.create_index(
+        "ix_feedback_replies_feedback_id", "feedback_replies", ["feedback_id"]
+    )
     # Only one official reply per feedback item
     op.execute(
         """

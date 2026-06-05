@@ -91,7 +91,9 @@ async def get_role_panel(
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     result = await session.execute(
-        select(RolePanel).where(RolePanel.panel_id == panel_id, RolePanel.guild_id == _GUILD_ID)
+        select(RolePanel).where(
+            RolePanel.panel_id == panel_id, RolePanel.guild_id == _GUILD_ID
+        )
     )
     panel = result.scalar_one_or_none()
     if panel is None:
@@ -110,7 +112,9 @@ async def update_role_panel(
 ) -> dict:
     """Update panel metadata and roles list. Run /rolepanel refresh in Discord to sync the embed."""
     result = await session.execute(
-        select(RolePanel).where(RolePanel.panel_id == panel_id, RolePanel.guild_id == _GUILD_ID)
+        select(RolePanel).where(
+            RolePanel.panel_id == panel_id, RolePanel.guild_id == _GUILD_ID
+        )
     )
     panel = result.scalar_one_or_none()
     if panel is None:
@@ -146,14 +150,14 @@ async def delete_role_panel(
 ) -> dict:
     """Delete a panel from the database. The Discord message will become orphaned - delete it manually."""
     result = await session.execute(
-        select(RolePanel).where(RolePanel.panel_id == panel_id, RolePanel.guild_id == _GUILD_ID)
+        select(RolePanel).where(
+            RolePanel.panel_id == panel_id, RolePanel.guild_id == _GUILD_ID
+        )
     )
     panel = result.scalar_one_or_none()
     if panel is None:
         raise HTTPException(404, "Panel not found")
 
-    await session.execute(
-        delete(RolePanel).where(RolePanel.panel_id == panel_id)
-    )
+    await session.execute(delete(RolePanel).where(RolePanel.panel_id == panel_id))
     await session.commit()
     return {"deleted": panel_id}

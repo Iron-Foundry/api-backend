@@ -104,7 +104,9 @@ class EndpointMetricsCollector:
             "total_requests": total_requests,
             "total_errors_4xx": total_4xx,
             "total_errors_5xx": total_5xx,
-            "avg_latency_ms": round(total_ms / total_requests, 1) if total_requests else 0.0,
+            "avg_latency_ms": round(total_ms / total_requests, 1)
+            if total_requests
+            else 0.0,
             "total_req_bytes": total_req_bytes,
             "total_resp_bytes": total_resp_bytes,
             "endpoints": endpoints,
@@ -121,7 +123,9 @@ class EndpointMetricsService:
         self._start_time = time.monotonic()
 
     async def start(self) -> None:
-        self._task = asyncio.create_task(self._poll_loop(), name="endpoint-metrics-flush")
+        self._task = asyncio.create_task(
+            self._poll_loop(), name="endpoint-metrics-flush"
+        )
         logger.info("EndpointMetricsService started (interval={}s)", _FLUSH_INTERVAL)
 
     async def stop(self) -> None:

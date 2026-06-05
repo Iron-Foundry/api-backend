@@ -115,12 +115,15 @@ class WiseOldManHandler(BaseRequestHandler):
         resp: httpx.Response | None = None
         for attempt in range(3):
             if method == "post":
+
                 async def _coro(p: str = path, j: dict | None = json) -> httpx.Response:
                     return await self.post(p, json=j)
             elif method == "put":
+
                 async def _coro(p: str = path, j: dict | None = json) -> httpx.Response:  # type: ignore[misc]
                     return await self.put(p, json=j)
             else:
+
                 async def _coro(p: str = path, j: dict | None = json) -> httpx.Response:  # type: ignore[misc]
                     return await self.delete(p, json=j)
 

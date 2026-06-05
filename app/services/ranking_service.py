@@ -307,10 +307,19 @@ class RankingService:
         self._api_key = api_key
         self._task: asyncio.Task[None] | None = None
         self._run_event = asyncio.Event()
-        self.is_running: bool = False
+        self._run_active: bool = False
         self.last_run_at: datetime | None = None
         self.last_run_count: int = 0
         self.last_error: str | None = None
+
+    @property
+    def is_running(self) -> bool:
+        return self._task is not None and not self._task.done()
+
+    @property
+    def run_active(self) -> bool:
+        """True while a ranking computation is actively in progress."""
+        return self._run_active
 
     async def start(self) -> None:
         self._task = asyncio.create_task(self._poll_loop(), name="ranking-service")
@@ -331,7 +340,7 @@ class RankingService:
 
     def run_now(self) -> bool:
         """Trigger an immediate ranking run. Returns False if already running."""
-        if self.is_running:
+        if self._run_active:
             return False
         self._run_event.set()
         return True
@@ -339,14 +348,14 @@ class RankingService:
     async def _poll_loop(self) -> None:
         while True:
             self._run_event.clear()
-            self.is_running = True
+            self._run_active = True
             try:
                 await self._refresh()
             except Exception as exc:
                 self.last_error = str(exc)
                 logger.warning("RankingService._refresh error: {}", exc)
             finally:
-                self.is_running = False
+                self._run_active = False
             try:
                 await asyncio.wait_for(self._run_event.wait(), timeout=POLL_INTERVAL)
             except TimeoutError:
@@ -378,7 +387,9 @@ class RankingService:
         logger.info("RankingService: fetching group {} from WOM", self._group_id)
 
         async with WiseOldManHandler(
-            api_key=self._api_key, discord_contact=_WOM_DISCORD_CONTACT, priority=WomPriority.LOW
+            api_key=self._api_key,
+            discord_contact=_WOM_DISCORD_CONTACT,
+            priority=WomPriority.LOW,
         ) as wom:
             group_data = await wom.get_group(self._group_id)
             memberships = group_data.get("memberships", [])

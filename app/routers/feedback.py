@@ -21,7 +21,13 @@ from app.services.rank_mappings import get_effective_roles
 router = APIRouter(prefix="/feedback", tags=["feedback"])
 
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "/app/uploads"))
-_ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp", "image/avif"}
+_ALLOWED_IMAGE_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "image/avif",
+}
 _ALLOWED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif"}
 _MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
@@ -58,7 +64,16 @@ class EditFeedbackBody(BaseModel):
 
 
 class UpdateStatusBody(BaseModel):
-    status: Literal["open", "planned", "implemented", "needs-triage", "wont-add", "reviewing", "patched", "wont-fix"]
+    status: Literal[
+        "open",
+        "planned",
+        "implemented",
+        "needs-triage",
+        "wont-add",
+        "reviewing",
+        "patched",
+        "wont-fix",
+    ]
 
 
 class PostReplyBody(BaseModel):
@@ -77,10 +92,14 @@ async def _get_username(discord_user_id: int, session: AsyncSession) -> str | No
     return result.scalar_one_or_none()
 
 
-async def _get_user_info(discord_user_id: int, session: AsyncSession) -> tuple[str | None, str | None]:
+async def _get_user_info(
+    discord_user_id: int, session: AsyncSession
+) -> tuple[str | None, str | None]:
     """Return (discord_username, clan_rank)."""
     result = await session.execute(
-        select(User.discord_username, User.clan_rank).where(User.discord_user_id == discord_user_id)
+        select(User.discord_username, User.clan_rank).where(
+            User.discord_user_id == discord_user_id
+        )
     )
     row = result.one_or_none()
     if row:
@@ -88,7 +107,9 @@ async def _get_user_info(discord_user_id: int, session: AsyncSession) -> tuple[s
     return None, None
 
 
-async def _resolve_attachments(attachment_ids: list, session: AsyncSession) -> list[dict]:
+async def _resolve_attachments(
+    attachment_ids: list, session: AsyncSession
+) -> list[dict]:
     if not attachment_ids:
         return []
     results = []
@@ -99,12 +120,14 @@ async def _resolve_attachments(attachment_ids: list, session: AsyncSession) -> l
             continue
         asset = await session.get(Asset, asset_uuid)
         if asset:
-            results.append({
-                "id": str(asset.id),
-                "url": f"/assets/file/{asset.filename}",
-                "original_name": asset.original_name,
-                "content_type": asset.content_type,
-            })
+            results.append(
+                {
+                    "id": str(asset.id),
+                    "url": f"/assets/file/{asset.filename}",
+                    "original_name": asset.original_name,
+                    "content_type": asset.content_type,
+                }
+            )
     return results
 
 
@@ -162,7 +185,9 @@ async def _build_item(
     reply_count = reply_count_result.scalar_one()
 
     last_reply_result = await session.execute(
-        select(func.max(FeedbackReply.created_at)).where(FeedbackReply.feedback_id == item.id)
+        select(func.max(FeedbackReply.created_at)).where(
+            FeedbackReply.feedback_id == item.id
+        )
     )
     last_reply_at_raw = last_reply_result.scalar_one_or_none()
     last_reply_at = last_reply_at_raw.isoformat() if last_reply_at_raw else None
@@ -176,11 +201,18 @@ async def _build_item(
     pinned_reply_row = pinned_result.scalar_one_or_none()
     pinned_reply = None
     if pinned_reply_row:
-        if item.is_anonymous and pinned_reply_row.discord_user_id == item.discord_user_id:
+        if (
+            item.is_anonymous
+            and pinned_reply_row.discord_user_id == item.discord_user_id
+        ):
             pinned_reply = _serialize_reply(pinned_reply_row, None, None)
         else:
-            pinned_author, pinned_clan_rank = await _get_user_info(pinned_reply_row.discord_user_id, session)
-            pinned_reply = _serialize_reply(pinned_reply_row, pinned_author, pinned_clan_rank)
+            pinned_author, pinned_clan_rank = await _get_user_info(
+                pinned_reply_row.discord_user_id, session
+            )
+            pinned_reply = _serialize_reply(
+                pinned_reply_row, pinned_author, pinned_clan_rank
+            )
 
     attachments = await _resolve_attachments(item.attachment_ids or [], session)
 
@@ -239,7 +271,9 @@ async def upload_attachment(
     uid = int(current_user["sub"])
 
     if file.content_type not in _ALLOWED_IMAGE_TYPES:
-        raise HTTPException(400, f"Only image files are allowed. Got: {file.content_type!r}")
+        raise HTTPException(
+            400, f"Only image files are allowed. Got: {file.content_type!r}"
+        )
 
     original_name = file.filename or "upload"
     ext = Path(original_name).suffix.lower()

@@ -52,7 +52,9 @@ class CcIngestMetricsService:
         self._task: asyncio.Task[None] | None = None
 
     async def start(self) -> None:
-        self._task = asyncio.create_task(self._poll_loop(), name="ccingest-metrics-flush")
+        self._task = asyncio.create_task(
+            self._poll_loop(), name="ccingest-metrics-flush"
+        )
         logger.info("CcIngestMetricsService started (interval={}s)", _FLUSH_INTERVAL)
 
     async def stop(self) -> None:

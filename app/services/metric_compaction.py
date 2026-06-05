@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from loguru import logger
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.db.models import MetricRecord, MetricRecordCompact
@@ -43,6 +43,10 @@ class MetricCompactionService:
     def __init__(self, session_factory) -> None:  # type: ignore[no-untyped-def]
         self._session_factory = session_factory
         self._task: asyncio.Task[None] | None = None
+
+    @property
+    def is_running(self) -> bool:
+        return self._task is not None and not self._task.done()
 
     async def start(self) -> None:
         self._task = asyncio.create_task(self._poll_loop(), name="metric-compaction")

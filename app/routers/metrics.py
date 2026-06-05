@@ -100,7 +100,9 @@ async def services_status(
     rows = await session.execute(select(ServiceStatus))
     services = list(rows.scalars())
 
-    stale_cutoff = datetime.now(timezone.utc) - timedelta(minutes=_STALE_THRESHOLD_MINUTES)
+    stale_cutoff = datetime.now(timezone.utc) - timedelta(
+        minutes=_STALE_THRESHOLD_MINUTES
+    )
     result: list[dict] = []
     for svc in services:
         is_healthy = svc.is_healthy and svc.last_seen > stale_cutoff
@@ -118,7 +120,10 @@ async def services_status(
     live = _api_backend_status(request)
     existing = next((r for r in result if r["service_name"] == "api-backend"), None)
     if existing:
-        existing["summary_metrics"] = {**existing["summary_metrics"], **live["summary_metrics"]}
+        existing["summary_metrics"] = {
+            **existing["summary_metrics"],
+            **live["summary_metrics"],
+        }
         existing["is_healthy"] = live["is_healthy"]
         existing["last_seen"] = live["last_seen"]
     else:
@@ -135,7 +140,7 @@ def _api_backend_status(request: Request) -> dict:
     ranking_metrics: dict[str, Any] = {}
     if ranking_service is not None:
         ranking_metrics = {
-            "ranking_is_running": ranking_service.is_running,
+            "ranking_is_running": ranking_service.run_active,
             "ranking_last_run_at": ranking_service.last_run_at.isoformat()
             if ranking_service.last_run_at
             else None,
@@ -205,7 +210,9 @@ async def services_uptime(
     for service_name in sorted(all_services):
         service_active = active.get(service_name, set())
         fs = first_seen.get(service_name)
-        reporting_start = max(window_start, datetime.strptime(fs, "%Y-%m-%d").date()) if fs else None
+        reporting_start = (
+            max(window_start, datetime.strptime(fs, "%Y-%m-%d").date()) if fs else None
+        )
 
         day_list: list[dict] = []
         operational_count = 0
@@ -223,7 +230,11 @@ async def services_uptime(
                 day_list.append({"date": date_str, "status": "incident"})
                 total_count += 1
 
-        uptime_pct = round((operational_count / total_count * 100), 2) if total_count > 0 else None
+        uptime_pct = (
+            round((operational_count / total_count * 100), 2)
+            if total_count > 0
+            else None
+        )
 
         result.append(
             {
@@ -294,16 +305,20 @@ async def wom_rate_limit_metrics(
 
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=minutes)
     db_rows = (
-        await session.execute(
-            select(MetricRecord)
-            .where(
-                MetricRecord.service_name == "api-backend",
-                MetricRecord.module_name == "wom_rate_limit",
-                MetricRecord.recorded_at >= cutoff,
+        (
+            await session.execute(
+                select(MetricRecord)
+                .where(
+                    MetricRecord.service_name == "api-backend",
+                    MetricRecord.module_name == "wom_rate_limit",
+                    MetricRecord.recorded_at >= cutoff,
+                )
+                .order_by(MetricRecord.recorded_at)
             )
-            .order_by(MetricRecord.recorded_at)
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     seen_ts: set[float] = set()
     result: list[dict] = []
@@ -311,25 +326,29 @@ async def wom_rate_limit_metrics(
     for row in db_rows:
         ts = row.recorded_at.timestamp()
         seen_ts.add(round(ts, 1))
-        result.append({
-            "ts": ts,
-            "remaining": row.metrics.get("remaining", 100),
-            "reservedUsed": row.metrics.get("reserved_used", 0),
-            "queueHigh": row.metrics.get("queue_high", 0),
-            "queueNormal": row.metrics.get("queue_normal", 0),
-            "queueLow": row.metrics.get("queue_low", 0),
-        })
+        result.append(
+            {
+                "ts": ts,
+                "remaining": row.metrics.get("remaining", 100),
+                "reservedUsed": row.metrics.get("reserved_used", 0),
+                "queueHigh": row.metrics.get("queue_high", 0),
+                "queueNormal": row.metrics.get("queue_normal", 0),
+                "queueLow": row.metrics.get("queue_low", 0),
+            }
+        )
 
     for s in get_wom_queue().snapshot_history():
         if round(s.ts, 1) not in seen_ts:
-            result.append({
-                "ts": s.ts,
-                "remaining": s.remaining,
-                "reservedUsed": s.reserved_used,
-                "queueHigh": s.queue_high,
-                "queueNormal": s.queue_normal,
-                "queueLow": s.queue_low,
-            })
+            result.append(
+                {
+                    "ts": s.ts,
+                    "remaining": s.remaining,
+                    "reservedUsed": s.reserved_used,
+                    "queueHigh": s.queue_high,
+                    "queueNormal": s.queue_normal,
+                    "queueLow": s.queue_low,
+                }
+            )
 
     result.sort(key=lambda r: r["ts"])
     return result
@@ -394,9 +413,9 @@ async def metrics_history(
         for r in compact_rows.scalars()
     ]
 
-    all_records = sorted(
-        raw + compact, key=lambda r: r["recorded_at"], reverse=True
-    )[:limit]
+    all_records = sorted(raw + compact, key=lambda r: r["recorded_at"], reverse=True)[
+        :limit
+    ]
 
     modules_result = await session.execute(
         text(

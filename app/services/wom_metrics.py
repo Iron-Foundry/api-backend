@@ -46,7 +46,8 @@ class WomMetricsService:
         if not self._session_factory:
             return
         new_snapshots = [
-            s for s in get_wom_queue().snapshot_history()
+            s
+            for s in get_wom_queue().snapshot_history()
             if s.ts > self._last_flushed_ts
         ]
         if not new_snapshots:

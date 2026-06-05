@@ -51,9 +51,15 @@ class CompetitionSnapshotService:
         self._valkey = valkey
         self._task: asyncio.Task[None] | None = None
 
+    @property
+    def is_running(self) -> bool:
+        return self._task is not None and not self._task.done()
+
     async def start(self) -> None:
         self._task = asyncio.create_task(self._poll_loop(), name="comp-snapshot")
-        logger.info("CompetitionSnapshotService started (poll_interval={}s)", POLL_INTERVAL)
+        logger.info(
+            "CompetitionSnapshotService started (poll_interval={}s)", POLL_INTERVAL
+        )
 
     async def stop(self) -> None:
         if self._task:
@@ -86,7 +92,9 @@ class CompetitionSnapshotService:
             metric_map: dict = result.scalar_one_or_none() or {}
 
         if not metric_map:
-            logger.debug("CompetitionSnapshotService: no metric map configured - skipping")
+            logger.debug(
+                "CompetitionSnapshotService: no metric map configured - skipping"
+            )
             return
 
         # Prefer the already-warm Valkey comp cache over a fresh WOM round-trip.
@@ -106,11 +114,15 @@ class CompetitionSnapshotService:
         now = datetime.now(timezone.utc)
 
         async with WiseOldManHandler(
-            api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT, priority=WomPriority.NORMAL
+            api_key=_WOM_API_KEY,
+            discord_contact=_WOM_DISCORD_CONTACT,
+            priority=WomPriority.NORMAL,
         ) as wom:
             if not ongoing:
                 # Cache cold - fetch comp list from WOM directly.
-                logger.info("CompetitionSnapshotService: Valkey cache cold, fetching from WOM")
+                logger.info(
+                    "CompetitionSnapshotService: Valkey cache cold, fetching from WOM"
+                )
                 all_comps = await wom.get_all_group_competitions(_WOM_GROUP_ID)
                 ongoing = [c for c in all_comps if c.get("status") == "ongoing"]
 
@@ -125,7 +137,9 @@ class CompetitionSnapshotService:
 
             for comp in ongoing:
                 comp_id: int = comp["id"]
-                starts_at = datetime.fromisoformat(comp["startsAt"].replace("Z", "+00:00"))
+                starts_at = datetime.fromisoformat(
+                    comp["startsAt"].replace("Z", "+00:00")
+                )
                 metrics: list[str] = metric_map.get(str(comp_id), [])
 
                 for metric in metrics:
@@ -143,10 +157,12 @@ class CompetitionSnapshotService:
                     standings = []
                     for p in data.get("participations", []):
                         progress = p.get("progress") or {}
-                        standings.append({
-                            "player_name": p["player"]["displayName"],
-                            "gained": _safe_gained(progress.get("gained")),
-                        })
+                        standings.append(
+                            {
+                                "player_name": p["player"]["displayName"],
+                                "gained": _safe_gained(progress.get("gained")),
+                            }
+                        )
 
                     standings.sort(key=lambda x: x["gained"], reverse=True)
                     standings = standings[:10]
@@ -168,7 +184,9 @@ class CompetitionSnapshotService:
                         )
                     )
 
-                    await self._backfill_start_if_needed(wom, comp_id, metric, starts_at)
+                    await self._backfill_start_if_needed(
+                        wom, comp_id, metric, starts_at
+                    )
 
         if not snapshots:
             return
@@ -208,7 +226,9 @@ class CompetitionSnapshotService:
             )
             earliest_at: datetime | None = result.scalar_one_or_none()
 
-        if earliest_at is not None and (earliest_at - starts_at) < timedelta(minutes=10):
+        if earliest_at is not None and (earliest_at - starts_at) < timedelta(
+            minutes=10
+        ):
             return
 
         logger.info(
@@ -219,7 +239,9 @@ class CompetitionSnapshotService:
         )
 
         try:
-            data = await wom.get_competition_details_at(comp_id, metric=metric, date=starts_at)
+            data = await wom.get_competition_details_at(
+                comp_id, metric=metric, date=starts_at
+            )
         except Exception as exc:
             logger.warning(
                 "CompetitionSnapshotService: backfill WOM fetch failed comp={} metric={} - {}",

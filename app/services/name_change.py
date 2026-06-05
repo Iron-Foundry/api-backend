@@ -28,6 +28,10 @@ class WomNameChangeService:
         self._task: asyncio.Task | None = None
         self._last_id: int = 0
 
+    @property
+    def is_running(self) -> bool:
+        return self._task is not None and not self._task.done()
+
     async def start(self) -> None:
         self._task = asyncio.create_task(self._poll_loop(), name="wom-name-change")
         logger.info("WomNameChangeService started (group_id={})", self._group_id)
@@ -54,7 +58,11 @@ class WomNameChangeService:
             logger.warning("WomNameChangeService: no session_factory - skipping")
             return
 
-        wom = WiseOldManHandler(group_key=self._group_key, api_key=self._api_key, priority=WomPriority.NORMAL)
+        wom = WiseOldManHandler(
+            group_key=self._group_key,
+            api_key=self._api_key,
+            priority=WomPriority.NORMAL,
+        )
         changes: list[dict] = await wom.get_group_name_changes(self._group_id)
 
         approved = [

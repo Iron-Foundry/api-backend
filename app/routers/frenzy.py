@@ -15,8 +15,20 @@ from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from valkey.asyncio import Valkey
 
-from app.db.models import FrenzyEvent, FrenzySubmission, FrenzyTemplate, FrenzyTemplateVersion, FrenzyTeam, User
-from app.dependencies import get_current_user, get_optional_user, get_session, get_valkey
+from app.db.models import (
+    FrenzyEvent,
+    FrenzySubmission,
+    FrenzyTemplate,
+    FrenzyTemplateVersion,
+    FrenzyTeam,
+    User,
+)
+from app.dependencies import (
+    get_current_user,
+    get_optional_user,
+    get_session,
+    get_valkey,
+)
 from app.services.http import WiseOldManHandler
 from app.services.page_permissions import require_page_permission
 
@@ -95,7 +107,10 @@ _BOSS_METRICS: dict[str, tuple[str, str]] = {
     "the_whisperer": ("The Whisperer", "The_Whisperer"),
     "theatre_of_blood": ("Theatre of Blood", "Theatre_of_Blood"),
     "theatre_of_blood_hard_mode": ("Theatre of Blood: HM", "Theatre_of_Blood"),
-    "thermonuclear_smoke_devil": ("Thermonuclear Smoke Devil", "Thermonuclear_Smoke_Devil"),
+    "thermonuclear_smoke_devil": (
+        "Thermonuclear Smoke Devil",
+        "Thermonuclear_Smoke_Devil",
+    ),
     "tombs_of_amascut": ("Tombs of Amascut", "Tombs_of_Amascut"),
     "tombs_of_amascut_expert_mode": ("Tombs of Amascut: Expert", "Tombs_of_Amascut"),
     "tzkal_zuk": ("TzKal-Zuk", "TzKal-Zuk"),
@@ -147,6 +162,7 @@ def _wiki_icon(slug: str) -> str:
 # ---------------------------------------------------------------------------
 # Scoring helpers (mirrors web-app/src/lib/frenzy.ts)
 # ---------------------------------------------------------------------------
+
 
 def _calc_item_points(item: dict, obtained: int) -> float:
     pts = 0.0
@@ -206,11 +222,15 @@ def _compute_scores_from_progress(
     milestone_progress: dict,
 ) -> dict:
     multipliers: list = template.multipliers or []
-    unlocked_mults = [m for m in multipliers if _is_multiplier_unlocked(m, item_progress)]
+    unlocked_mults = [
+        m for m in multipliers if _is_multiplier_unlocked(m, item_progress)
+    ]
     unlocked_affects: dict[str, float] = {}
     for m in unlocked_mults:
         for src in m.get("affects", []):
-            unlocked_affects[src] = unlocked_affects.get(src, 1.0) * m.get("factor", 1.0)
+            unlocked_affects[src] = unlocked_affects.get(src, 1.0) * m.get(
+                "factor", 1.0
+            )
 
     tier_pts: dict[str, float] = {}
     for tier_name, tier_data in (template.tiers or {}).items():
@@ -248,15 +268,19 @@ def _compute_scores_from_progress(
 async def _recompute_team_progress(session: AsyncSession, team: FrenzyTeam) -> None:
     """Rebuild team JSONB caches from all approved submissions for this team."""
     submissions = (
-        await session.execute(
-            select(FrenzySubmission)
-            .where(
-                FrenzySubmission.team_id == team.id,
-                FrenzySubmission.status == "approved",
+        (
+            await session.execute(
+                select(FrenzySubmission)
+                .where(
+                    FrenzySubmission.team_id == team.id,
+                    FrenzySubmission.status == "approved",
+                )
+                .order_by(FrenzySubmission.submitted_at)
             )
-            .order_by(FrenzySubmission.submitted_at)
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     item_progress: dict[str, int] = {}
     # activity/milestone: {name: {discord_user_id: max_value}}
@@ -285,7 +309,9 @@ async def _recompute_team_progress(session: AsyncSession, team: FrenzyTeam) -> N
 
     team.item_progress = item_progress
     team.activity_progress = {n: sum(v.values()) for n, v in activity_by_player.items()}
-    team.milestone_progress = {n: sum(v.values()) for n, v in milestone_by_player.items()}
+    team.milestone_progress = {
+        n: sum(v.values()) for n, v in milestone_by_player.items()
+    }
     team.updated_at = datetime.now(timezone.utc)
 
 
@@ -310,12 +336,16 @@ def _apply_pending_submissions(
             name = p["name"]
             uid = sub.discord_user_id
             act_by_player.setdefault(name, {})
-            act_by_player[name][uid] = max(act_by_player[name].get(uid, 0), p.get("value", 0))
+            act_by_player[name][uid] = max(
+                act_by_player[name].get(uid, 0), p.get("value", 0)
+            )
         elif sub.submission_type == "milestone":
             name = p["name"]
             uid = sub.discord_user_id
             mil_by_player.setdefault(name, {})
-            mil_by_player[name][uid] = max(mil_by_player[name].get(uid, 0), p.get("value", 0))
+            mil_by_player[name][uid] = max(
+                mil_by_player[name].get(uid, 0), p.get("value", 0)
+            )
 
     act_p = dict(base_activity)
     for name, by_player in act_by_player.items():
@@ -344,7 +374,9 @@ def _submission_to_dict(sub: FrenzySubmission, reviewer: User | None = None) -> 
             "discord_user_id": reviewer.discord_user_id,
             "discord_username": reviewer.discord_username,
             "rsn": reviewer.rsn,
-        } if reviewer else None,
+        }
+        if reviewer
+        else None,
         "reviewed_at": sub.reviewed_at.isoformat() if sub.reviewed_at else None,
         "review_notes": sub.review_notes,
         "submitted_at": sub.submitted_at.isoformat(),
@@ -355,6 +387,7 @@ def _submission_to_dict(sub: FrenzySubmission, reviewer: User | None = None) -> 
 # ---------------------------------------------------------------------------
 # OSRS reference data
 # ---------------------------------------------------------------------------
+
 
 async def _refresh_osrs_items(valkey: Valkey) -> None:
     """Load all tradeable items from the GE prices API into Valkey."""
@@ -419,7 +452,10 @@ async def warm_osrs_caches(valkey: Valkey) -> None:
 # Leaderboard cache
 # ---------------------------------------------------------------------------
 
-async def _build_lb_cache(valkey: Valkey, wom_comp_id: int | None, metrics: list[str]) -> None:
+
+async def _build_lb_cache(
+    valkey: Valkey, wom_comp_id: int | None, metrics: list[str]
+) -> None:
     acquired = await valkey.set(_LB_LOCK_KEY, "1", ex=_LB_LOCK_TTL, nx=True)
     if not acquired:
         return
@@ -434,7 +470,13 @@ async def _build_lb_cache(valkey: Valkey, wom_comp_id: int | None, metrics: list
                 entries = await wom.fetch_kc_metric(_WOM_GROUP_ID, metric)
                 if entries:
                     boss_name, _ = _BOSS_METRICS.get(metric, (metric, metric))
-                    out.append({"metric": metric, "display_name": boss_name, "entries": entries})
+                    out.append(
+                        {
+                            "metric": metric,
+                            "display_name": boss_name,
+                            "entries": entries,
+                        }
+                    )
 
         if out:
             payload = json.dumps(out)
@@ -447,6 +489,7 @@ async def _build_lb_cache(valkey: Valkey, wom_comp_id: int | None, metrics: list
 # ---------------------------------------------------------------------------
 # Pydantic schemas
 # ---------------------------------------------------------------------------
+
 
 class TemplateBody(BaseModel):
     name: str
@@ -515,6 +558,7 @@ class TeamPatch(BaseModel):
 # Public endpoints
 # ---------------------------------------------------------------------------
 
+
 @router.get("/active")
 async def get_active_event(
     session: AsyncSession = Depends(get_session),
@@ -538,23 +582,31 @@ async def get_active_event(
         raise HTTPException(500, "Event template not found.")
 
     teams = (
-        await session.execute(
-            select(FrenzyTeam)
-            .where(FrenzyTeam.event_id == event.id)
-            .order_by(FrenzyTeam.sort_order)
+        (
+            await session.execute(
+                select(FrenzyTeam)
+                .where(FrenzyTeam.event_id == event.id)
+                .order_by(FrenzyTeam.sort_order)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     # Load all pending submissions for this event in one query
     pending_by_team: dict[int, list[FrenzySubmission]] = {}
     pending_rows = (
-        await session.execute(
-            select(FrenzySubmission).where(
-                FrenzySubmission.event_id == event.id,
-                FrenzySubmission.status == "pending",
+        (
+            await session.execute(
+                select(FrenzySubmission).where(
+                    FrenzySubmission.event_id == event.id,
+                    FrenzySubmission.status == "pending",
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     for sub in pending_rows:
         pending_by_team.setdefault(sub.team_id, []).append(sub)
 
@@ -637,13 +689,17 @@ async def get_active_team_detail(
 
     # Pending ghost score
     pending_subs = (
-        await session.execute(
-            select(FrenzySubmission).where(
-                FrenzySubmission.team_id == team.id,
-                FrenzySubmission.status == "pending",
+        (
+            await session.execute(
+                select(FrenzySubmission).where(
+                    FrenzySubmission.team_id == team.id,
+                    FrenzySubmission.status == "pending",
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     if pending_subs:
         pi, pa, pm = _apply_pending_submissions(
@@ -659,13 +715,17 @@ async def get_active_team_detail(
 
     # Per-player contribution from approved submissions
     approved_subs = (
-        await session.execute(
-            select(FrenzySubmission).where(
-                FrenzySubmission.team_id == team.id,
-                FrenzySubmission.status == "approved",
+        (
+            await session.execute(
+                select(FrenzySubmission).where(
+                    FrenzySubmission.team_id == team.id,
+                    FrenzySubmission.status == "approved",
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     player_contribution: dict[str, float] = {}
     for sub in approved_subs:
@@ -781,15 +841,19 @@ async def get_team_history(
     ).scalar_one()
 
     approved_subs = (
-        await session.execute(
-            select(FrenzySubmission)
-            .where(
-                FrenzySubmission.team_id == team.id,
-                FrenzySubmission.status == "approved",
+        (
+            await session.execute(
+                select(FrenzySubmission)
+                .where(
+                    FrenzySubmission.team_id == team.id,
+                    FrenzySubmission.status == "approved",
+                )
+                .order_by(FrenzySubmission.submitted_at)
             )
-            .order_by(FrenzySubmission.submitted_at)
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     # Build cumulative score at each submission point
     item_p: dict[str, int] = {}
@@ -807,12 +871,16 @@ async def get_team_history(
             name = p["name"]
             uid = sub.discord_user_id
             act_by_player.setdefault(name, {})
-            act_by_player[name][uid] = max(act_by_player[name].get(uid, 0), p.get("value", 0))
+            act_by_player[name][uid] = max(
+                act_by_player[name].get(uid, 0), p.get("value", 0)
+            )
         elif sub.submission_type == "milestone":
             name = p["name"]
             uid = sub.discord_user_id
             mil_by_player.setdefault(name, {})
-            mil_by_player[name][uid] = max(mil_by_player[name].get(uid, 0), p.get("value", 0))
+            mil_by_player[name][uid] = max(
+                mil_by_player[name].get(uid, 0), p.get("value", 0)
+            )
 
         act_p = {n: sum(v.values()) for n, v in act_by_player.items()}
         mil_p = {n: sum(v.values()) for n, v in mil_by_player.items()}
@@ -865,10 +933,14 @@ async def get_event_history(
         raise HTTPException(404, "No active frenzy event.")
 
     teams = (
-        await session.execute(
-            select(FrenzyTeam).where(FrenzyTeam.event_id == event.id)
+        (
+            await session.execute(
+                select(FrenzyTeam).where(FrenzyTeam.event_id == event.id)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     template = (
         await session.execute(
@@ -877,15 +949,19 @@ async def get_event_history(
     ).scalar_one()
 
     all_subs = (
-        await session.execute(
-            select(FrenzySubmission)
-            .where(
-                FrenzySubmission.event_id == event.id,
-                FrenzySubmission.status == "approved",
+        (
+            await session.execute(
+                select(FrenzySubmission)
+                .where(
+                    FrenzySubmission.event_id == event.id,
+                    FrenzySubmission.status == "approved",
+                )
+                .order_by(FrenzySubmission.submitted_at)
             )
-            .order_by(FrenzySubmission.submitted_at)
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     # Per-team incremental state
     item_states: dict[int, dict[str, int]] = {t.id: {} for t in teams}
@@ -906,12 +982,16 @@ async def get_event_history(
             name = p["name"]
             uid = sub.discord_user_id
             act_states[tid].setdefault(name, {})
-            act_states[tid][name][uid] = max(act_states[tid][name].get(uid, 0), p.get("value", 0))
+            act_states[tid][name][uid] = max(
+                act_states[tid][name].get(uid, 0), p.get("value", 0)
+            )
         elif sub.submission_type == "milestone":
             name = p["name"]
             uid = sub.discord_user_id
             mil_states[tid].setdefault(name, {})
-            mil_states[tid][name][uid] = max(mil_states[tid][name].get(uid, 0), p.get("value", 0))
+            mil_states[tid][name][uid] = max(
+                mil_states[tid][name].get(uid, 0), p.get("value", 0)
+            )
 
         act_p = {n: sum(v.values()) for n, v in act_states[tid].items()}
         mil_p = {n: sum(v.values()) for n, v in mil_states[tid].items()}
@@ -942,6 +1022,7 @@ async def get_event_history(
 # OSRS reference data endpoints
 # ---------------------------------------------------------------------------
 
+
 @router.get("/osrs/items")
 async def search_osrs_items(
     q: str = Query("", min_length=0),
@@ -962,8 +1043,7 @@ async def search_osrs_items(
     norm_q = q.lower().replace("'", "").strip()
     all_items: list[dict] = json.loads(raw)
     results = [
-        item for item in all_items
-        if norm_q in item["name"].lower().replace("'", "")
+        item for item in all_items if norm_q in item["name"].lower().replace("'", "")
     ]
     return results[:30]
 
@@ -990,16 +1070,21 @@ async def get_osrs_activities(valkey: Valkey = Depends(get_valkey)) -> list[dict
 # Admin - Templates
 # ---------------------------------------------------------------------------
 
+
 @router.get("/templates")
 async def list_templates(
     session: AsyncSession = Depends(get_session),
     _perm: None = Depends(require_page_permission("frenzy", "edit")),
 ) -> list[dict]:
     rows = (
-        await session.execute(
-            select(FrenzyTemplate).order_by(FrenzyTemplate.updated_at.desc())
+        (
+            await session.execute(
+                select(FrenzyTemplate).order_by(FrenzyTemplate.updated_at.desc())
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     return [
         {
             "id": t.id,
@@ -1131,7 +1216,11 @@ async def update_template(
     tmpl.updated_at = now
 
     await session.commit()
-    return {"id": tmpl.id, "version_number": tmpl.version_number, "updated_at": now.isoformat()}
+    return {
+        "id": tmpl.id,
+        "version_number": tmpl.version_number,
+        "updated_at": now.isoformat(),
+    }
 
 
 @router.delete("/templates/{template_id}")
@@ -1143,7 +1232,9 @@ async def delete_template(
     # Prevent deletion if any event references this template
     event_count = (
         await session.execute(
-            select(func.count(FrenzyEvent.id)).where(FrenzyEvent.template_id == template_id)
+            select(func.count(FrenzyEvent.id)).where(
+                FrenzyEvent.template_id == template_id
+            )
         )
     ).scalar_one()
     if event_count > 0:
@@ -1170,7 +1261,9 @@ async def list_template_versions(
 ) -> list[dict]:
     result = await session.execute(
         select(FrenzyTemplateVersion, User)
-        .join(User, User.discord_user_id == FrenzyTemplateVersion.edited_by, isouter=True)
+        .join(
+            User, User.discord_user_id == FrenzyTemplateVersion.edited_by, isouter=True
+        )
         .where(FrenzyTemplateVersion.template_id == template_id)
         .order_by(FrenzyTemplateVersion.version_number.desc())
     )
@@ -1202,7 +1295,9 @@ async def get_template_version(
 ) -> dict:
     result = await session.execute(
         select(FrenzyTemplateVersion, User)
-        .join(User, User.discord_user_id == FrenzyTemplateVersion.edited_by, isouter=True)
+        .join(
+            User, User.discord_user_id == FrenzyTemplateVersion.edited_by, isouter=True
+        )
         .where(
             FrenzyTemplateVersion.id == version_id,
             FrenzyTemplateVersion.template_id == template_id,
@@ -1290,12 +1385,17 @@ async def revert_template_to_version(
     tmpl.updated_at = now
 
     await session.commit()
-    return {"id": tmpl.id, "version_number": tmpl.version_number, "updated_at": now.isoformat()}
+    return {
+        "id": tmpl.id,
+        "version_number": tmpl.version_number,
+        "updated_at": now.isoformat(),
+    }
 
 
 # ---------------------------------------------------------------------------
 # Admin - Events
 # ---------------------------------------------------------------------------
+
 
 @router.get("/events")
 async def list_events(
@@ -1303,10 +1403,14 @@ async def list_events(
     _perm: None = Depends(require_page_permission("frenzy", "edit")),
 ) -> list[dict]:
     rows = (
-        await session.execute(
-            select(FrenzyEvent).order_by(FrenzyEvent.created_at.desc())
+        (
+            await session.execute(
+                select(FrenzyEvent).order_by(FrenzyEvent.created_at.desc())
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     return [
         {
             "id": e.id,
@@ -1371,12 +1475,16 @@ async def get_event(
         raise HTTPException(404, "Event not found.")
 
     teams = (
-        await session.execute(
-            select(FrenzyTeam)
-            .where(FrenzyTeam.event_id == event_id)
-            .order_by(FrenzyTeam.sort_order)
+        (
+            await session.execute(
+                select(FrenzyTeam)
+                .where(FrenzyTeam.event_id == event_id)
+                .order_by(FrenzyTeam.sort_order)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     return {
         "id": event.id,
@@ -1465,9 +1573,7 @@ async def activate_event(
 
     # Deactivate all other events first
     await session.execute(
-        update(FrenzyEvent)
-        .where(FrenzyEvent.id != event_id)
-        .values(is_active=False)
+        update(FrenzyEvent).where(FrenzyEvent.id != event_id).values(is_active=False)
     )
     event.is_active = True
     await session.commit()
@@ -1494,6 +1600,7 @@ async def deactivate_event(
 # Admin - Teams
 # ---------------------------------------------------------------------------
 
+
 @router.post("/events/{event_id}/teams", status_code=201)
 async def add_team(
     event_id: int,
@@ -1516,7 +1623,9 @@ async def add_team(
         )
     ).scalar_one_or_none()
     if existing is not None:
-        raise HTTPException(409, f"Team with slug '{body.slug}' already exists in this event.")
+        raise HTTPException(
+            409, f"Team with slug '{body.slug}' already exists in this event."
+        )
 
     now = datetime.now(timezone.utc)
     team = FrenzyTeam(
@@ -1625,7 +1734,9 @@ async def sync_event_from_wom(
 
     # Sync dates
     if comp.get("startsAt"):
-        event.starts_at = datetime.fromisoformat(comp["startsAt"].replace("Z", "+00:00"))
+        event.starts_at = datetime.fromisoformat(
+            comp["startsAt"].replace("Z", "+00:00")
+        )
     if comp.get("endsAt"):
         event.ends_at = datetime.fromisoformat(comp["endsAt"].replace("Z", "+00:00"))
     event.updated_at = now
@@ -1642,10 +1753,14 @@ async def sync_event_from_wom(
                 teams_map.setdefault(t_name, []).append(rsn)
 
         existing_teams = (
-            await session.execute(
-                select(FrenzyTeam).where(FrenzyTeam.event_id == event_id)
+            (
+                await session.execute(
+                    select(FrenzyTeam).where(FrenzyTeam.event_id == event_id)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         teams_by_slug = {t.slug: t for t in existing_teams}
 
         for i, (team_name, participants) in enumerate(teams_map.items()):
@@ -1670,7 +1785,9 @@ async def sync_event_from_wom(
                 )
                 session.add(team)
 
-            synced_teams.append({"name": team_name, "slug": slug, "participants": participants})
+            synced_teams.append(
+                {"name": team_name, "slug": slug, "participants": participants}
+            )
 
     await session.commit()
 
@@ -1708,6 +1825,7 @@ async def refresh_leaderboards(
 # Admin - Submissions
 # ---------------------------------------------------------------------------
 
+
 @router.get("/events/{event_id}/submissions")
 async def list_submissions(
     event_id: int,
@@ -1736,7 +1854,9 @@ async def list_submissions(
         stmt = stmt.where(FrenzySubmission.team_id == team_id)
     if status is not None:
         if status not in _VALID_STATUSES:
-            raise HTTPException(400, f"Invalid status. Must be one of: {_VALID_STATUSES}")
+            raise HTTPException(
+                400, f"Invalid status. Must be one of: {_VALID_STATUSES}"
+            )
         stmt = stmt.where(FrenzySubmission.status == status)
     if submission_type is not None:
         if submission_type not in _VALID_SUBMISSION_TYPES:
@@ -1744,7 +1864,9 @@ async def list_submissions(
         stmt = stmt.where(FrenzySubmission.submission_type == submission_type)
     if source is not None:
         if source not in _VALID_SOURCES:
-            raise HTTPException(400, f"Invalid source. Must be one of: {_VALID_SOURCES}")
+            raise HTTPException(
+                400, f"Invalid source. Must be one of: {_VALID_SOURCES}"
+            )
         stmt = stmt.where(FrenzySubmission.source == source)
     if player_rsn is not None:
         stmt = stmt.where(FrenzySubmission.player_rsn.ilike(f"%{player_rsn}%"))
@@ -1770,26 +1892,38 @@ async def list_submissions(
     ).scalar_one()
 
     rows = (
-        await session.execute(
-            stmt.order_by(FrenzySubmission.submitted_at.desc()).limit(limit).offset(offset)
+        (
+            await session.execute(
+                stmt.order_by(FrenzySubmission.submitted_at.desc())
+                .limit(limit)
+                .offset(offset)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     reviewer_ids = {s.reviewed_by for s in rows if s.reviewed_by}
     reviewers: dict[int, User] = {}
     if reviewer_ids:
         reviewer_rows = (
-            await session.execute(
-                select(User).where(User.discord_user_id.in_(reviewer_ids))
+            (
+                await session.execute(
+                    select(User).where(User.discord_user_id.in_(reviewer_ids))
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         reviewers = {u.discord_user_id: u for u in reviewer_rows}
 
     return {
         "total": total,
         "limit": limit,
         "offset": offset,
-        "submissions": [_submission_to_dict(s, reviewers.get(s.reviewed_by)) for s in rows],
+        "submissions": [
+            _submission_to_dict(s, reviewers.get(s.reviewed_by)) for s in rows
+        ],
     }
 
 

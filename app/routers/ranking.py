@@ -98,7 +98,7 @@ async def get_ranking_status(
         "player_count": svc.last_run_count,
         "last_error": svc.last_error,
         "service_active": True,
-        "is_running": svc.is_running,
+        "is_running": svc.run_active,
     }
 
 
@@ -128,9 +128,13 @@ async def get_ranking_stats(session: AsyncSession = Depends(get_session)) -> dic
                 User.clan_rank.is_not(None),
             )
         )
-        clan_rank_by_user: dict[int, str] = {row.discord_user_id: row.clan_rank for row in clan_rows}
+        clan_rank_by_user: dict[int, str] = {
+            row.discord_user_id: row.clan_rank for row in clan_rows
+        }
         for r in all_deduplicated:
-            clan_rank = clan_rank_by_user.get(r.discord_user_id) if r.discord_user_id else None
+            clan_rank = (
+                clan_rank_by_user.get(r.discord_user_id) if r.discord_user_id else None
+            )
             if clan_rank:
                 clan_rank_dist[clan_rank] = clan_rank_dist.get(clan_rank, 0) + 1
                 wom_bucket = rank_overlap.setdefault(r.rank, {})

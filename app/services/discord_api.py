@@ -57,7 +57,9 @@ def group_channels(channels: list[dict]) -> dict:
     for ch in sorted(channels, key=lambda c: c.get("position", 0)):
         if ch.get("type") == CHANNEL_TYPE_CATEGORY:
             continue
-        slim = {k: (str(ch[k]) if k == "id" else ch[k]) for k in channel_fields if k in ch}
+        slim = {
+            k: (str(ch[k]) if k == "id" else ch[k]) for k in channel_fields if k in ch
+        }
         parent = str(ch.get("parent_id", "")) if ch.get("parent_id") else None
         if parent and parent in categories:
             categories[parent]["channels"].append(slim)

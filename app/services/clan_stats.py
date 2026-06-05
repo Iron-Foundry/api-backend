@@ -7,6 +7,7 @@ import os
 from datetime import datetime, timezone
 
 from loguru import logger
+from sqlalchemy import ARRAY, Text, bindparam, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.db.models import ClanStats
@@ -34,6 +35,10 @@ class ClanStatsService:
     def __init__(self, session_factory) -> None:  # type: ignore[no-untyped-def]
         self._session_factory = session_factory
         self._task: asyncio.Task[None] | None = None
+
+    @property
+    def is_running(self) -> bool:
+        return self._task is not None and not self._task.done()
 
     async def start(self) -> None:
         self._task = asyncio.create_task(self._poll_loop(), name="clan-stats-refresh")
@@ -64,7 +69,9 @@ class ClanStatsService:
         logger.info("ClanStatsService: fetching WOM stats (group={})", _WOM_GROUP_ID)
 
         async with WiseOldManHandler(
-            api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT, priority=WomPriority.LOW
+            api_key=_WOM_API_KEY,
+            discord_contact=_WOM_DISCORD_CONTACT,
+            priority=WomPriority.LOW,
         ) as wom:
             group_data, *raid_totals = await asyncio.gather(
                 wom.get_group(_WOM_GROUP_ID),
@@ -135,3 +142,56 @@ class ClanStatsService:
             tob_kc,
             toa_kc,
         )
+
+        await _sync_wom_ranks(self._session_factory, memberships)
+
+
+async def _sync_wom_ranks(session_factory, memberships: list[dict]) -> None:  # type: ignore[no-untyped-def]
+    """Bulk-write WOM in-game ranks to users.clan_rank for all matched members."""
+    wom_ranks: dict[str, str] = {
+        m["player"]["username"].lower(): m["role"]
+        for m in memberships
+        if m.get("player") and m.get("role")
+    }
+    if not wom_ranks:
+        return
+
+    rsns = list(wom_ranks.keys())
+    roles = list(wom_ranks.values())
+
+    _arr = ARRAY(Text())
+    _params = [bindparam("rsns", type_=_arr), bindparam("roles", type_=_arr)]
+
+    async with session_factory() as session:
+        r1 = await session.execute(
+            text("""
+                UPDATE users u
+                   SET clan_rank  = wd.role,
+                       updated_at = now()
+                  FROM (SELECT unnest(:rsns) AS rsn,
+                               unnest(:roles) AS role) AS wd
+                  JOIN user_accounts ua ON lower(ua.rsn) = wd.rsn
+                 WHERE ua.discord_user_id = u.discord_user_id
+                   AND (u.clan_rank IS DISTINCT FROM wd.role)
+            """).bindparams(*_params),
+            {"rsns": rsns, "roles": roles},
+        )
+        r2 = await session.execute(
+            text("""
+                UPDATE users u
+                   SET clan_rank  = wd.role,
+                       updated_at = now()
+                  FROM (SELECT unnest(:rsns) AS rsn,
+                               unnest(:roles) AS role) AS wd
+                 WHERE lower(u.rsn) = wd.rsn
+                   AND (u.clan_rank IS DISTINCT FROM wd.role)
+            """).bindparams(*_params),
+            {"rsns": rsns, "roles": roles},
+        )
+        await session.commit()
+
+    logger.info(
+        "WOM rank sync: updated {} (user_accounts) + {} (legacy rsn)",
+        r1.rowcount,
+        r2.rowcount,
+    )

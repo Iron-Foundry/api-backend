@@ -677,8 +677,6 @@ async def ingest_chat(
     """
     for payload in payloads:
         is_broadcast = payload.sender == payload.clan_name
-        if not is_broadcast:
-            await _update_player_rank(session, payload.sender, payload.rank)
 
         if await is_duplicate(valkey, clan["key"], payload.sender, payload.message):
             logger.debug(

@@ -20,13 +20,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Event, PlayerRanking, Ticket, User, UserAccount
 from app.dependencies import get_current_user, get_session
+from app.services.rsn_cascade import backfill_user_from_rsn
 
 _DISCORD_BOT_TOKEN = os.getenv("DISCORD_SERVER_TOKEN", "")
 _GUILD_ID = os.getenv("GUILD_ID", "")
 _DISCORD_API = "https://discord.com/api"
 
-_REFERRAL_SOURCES = {"reddit", "osrs_discord", "website", "recruited_by", "instagram", "other", "prefer_not_to_say"}
-from app.services.rsn_cascade import backfill_user_from_rsn
+_REFERRAL_SOURCES = {
+    "reddit",
+    "osrs_discord",
+    "website",
+    "recruited_by",
+    "instagram",
+    "other",
+    "prefer_not_to_say",
+}
 
 router = APIRouter(prefix="/members", tags=["members"])
 
@@ -517,7 +525,9 @@ async def get_me_stats(
 
     return {
         "collection_log_slots": user_row.collection_log_slots if user_row else 0,
-        "collection_log_slots_max": user_row.collection_log_slots_max if user_row else 0,
+        "collection_log_slots_max": user_row.collection_log_slots_max
+        if user_row
+        else 0,
         "total_loot_value": user_row.total_loot_value if user_row else 0,
         "rank_tier": rank_tier,
     }
@@ -655,6 +665,41 @@ async def list_accounts(
             "created_at": row.created_at.isoformat(),
         }
         for row in result.scalars()
+    ]
+
+
+@router.get("/me/rankings")
+async def get_me_rankings(
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[dict]:
+    """Return ranking data for all linked RSN accounts, primary first."""
+    discord_user_id = int(current_user["sub"])
+    result = await session.execute(
+        select(
+            UserAccount.rsn,
+            UserAccount.is_primary,
+            PlayerRanking.rank,
+            PlayerRanking.points,
+            PlayerRanking.boss_points,
+            PlayerRanking.skill_points,
+        )
+        .outerjoin(
+            PlayerRanking, func.lower(PlayerRanking.rsn) == func.lower(UserAccount.rsn)
+        )
+        .where(UserAccount.discord_user_id == discord_user_id)
+        .order_by(UserAccount.is_primary.desc(), UserAccount.created_at.asc())
+    )
+    return [
+        {
+            "rsn": row.rsn,
+            "is_primary": row.is_primary,
+            "rank": row.rank,
+            "points": row.points,
+            "boss_points": row.boss_points,
+            "skill_points": row.skill_points,
+        }
+        for row in result.all()
     ]
 
 

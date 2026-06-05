@@ -32,7 +32,9 @@ async def get_discord_channels() -> dict:
         svc = DiscordApiService(_TOKEN)
         channels = await svc.get_channels(_GUILD_ID)
     except httpx.HTTPStatusError as exc:
-        raise HTTPException(502, f"Discord API error: {exc.response.status_code}") from exc
+        raise HTTPException(
+            502, f"Discord API error: {exc.response.status_code}"
+        ) from exc
     except httpx.RequestError as exc:
         raise HTTPException(502, f"Discord API unreachable: {exc}") from exc
     return group_channels(channels)
@@ -47,11 +49,16 @@ async def get_discord_emojis() -> dict:
     _check_configured()
     try:
         svc = DiscordApiService(_TOKEN)
-        resp = await svc.get(f"/guilds/{_GUILD_ID}/emojis", extra_headers={"Authorization": f"Bot {_TOKEN}"})
+        resp = await svc.get(
+            f"/guilds/{_GUILD_ID}/emojis",
+            extra_headers={"Authorization": f"Bot {_TOKEN}"},
+        )
         resp.raise_for_status()
         emojis = resp.json()
     except httpx.HTTPStatusError as exc:
-        raise HTTPException(502, f"Discord API error: {exc.response.status_code}") from exc
+        raise HTTPException(
+            502, f"Discord API error: {exc.response.status_code}"
+        ) from exc
     except httpx.RequestError as exc:
         raise HTTPException(502, f"Discord API unreachable: {exc}") from exc
 
@@ -79,7 +86,9 @@ async def get_discord_roles() -> dict:
         svc = DiscordApiService(_TOKEN)
         roles = await svc.get_roles(_GUILD_ID)
     except httpx.HTTPStatusError as exc:
-        raise HTTPException(502, f"Discord API error: {exc.response.status_code}") from exc
+        raise HTTPException(
+            502, f"Discord API error: {exc.response.status_code}"
+        ) from exc
     except httpx.RequestError as exc:
         raise HTTPException(502, f"Discord API unreachable: {exc}") from exc
 

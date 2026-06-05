@@ -15,8 +15,19 @@ from valkey.asyncio import Valkey
 
 from sqlalchemy import func, select
 
-from app.db.models import PartyChatMessageDB, PartyDB, PartyNotificationPreferences, User, UserAccount
-from app.dependencies import get_current_user, get_optional_user, get_session, get_valkey
+from app.db.models import (
+    PartyChatMessageDB,
+    PartyDB,
+    PartyNotificationPreferences,
+    User,
+    UserAccount,
+)
+from app.dependencies import (
+    get_current_user,
+    get_optional_user,
+    get_session,
+    get_valkey,
+)
 from app.party_store import (
     Vibe,
     _recalc_status,
@@ -42,7 +53,12 @@ from app.services.rank_mappings import get_effective_roles
 router = APIRouter(prefix="/parties", tags=["parties"])
 
 _NOTIFY_CHANNEL = "foundry:party_notify"
-_SITE_URL = os.getenv("FRONTEND_URL", "https://ironfoundry.cc").split(",")[0].strip().rstrip("/")
+_SITE_URL = (
+    os.getenv("FRONTEND_URL", "https://ironfoundry.cc")
+    .split(",")[0]
+    .strip()
+    .rstrip("/")
+)
 
 
 async def _notify(valkey: Valkey, user_ids: list[str], message: str) -> None:
@@ -83,7 +99,11 @@ async def _dispatch_party_notifications(
     leader_name = p.leader_rsn or p.leader_username
     fields = [
         {"name": "Leader", "value": leader_name, "inline": True},
-        {"name": "Vibe", "value": _VIBE_LABEL.get(p.vibe, p.vibe.capitalize()), "inline": True},
+        {
+            "name": "Vibe",
+            "value": _VIBE_LABEL.get(p.vibe, p.vibe.capitalize()),
+            "inline": True,
+        },
         {"name": "Size", "value": f"{len(p.members)}/{p.max_size}", "inline": True},
     ]
     if p.scheduled_at:
@@ -428,7 +448,9 @@ async def kick_member(
     if party.status == "closed":
         raise HTTPException(409, "Party is closed")
 
-    kicked_member = next((m for m in party.members if m.user_id == target_user_id), None)
+    kicked_member = next(
+        (m for m in party.members if m.user_id == target_user_id), None
+    )
     kicked_name = (
         (kicked_member.rsn or kicked_member.username) if kicked_member else "A member"
     )

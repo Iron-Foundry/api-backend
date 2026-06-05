@@ -34,7 +34,9 @@ class WebSocketMetricsService:
         self._start_time = time.monotonic()
 
     async def start(self) -> None:
-        self._task = asyncio.create_task(self._poll_loop(), name="websocket-metrics-flush")
+        self._task = asyncio.create_task(
+            self._poll_loop(), name="websocket-metrics-flush"
+        )
         logger.info("WebSocketMetricsService started (interval={}s)", _FLUSH_INTERVAL)
 
     async def stop(self) -> None:
