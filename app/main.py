@@ -27,6 +27,7 @@ from app.routers import (
     role_panels,
     staff,
     surveys,
+    ticket_config,
 )
 from app.services.connection_manager import connection_manager
 from app.services.clan_stats import ClanStatsService
@@ -211,6 +212,7 @@ app.include_router(feedback.router)
 app.include_router(badges.router)
 app.include_router(content.router)
 app.include_router(frenzy.router)
+app.include_router(ticket_config.router)
 
 
 @app.get("/health")
