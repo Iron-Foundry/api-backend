@@ -1,0 +1,44 @@
+from __future__ import annotations
+
+import random
+from typing import Literal
+
+Vibe = Literal["learning", "chill", "sweat"]
+
+VIBE_EMOJI: dict[str, str] = {
+    "learning": "🎓",
+    "chill": "😌",
+    "sweat": "💪",
+}
+
+VIBE_COLOUR: dict[str, int] = {
+    "learning": 0x5865F2,
+    "chill": 0x57F287,
+    "sweat": 0xED4245,
+}
+
+_WORDLIST = [
+    "abyssal", "ancient", "anvil", "arcane", "armadyl", "arrow", "axe",
+    "bandos", "barrows", "berserker", "brimstone", "bronze", "brutal",
+    "cannonball", "chaos", "chimera", "coffer", "coral", "crystal",
+    "dagannoth", "dark", "death", "defender", "demon", "divine", "dragon",
+    "dragonfire", "dusk", "dwarf", "elder", "eternal", "fighter", "fire",
+    "flask", "forest", "fury", "ghost", "giant", "gloves", "goblin",
+    "golem", "granite", "guthix", "hammer", "helm", "hunter", "hydra",
+    "infernal", "iron", "jad", "justiciar", "karambwan", "kraken", "lance",
+    "lava", "lobster", "magic", "manta", "maple", "marble", "master",
+    "monk", "mortar", "mud", "mystic", "nature", "needle", "nex",
+    "nightmare", "oak", "obsidian", "onyx", "oracle", "pegasian", "pickaxe",
+    "prayer", "quartz", "quest", "ranger", "rapier", "rune", "sacred",
+    "saradomin", "scimitar", "seed", "shark", "shield", "silver", "skeleton",
+    "slayer", "smoke", "snow", "soul", "spade", "spectral", "staff", "steel",
+    "storm", "sword", "teak", "thorn", "titan", "toad", "tome", "torch",
+    "torva", "toxic", "trident", "tuna", "twisted", "vanguard", "venom",
+    "vigour", "viper", "void", "vorkath", "warhammer", "warped", "water",
+    "whip", "willow", "wings", "witch", "wolf", "wrath", "yew",
+    "zamorak", "zenyte", "zulrah",
+]
+
+
+def _generate_hub_code() -> str:
+    return "-".join(random.choices(_WORDLIST, k=3))

@@ -1,12 +1,14 @@
-"""Discord router - exposes guild channel/role data for the web admin UI."""
+"""Discord router - exposes guild channel/role/member data for the web admin UI."""
 
 from __future__ import annotations
 
 import os
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from loguru import logger
 
+from app.dependencies import get_current_user
 from app.services.discord_api import DiscordApiService, group_channels
 from app.services.page_permissions import require_page_permission
 
@@ -14,6 +16,7 @@ router = APIRouter(prefix="/discord", tags=["discord"])
 
 _TOKEN = os.getenv("DISCORD_TOKEN", "")
 _GUILD_ID = os.getenv("GUILD_ID", "")
+_DISCORD_API = "https://discord.com/api/v10"
 
 
 def _check_configured() -> None:
@@ -104,3 +107,38 @@ async def get_discord_roles() -> dict:
     ]
     filtered.sort(key=lambda r: r["position"], reverse=True)
     return {"roles": filtered}
+
+
+@router.get("/members")
+async def search_discord_members(
+    q: str = Query(default="", max_length=100),
+    current_user: dict = Depends(get_current_user),
+) -> list[dict]:
+    """Search guild members by username prefix for the recruited-by autocomplete."""
+    if not _TOKEN or not _GUILD_ID:
+        return []
+    query = q.strip()
+    if not query:
+        return []
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{_DISCORD_API}/guilds/{_GUILD_ID}/members/search",
+                params={"query": query, "limit": 10},
+                headers={"Authorization": f"Bot {_TOKEN}"},
+            )
+        if resp.status_code != 200:
+            logger.warning("discord members search failed: {}", resp.status_code)
+            return []
+        members = resp.json()
+        return [
+            {
+                "discord_user_id": m["user"]["id"],
+                "username": m["user"].get("global_name") or m["user"]["username"],
+                "avatar": m["user"].get("avatar"),
+            }
+            for m in members if "user" in m
+        ]
+    except Exception as exc:
+        logger.warning("discord members search error: {}", exc)
+        return []

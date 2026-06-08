@@ -1,0 +1,78 @@
+"""Default configuration and constants for the ranking service."""
+
+from __future__ import annotations
+
+import os
+from typing import Any
+
+POLL_INTERVAL = 86400  # 24 hours
+
+_WOM_DISCORD_CONTACT = os.getenv("WOM_DISCORD_CONTACT")
+_GLOBAL_GUILD_ID = 0
+_RANKING_CONFIG_KEY = "ranking_config"
+
+_DEFAULT_CONFIG: dict[str, Any] = {
+    "multipliers": {"boss": 2.0, "skill": 1.0},
+    "thresholds": {
+        "rank_1": 0,
+        "rank_2": 10000,
+        "rank_3": 20000,
+        "rank_4": 30000,
+        "rank_5": 45000,
+        "rank_6": 60000,
+    },
+    "boss_tier_multipliers": {
+        "tier_1": 1,
+        "tier_2": 2,
+        "tier_3": 3,
+        "tier_4": 4,
+        "tier_5": 5,
+        "toa": 3,
+        "tob": 5,
+        "cox": 4,
+    },
+    "skill_exp_tiers": {
+        "tier_1": 0,
+        "tier_2": 101334,
+        "tier_3": 737628,
+        "tier_4": 1986069,
+        "tier_5": 5346333,
+        "max": 13034431,
+    },
+    "skills": [
+        "attack", "strength", "defense", "range", "magic", "prayer", "hitpoints",
+        "slayer", "cooking", "woodcutting", "fletching", "fishing", "firemaking",
+        "crafting", "smithing", "mining", "herblore", "agility", "thieving",
+        "farming", "runecrafting", "hunter", "construction", "sailing",
+    ],
+    "kc_tiers": {"tier_1": 0, "tier_2": 50, "tier_3": 100, "tier_4": 250, "tier_5": 750},
+    "tier_1_bosses": [
+        "barrows_chests", "scurrius", "giant_mole", "deranged_archaeologist",
+        "chaos_fanatic", "crazy_archaeologist", "obor", "bryophyta", "amoxliatl",
+        "hespori", "kraken", "shellbane_gryphon", "thermonuclear_smoke_devil",
+    ],
+    "tier_2_bosses": [
+        "dagannoth_prime", "dagannoth_rex", "dagannoth_supreme", "scorpia",
+        "king_black_dragon", "grotesque_guardians", "calvarion", "sarachnis",
+        "the_hueycoatl", "lunar_chests", "chaos_elemental", "mimic", "vetion",
+        "spindel", "venenatis", "artio", "callisto", "the_royal_titans", "skotizo",
+        "abyssal_sire", "cerberus", "alchemical_hydra", "kril_tsutsaroth",
+        "duke_sucellus", "tztok_jad",
+    ],
+    "tier_3_bosses": [
+        "general_graardor", "kreearra", "kalphite_queen", "commander_zilyana",
+        "corporeal_beast", "zulrah", "vorkath", "phantom_muspah", "araxxor", "the_gauntlet",
+    ],
+    "tier_4_bosses": [
+        "nex", "yama", "nightmare", "the_leviathan", "the_whisperer",
+        "vardorvis", "the_corrupted_gauntlet",
+    ],
+    "tier_5_bosses": [
+        "tzkal_zuk", "sol_heredit", "phosanis_nightmare", "doom_of_mokhaiotl",
+    ],
+    "raids": {
+        "toa": ["tombs_of_amascut", "tombs_of_amascut_expert"],
+        "tob": ["theatre_of_blood", "theatre_of_blood_hard_mode"],
+        "cox": ["chambers_of_xeric", "chambers_of_xeric_challenge_mode"],
+    },
+}
