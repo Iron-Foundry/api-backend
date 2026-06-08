@@ -101,6 +101,9 @@ class UserAccount(Base):
         index=True,
     )
     rsn: Mapped[str] = mapped_column(Text, nullable=False)
+    rsn_history: Mapped[list] = mapped_column(
+        ARRAY(Text), nullable=False, server_default="{}"
+    )
     is_primary: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="false"
     )
@@ -214,6 +217,12 @@ class Event(Base):
     raw_message: Mapped[str | None] = mapped_column(Text)
     data: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     user_id: Mapped[int | None] = mapped_column(BigInteger, index=True)
+    user_account_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("user_accounts.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
 
 class CofferEvent(Base):
@@ -231,6 +240,12 @@ class CofferEvent(Base):
     raw_message: Mapped[str | None] = mapped_column(Text)
     amount: Mapped[int] = mapped_column(BigInteger, nullable=False)
     is_donation: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    user_account_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("user_accounts.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
 
 class MembershipEvent(Base):
@@ -247,6 +262,12 @@ class MembershipEvent(Base):
     )
     raw_message: Mapped[str | None] = mapped_column(Text)
     expelled_by: Mapped[str | None] = mapped_column(Text)
+    user_account_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("user_accounts.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
 
 class Leaderboard(Base):

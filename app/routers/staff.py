@@ -18,11 +18,16 @@ from app.db.models import (
     Ticket,
     Transcript,
     User,
+    UserAccount,
 )
 from app.dependencies import get_current_user, get_session
 from app.services.page_permissions import check_page_permission, get_admin_bypass_roles
 from app.services.rank_mappings import get_effective_roles, get_role_label_map
-from app.services.rsn_cascade import backfill_user_from_rsn, cascade_rsn_change
+from app.services.rsn_cascade import (
+    backfill_event_user_account,
+    backfill_user_from_rsn,
+    cascade_rsn_change,
+)
 
 _RSN_RE = re.compile(r"^[A-Za-z0-9 _-]{1,12}$")
 
@@ -331,15 +336,30 @@ async def update_member_rsn(
             discord_user_id,
         )
 
+    ua_result = await session.execute(
+        select(UserAccount.id, UserAccount.rsn_history).where(
+            UserAccount.discord_user_id == discord_user_id,
+            func.lower(UserAccount.rsn) == new_rsn.lower(),
+        )
+    )
+    ua_row = ua_result.one_or_none()
+    ua_id = ua_row.id if ua_row else None
+    all_rsns = [new_rsn] + (ua_row.rsn_history if ua_row else [])
+
     event_result = await session.execute(
         update(Event)
         .where(func.lower(Event.player_name) == new_rsn.lower())
-        .values(user_id=discord_user_id)
+        .values(
+            user_id=discord_user_id, **({"user_account_id": ua_id} if ua_id else {})
+        )
     )
+    if ua_id:
+        await backfill_event_user_account(session, ua_id, all_rsns)
     logger.info(
-        "staff/rsn: linked user_id {} to {} event rows",
+        "staff/rsn: linked user_id {} to {} event rows (ua_id={})",
         discord_user_id,
         cast(CursorResult, event_result).rowcount,
+        ua_id,
     )
 
     await session.commit()

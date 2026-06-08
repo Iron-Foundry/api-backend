@@ -18,13 +18,23 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Event, PlayerRanking, Ticket, User, UserAccount
+from app.db.models import (
+    CofferEvent,
+    Event,
+    MembershipEvent,
+    PlayerRanking,
+    Ticket,
+    User,
+    UserAccount,
+)
 from app.dependencies import get_current_user, get_session
+from app.services.http import WiseOldManHandler, WomPriority
 from app.services.rsn_cascade import backfill_user_from_rsn
 
 _DISCORD_BOT_TOKEN = os.getenv("DISCORD_SERVER_TOKEN", "")
 _GUILD_ID = os.getenv("GUILD_ID", "")
 _DISCORD_API = "https://discord.com/api"
+_WOM_API_KEY = os.getenv("WOM_API_KEY")
 
 _REFERRAL_SOURCES = {
     "reddit",
@@ -202,15 +212,61 @@ async def update_rsn(
             discord_user_id,
         )
 
+    # Fetch WOM name history for full event backfill
+    ua_result = await session.execute(
+        select(UserAccount.id).where(
+            UserAccount.discord_user_id == discord_user_id,
+            func.lower(UserAccount.rsn) == rsn.lower(),
+        )
+    )
+    ua_id = ua_result.scalar_one_or_none()
+
+    all_rsns = [rsn]
+    if ua_id:
+        try:
+            async with WiseOldManHandler(
+                api_key=_WOM_API_KEY, priority=WomPriority.LOW
+            ) as wom:
+                name_changes = await wom.get_player_name_changes(rsn)
+            history = [
+                c["oldName"] for c in name_changes if c.get("status") == "approved"
+            ]
+            if history:
+                await session.execute(
+                    update(UserAccount)
+                    .where(UserAccount.id == ua_id)
+                    .values(rsn_history=history)
+                )
+                all_rsns = [rsn] + history
+        except Exception as exc:
+            logger.warning(
+                "members/rsn: failed to fetch WOM name history for {!r}: {}", rsn, exc
+            )
+
+    lower_rsns = [r.lower() for r in all_rsns]
     event_result = await session.execute(
         update(Event)
-        .where(func.replace(func.lower(Event.player_name), "\xa0", " ") == rsn.lower())
-        .values(user_id=discord_user_id)
+        .where(func.replace(func.lower(Event.player_name), "\xa0", " ").in_(lower_rsns))
+        .values(
+            user_id=discord_user_id, **({"user_account_id": ua_id} if ua_id else {})
+        )
     )
+    if ua_id:
+        await session.execute(
+            update(CofferEvent)
+            .where(func.lower(CofferEvent.player_name).in_(lower_rsns))
+            .values(user_account_id=ua_id)
+        )
+        await session.execute(
+            update(MembershipEvent)
+            .where(func.lower(MembershipEvent.player_name).in_(lower_rsns))
+            .values(user_account_id=ua_id)
+        )
     logger.info(
-        "members/rsn: linked user_id {} to {} event rows",
+        "members/rsn: linked user_id {} to {} event rows (history: {})",
         discord_user_id,
         cast(CursorResult, event_result).rowcount,
+        len(all_rsns) - 1,
     )
 
     await session.commit()
@@ -232,9 +288,14 @@ async def member_feed(
     discord_user_id = int(current_user["sub"])
 
     accounts_result = await session.execute(
-        select(UserAccount.rsn).where(UserAccount.discord_user_id == discord_user_id)
+        select(UserAccount.id, UserAccount.rsn).where(
+            UserAccount.discord_user_id == discord_user_id
+        )
     )
-    linked_rsns = [r.rsn for r in accounts_result.all()]
+    account_rows = accounts_result.all()
+    linked_rsns = [r.rsn for r in account_rows]
+    linked_account_ids = [r.id for r in account_rows]
+
     if not linked_rsns:
         # Fall back to users.rsn for accounts predating the user_accounts table.
         fallback = await session.execute(
@@ -253,27 +314,37 @@ async def member_feed(
     rsn_lower_list = list(rsn_lower_set)
 
     fetch_limit = min(limit * 10, 2000)
+    event_conditions = [
+        Event.user_id == discord_user_id,
+        func.replace(func.lower(Event.player_name), "\xa0", " ").in_(rsn_lower_list),
+    ]
+    if linked_account_ids:
+        event_conditions.append(Event.user_account_id.in_(linked_account_ids))
     events_result = await session.execute(
         select(Event)
-        .where(
-            or_(
-                Event.user_id == discord_user_id,
-                func.replace(func.lower(Event.player_name), "\xa0", " ").in_(
-                    rsn_lower_list
-                ),
-            )
-        )
+        .where(or_(*event_conditions))
         .order_by(Event.timestamp.desc())
         .limit(fetch_limit)
     )
     rows = events_result.scalars().all()
 
+    pk_conditions = [
+        func.lower(Event.data["loser"].as_string()).in_(list(rsn_lower_set)),
+        Event.user_id != discord_user_id,
+    ]
+    if linked_account_ids:
+        pk_conditions = [
+            or_(
+                func.lower(Event.data["loser"].as_string()).in_(list(rsn_lower_set)),
+                Event.user_account_id.in_(linked_account_ids),
+            ),
+            Event.user_id != discord_user_id,
+        ]
     pk_result = await session.execute(
         select(Event)
         .where(
             Event.type == "pk",
-            func.lower(Event.data["loser"].as_string()).in_(list(rsn_lower_set)),
-            Event.user_id != discord_user_id,
+            *pk_conditions,
         )
         .order_by(Event.timestamp.desc())
         .limit(fetch_limit)
@@ -781,15 +852,52 @@ async def add_account(
         collection_log_slots=user_row.collection_log_slots if user_row else 0,
     )
 
+    # Fetch WOM name history to populate rsn_history and backfill event FKs
+    all_rsns = [rsn]
+    try:
+        async with WiseOldManHandler(
+            api_key=_WOM_API_KEY, priority=WomPriority.LOW
+        ) as wom:
+            name_changes = await wom.get_player_name_changes(rsn)
+        history = [c["oldName"] for c in name_changes if c.get("status") == "approved"]
+        if history:
+            await session.execute(
+                update(UserAccount)
+                .where(UserAccount.id == new_row.id)
+                .values(rsn_history=history)
+            )
+            all_rsns = [rsn] + history
+    except Exception as exc:
+        logger.warning(
+            "members/accounts: failed to fetch WOM name history for {!r}: {}", rsn, exc
+        )
+
     event_result = await session.execute(
         update(Event)
-        .where(func.replace(func.lower(Event.player_name), "\xa0", " ") == rsn.lower())
-        .values(user_id=discord_user_id)
+        .where(
+            func.replace(func.lower(Event.player_name), "\xa0", " ").in_(
+                [r.lower() for r in all_rsns]
+            )
+        )
+        .values(user_id=discord_user_id, user_account_id=new_row.id)
+    )
+    await session.execute(
+        update(CofferEvent)
+        .where(func.lower(CofferEvent.player_name).in_([r.lower() for r in all_rsns]))
+        .values(user_account_id=new_row.id)
+    )
+    await session.execute(
+        update(MembershipEvent)
+        .where(
+            func.lower(MembershipEvent.player_name).in_([r.lower() for r in all_rsns])
+        )
+        .values(user_account_id=new_row.id)
     )
     logger.info(
-        "members/accounts: user {} added RSN {!r}, linked {} events",
+        "members/accounts: user {} added RSN {!r} (history: {}), linked {} events",
         discord_user_id,
         rsn,
+        len(all_rsns) - 1,
         cast(CursorResult, event_result).rowcount,
     )
 

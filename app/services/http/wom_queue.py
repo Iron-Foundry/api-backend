@@ -4,9 +4,9 @@ Single-consumer async queue ensures WOM requests are served in priority order
 (HIGH before NORMAL before LOW) while enforcing the 100 req/min budget.
 
 Slot allocation (100 total):
-  HIGH   =  5 — always reserved; falls through to NORMAL+LOW if needed
-  NORMAL = 20 — reserved for HIGH+NORMAL; falls through to LOW if needed
-  LOW    = 75 — base pool, cannot use reserved slots
+  HIGH   =  5 - always reserved; falls through to NORMAL+LOW if needed
+  NORMAL = 20 - reserved for HIGH+NORMAL; falls through to LOW if needed
+  LOW    = 75 - base pool, cannot use reserved slots
 
 A priority tier may consume from the tiers below it when its own pool
 is exhausted, so effective budgets are:

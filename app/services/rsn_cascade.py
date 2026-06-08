@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import func, select, text, update
+from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
@@ -11,12 +11,46 @@ from app.db.models import (
     FrenzySubmission,
     Leaderboard,
     MembershipEvent,
+    PartyChatMessageDB,
+    PartyDB,
+    PartyMemberDB,
     PlayerRanking,
     PlayerSnapshot,
     Ticket,
     User,
     UserAccount,
 )
+
+
+async def backfill_event_user_account(
+    session: AsyncSession, user_account_id: int, rsns: list[str]
+) -> None:
+    """Set user_account_id on all three event tables for every RSN in rsns. Does not commit."""
+    lower_rsns = [r.lower() for r in rsns]
+    await session.execute(
+        update(Event)
+        .where(
+            func.replace(func.lower(Event.player_name), "\xa0", " ").in_(lower_rsns),
+            Event.user_account_id.is_(None),
+        )
+        .values(user_account_id=user_account_id)
+    )
+    await session.execute(
+        update(CofferEvent)
+        .where(
+            func.lower(CofferEvent.player_name).in_(lower_rsns),
+            CofferEvent.user_account_id.is_(None),
+        )
+        .values(user_account_id=user_account_id)
+    )
+    await session.execute(
+        update(MembershipEvent)
+        .where(
+            func.lower(MembershipEvent.player_name).in_(lower_rsns),
+            MembershipEvent.user_account_id.is_(None),
+        )
+        .values(user_account_id=user_account_id)
+    )
 
 
 async def _cascade_rsn_single(
@@ -27,39 +61,6 @@ async def _cascade_rsn_single(
         update(User)
         .where(func.lower(User.rsn) == old_rsn.lower())
         .values(rsn=new_rsn, updated_at=now)
-    )
-
-    await session.execute(
-        update(Event)
-        .where(func.lower(Event.player_name) == old_rsn.lower())
-        .values(player_name=new_rsn)
-    )
-
-    await session.execute(
-        text(
-            "UPDATE events SET data = jsonb_set(data, '{winner}', to_jsonb(CAST(:new_rsn AS text)))"
-            " WHERE type = 'pk' AND lower(data->>'winner') = lower(:old_rsn)"
-        ),
-        {"old_rsn": old_rsn, "new_rsn": new_rsn},
-    )
-    await session.execute(
-        text(
-            "UPDATE events SET data = jsonb_set(data, '{loser}', to_jsonb(CAST(:new_rsn AS text)))"
-            " WHERE type = 'pk' AND lower(data->>'loser') = lower(:old_rsn)"
-        ),
-        {"old_rsn": old_rsn, "new_rsn": new_rsn},
-    )
-
-    await session.execute(
-        update(CofferEvent)
-        .where(func.lower(CofferEvent.player_name) == old_rsn.lower())
-        .values(player_name=new_rsn)
-    )
-
-    await session.execute(
-        update(MembershipEvent)
-        .where(func.lower(MembershipEvent.player_name) == old_rsn.lower())
-        .values(player_name=new_rsn)
     )
 
     # Leaderboard has a composite PK (player_name, activity, variant).
@@ -84,22 +85,58 @@ async def _cascade_rsn_single(
         .values(player_name=new_rsn)
     )
 
+    # PlayerRanking has a unique constraint on rsn. RankingService may have already
+    # written new_rsn before the cascade runs. Ensure new_rsn exists (copying old row
+    # if absent), then delete the stale old_rsn row unconditionally.
     await session.execute(
-        update(PlayerRanking)
-        .where(func.lower(PlayerRanking.rsn) == old_rsn.lower())
-        .values(rsn=new_rsn)
+        text(
+            "INSERT INTO player_rankings (rsn, rank, points, boss_points, skill_points, discord_user_id, updated_at)"
+            " SELECT :new_rsn, rank, points, boss_points, skill_points, discord_user_id, updated_at"
+            " FROM player_rankings WHERE lower(rsn) = lower(:old_rsn)"
+            " ON CONFLICT (rsn) DO NOTHING"
+        ),
+        {"old_rsn": old_rsn, "new_rsn": new_rsn},
+    )
+    await session.execute(
+        delete(PlayerRanking).where(func.lower(PlayerRanking.rsn) == old_rsn.lower())
     )
 
+    # Same guard for PlayerSnapshot.
     await session.execute(
-        update(PlayerSnapshot)
-        .where(func.lower(PlayerSnapshot.rsn) == old_rsn.lower())
-        .values(rsn=new_rsn)
+        text(
+            "INSERT INTO player_snapshots (rsn, skills, bosses, fetched_at)"
+            " SELECT :new_rsn, skills, bosses, fetched_at"
+            " FROM player_snapshots WHERE lower(rsn) = lower(:old_rsn)"
+            " ON CONFLICT (rsn) DO NOTHING"
+        ),
+        {"old_rsn": old_rsn, "new_rsn": new_rsn},
+    )
+    await session.execute(
+        delete(PlayerSnapshot).where(func.lower(PlayerSnapshot.rsn) == old_rsn.lower())
     )
 
     await session.execute(
         update(FrenzySubmission)
         .where(func.lower(FrenzySubmission.player_rsn) == old_rsn.lower())
         .values(player_rsn=new_rsn)
+    )
+
+    await session.execute(
+        update(PartyDB)
+        .where(func.lower(PartyDB.leader_rsn) == old_rsn.lower())
+        .values(leader_rsn=new_rsn)
+    )
+
+    await session.execute(
+        update(PartyMemberDB)
+        .where(func.lower(PartyMemberDB.rsn) == old_rsn.lower())
+        .values(rsn=new_rsn)
+    )
+
+    await session.execute(
+        update(PartyChatMessageDB)
+        .where(func.lower(PartyChatMessageDB.rsn) == old_rsn.lower())
+        .values(rsn=new_rsn)
     )
 
 
@@ -136,7 +173,10 @@ async def cascade_rsn_change(session: AsyncSession, old_rsn: str, new_rsn: str) 
     await session.execute(
         update(UserAccount)
         .where(func.lower(UserAccount.rsn) == old_rsn.lower())
-        .values(rsn=new_rsn)
+        .values(
+            rsn=new_rsn,
+            rsn_history=func.array_append(UserAccount.rsn_history, old_rsn),
+        )
     )
 
     await session.commit()

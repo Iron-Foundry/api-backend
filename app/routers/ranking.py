@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from collections import defaultdict
 
-from app.db.models import PlayerRanking, User, UserAccount
+from app.db.models import Config, PlayerRanking, User, UserAccount
 from app.dependencies import get_current_user, get_session
 from app.services.page_permissions import require_page_permission
 from app.services.ranking_service import _DEFAULT_CONFIG
@@ -39,6 +39,18 @@ _RANK_ORDER = {
     "Rank 4": 4,
     "Rank 5": 5,
     "Rank 6": 6,
+}
+
+_INGAME_TO_DISPLAY: dict[str, str] = {
+    "guest": "Guest",
+    "achiever": "Achiever",
+    "sapphire": "Sapphire",
+    "emerald": "Emerald",
+    "ruby": "Ruby",
+    "diamond": "Diamond",
+    "dragonstone": "Dragonstone",
+    "onyx": "Onyx",
+    "zenyte": "Zenyte",
 }
 
 
@@ -122,23 +134,47 @@ async def get_ranking_stats(session: AsyncSession = Depends(get_session)) -> dic
     clan_rank_dist: dict[str, int] = {}
     rank_overlap: dict[str, dict[str, int]] = {}
     if user_ids:
-        clan_rows = await session.execute(
-            select(User.discord_user_id, User.clan_rank).where(
-                User.discord_user_id.in_(user_ids),
-                User.clan_rank.is_not(None),
+        cfg_result = await session.execute(
+            select(Config.value).where(
+                Config.guild_id == 0, Config.key == "clan_rank_mappings"
             )
         )
-        clan_rank_by_user: dict[int, str] = {
-            row.discord_user_id: row.clan_rank for row in clan_rows
+        cfg = cfg_result.scalar_one_or_none() or {}
+        role_id_to_rank: dict[str, tuple[int, str]] = {
+            m["discord_role_id"]: (m.get("order", 0), m.get("label", ""))
+            for m in cfg.get("mappings", [])
+            if m.get("discord_role_id") and m.get("label")
+        }
+
+        def _highest_discord_rank(discord_roles: list) -> str | None:
+            best_order, best_label = -1, None
+            for rid in discord_roles:
+                if rid in role_id_to_rank:
+                    order, label = role_id_to_rank[rid]
+                    if order > best_order:
+                        best_order, best_label = order, label
+            return best_label
+
+        user_rows = await session.execute(
+            select(User.discord_user_id, User.clan_rank, User.discord_roles).where(
+                User.discord_user_id.in_(user_ids),
+            )
+        )
+        user_data_by_id: dict[int, tuple[str | None, list]] = {
+            row.discord_user_id: (row.clan_rank, row.discord_roles or [])
+            for row in user_rows
         }
         for r in all_deduplicated:
-            clan_rank = (
-                clan_rank_by_user.get(r.discord_user_id) if r.discord_user_id else None
+            if not r.discord_user_id:
+                continue
+            clan_rank_raw, discord_roles = user_data_by_id.get(r.discord_user_id, (None, []))
+            display_rank = _highest_discord_rank(discord_roles) or (
+                _INGAME_TO_DISPLAY.get(clan_rank_raw, clan_rank_raw) if clan_rank_raw else None
             )
-            if clan_rank:
-                clan_rank_dist[clan_rank] = clan_rank_dist.get(clan_rank, 0) + 1
+            if display_rank:
+                clan_rank_dist[display_rank] = clan_rank_dist.get(display_rank, 0) + 1
                 wom_bucket = rank_overlap.setdefault(r.rank, {})
-                wom_bucket[clan_rank] = wom_bucket.get(clan_rank, 0) + 1
+                wom_bucket[display_rank] = wom_bucket.get(display_rank, 0) + 1
 
     return {
         "total": len(all_deduplicated),

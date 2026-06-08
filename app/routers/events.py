@@ -714,5 +714,29 @@ async def ingest_chat(
             """
         )
     )
+    await session.execute(
+        text(
+            "UPDATE events e SET user_account_id = ua.id"
+            " FROM user_accounts ua"
+            " WHERE replace(lower(e.player_name), chr(160), ' ') = lower(ua.rsn)"
+            " AND e.user_account_id IS NULL"
+        )
+    )
+    await session.execute(
+        text(
+            "UPDATE coffer_events ce SET user_account_id = ua.id"
+            " FROM user_accounts ua"
+            " WHERE lower(ce.player_name) = lower(ua.rsn)"
+            " AND ce.user_account_id IS NULL"
+        )
+    )
+    await session.execute(
+        text(
+            "UPDATE membership_events me SET user_account_id = ua.id"
+            " FROM user_accounts ua"
+            " WHERE lower(me.player_name) = lower(ua.rsn)"
+            " AND me.user_account_id IS NULL"
+        )
+    )
     await session.commit()
     return {"ok": True, "processed": len(payloads)}

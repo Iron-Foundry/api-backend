@@ -194,6 +194,14 @@ class WiseOldManHandler(BaseRequestHandler):
         resp = await self._get_with_rate_limit(f"/players/{username}")
         return resp.json() if resp.is_success else {}
 
+    async def get_player_name_changes(self, username: str) -> list[dict]:
+        """Fetch name change history for a single player from WOM.
+
+        Returns list of {oldName, newName, status, ...} or empty list on failure.
+        """
+        resp = await self._get_with_rate_limit(f"/players/{username}/names")
+        return resp.json() if resp.is_success else []
+
     async def get_group_name_changes(
         self, group_id: str | int, *, limit: int = 50
     ) -> list[dict]:

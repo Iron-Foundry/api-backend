@@ -3,10 +3,12 @@ from __future__ import annotations
 import asyncio
 
 from loguru import logger
+from sqlalchemy import func, select, update
 
+from app.db.models import UserAccount
 from app.services.feed_event import insert_feed_event
 from app.services.http import WiseOldManHandler, WomPriority
-from app.services.rsn_cascade import cascade_rsn_change
+from app.services.rsn_cascade import backfill_event_user_account, cascade_rsn_change
 
 POLL_INTERVAL = 1800  # 30 minutes
 
@@ -84,10 +86,6 @@ class WomNameChangeService:
             old = change["oldName"]
             new = change["newName"]
 
-            from sqlalchemy import func, select
-
-            from app.db.models import UserAccount
-
             async with self._session_factory() as session:
                 result = await session.execute(
                     select(UserAccount.discord_user_id).where(
@@ -103,6 +101,8 @@ class WomNameChangeService:
             async with self._session_factory() as session:
                 await cascade_rsn_change(session, old, new)
 
+            await self._backfill_history(new)
+
             async with self._session_factory() as session:
                 await insert_feed_event(
                     session,
@@ -115,10 +115,53 @@ class WomNameChangeService:
 
             self._last_id = change["id"]
             processed += 1
-            logger.info("WomNameChangeService: cascaded {} → {}", old, new)
+            logger.info("WomNameChangeService: cascaded {} -> {}", old, new)
 
         logger.info(
             "WomNameChangeService: processed {}/{} approved changes",
             processed,
             len(approved),
+        )
+
+    async def _backfill_history(self, new_rsn: str) -> None:
+        """Fetch WOM name history for new_rsn and overwrite rsn_history + backfill event FKs."""
+        try:
+            async with WiseOldManHandler(
+                api_key=self._api_key, priority=WomPriority.LOW
+            ) as wom:
+                name_changes = await wom.get_player_name_changes(new_rsn)
+        except Exception as exc:
+            logger.warning(
+                "WomNameChangeService: failed to fetch name history for {}: {}",
+                new_rsn,
+                exc,
+            )
+            return
+
+        history = [c["oldName"] for c in name_changes if c.get("status") == "approved"]
+        if not history:
+            return
+
+        async with self._session_factory() as session:
+            ua_result = await session.execute(
+                select(UserAccount.id).where(
+                    func.lower(UserAccount.rsn) == new_rsn.lower()
+                )
+            )
+            ua_id = ua_result.scalar_one_or_none()
+            if not ua_id:
+                return
+
+            await session.execute(
+                update(UserAccount)
+                .where(UserAccount.id == ua_id)
+                .values(rsn_history=history)
+            )
+            await backfill_event_user_account(session, ua_id, [new_rsn] + history)
+            await session.commit()
+
+        logger.info(
+            "WomNameChangeService: backfilled {} history entries for {}",
+            len(history),
+            new_rsn,
         )

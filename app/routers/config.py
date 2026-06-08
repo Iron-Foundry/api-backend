@@ -31,6 +31,7 @@ _NOTIFICATION_CATEGORIES_KEY = "party_notification_categories"
 _RANKING_CONFIG_KEY = "ranking_config"
 _DISCORD_ROLES_KEY = "discord_roles"
 _SERVICE_TOGGLES_KEY = "service_toggles"
+_TICKET_FEATURES_KEY = "ticket_features"
 
 _ALL_SERVICE_KEYS: list[str] = [
     "wom_name_change",
@@ -511,3 +512,37 @@ async def set_service_toggle(
             "Service {} not in registry (may require WOM_GROUP_ID)", service_key
         )
     return current
+
+
+# ── Ticket features config ────────────────────────────────────────────────────
+
+
+class TicketFeaturesConfig(BaseModel):
+    rank_pull_set_primary: bool = False
+
+
+@router.get(
+    "/ticket-features",
+    dependencies=[Depends(require_page_permission("staff.ticket-config", "read"))],
+)
+async def get_ticket_features(
+    session: AsyncSession = Depends(get_session),
+) -> TicketFeaturesConfig:
+    """Return ticket feature toggle config."""
+    data = await _get_config_value(_TICKET_FEATURES_KEY, session)
+    return TicketFeaturesConfig(
+        rank_pull_set_primary=bool(data.get("rank_pull_set_primary", False)),
+    )
+
+
+@router.put(
+    "/ticket-features",
+    dependencies=[Depends(require_page_permission("staff.ticket-config", "edit"))],
+)
+async def set_ticket_features(
+    body: TicketFeaturesConfig,
+    session: AsyncSession = Depends(get_session),
+) -> TicketFeaturesConfig:
+    """Update ticket feature toggle config."""
+    await _set_config_value(_TICKET_FEATURES_KEY, body.model_dump(), session)
+    return body

@@ -19,7 +19,7 @@ _MODULE_NAME = "ccingest"
 class CcIngestMetricsCollector:
     """Lock-free in-memory accumulator for ccingest event type counts.
 
-    record() appends a string — GIL-atomic for CPython lists.
+    record() appends a string - GIL-atomic for CPython lists.
     drain() swaps the buffer atomically before aggregating.
     """
 
