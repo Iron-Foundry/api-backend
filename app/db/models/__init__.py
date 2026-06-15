@@ -5,6 +5,7 @@ the single source of truth for alembic autogenerate.
 """
 
 from .assets import Asset
+from .competition_schedule import CompetitionSchedule, ScheduledCompetitionRun
 from .badges import Badge, UserBadge
 from .base import Base
 from .clan import ClanStats
@@ -40,6 +41,8 @@ from .users import User, UserAccount
 
 __all__ = [
     "Asset",
+    "CompetitionSchedule",
+    "ScheduledCompetitionRun",
     "Badge",
     "Base",
     "ClanStats",

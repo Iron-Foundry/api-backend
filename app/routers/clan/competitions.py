@@ -131,10 +131,11 @@ async def competition_metric_detail(
 async def competition_overtime(
     competition_id: int,
     metric: str = Query(..., description="WOM metric key"),
+    limit: int = Query(5, ge=1, le=25, description="Max players to return"),
     valkey: Valkey = Depends(get_valkey),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Top-5 player progress over time, reconstructed from DB snapshots."""
+    """Player progress over time, reconstructed from DB snapshots."""
     status = "ongoing"
     for cache_key in (_COMPS_FRESH_KEY, _COMPS_STALE_KEY):
         raw = await valkey.get(cache_key)
@@ -163,7 +164,7 @@ async def competition_overtime(
             series = sorted(
                 [{"player_name": n, "history": h} for n, h in players.items()],
                 key=lambda p: p["history"][-1]["value"] if p["history"] else 0, reverse=True,
-            )[:5]
+            )[:limit]
             return {"comp_id": competition_id, "metric": metric, "series": series}
 
     raise HTTPException(status_code=503, detail="Timeline data not yet available.")

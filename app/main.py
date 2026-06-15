@@ -32,6 +32,7 @@ from app.routers import (
 from app.services.connection_manager import connection_manager
 from app.services.clan_stats import ClanStatsService
 from app.services.competition_snapshot import CompetitionSnapshotService
+from app.services.competition_schedule import CompetitionScheduleService
 from app.services.discord_chat import DiscordChatService
 from app.services.ccingest_metrics import collector as ccingest_collector
 from app.services.endpoint_metrics import (
@@ -113,6 +114,16 @@ async def lifespan(app: FastAPI):
         snapshot_service: CompetitionSnapshotService | None = (
             CompetitionSnapshotService(app.state.session_factory, app.state.valkey)
         )
+        comp_schedule_service: CompetitionScheduleService | None = None
+        if WOM_GROUP_KEY:
+            comp_schedule_service = CompetitionScheduleService(
+                app.state.session_factory,
+                app.state.valkey,
+                int(WOM_GROUP_ID),
+                WOM_GROUP_KEY,
+                api_key=WOM_API_KEY,
+                discord_contact=os.getenv("WOM_DISCORD_CONTACT"),
+            )
     else:
         logger.warning(
             "WOM_GROUP_ID not set - name change, clan stats, ranking and snapshot services disabled"
@@ -121,6 +132,7 @@ async def lifespan(app: FastAPI):
         clan_stats_service = None
         ranking_service = None
         snapshot_service = None
+        comp_schedule_service = None
 
     app.state.ranking_service = ranking_service
     app.state.service_registry = {
@@ -131,6 +143,7 @@ async def lifespan(app: FastAPI):
         "clan_stats": clan_stats_service,
         "ranking": ranking_service,
         "competition_snapshot": snapshot_service,
+        "competition_schedule": comp_schedule_service,
     }
 
     # Start only enabled services

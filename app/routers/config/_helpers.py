@@ -19,12 +19,14 @@ _RANKING_CONFIG_KEY = "ranking_config"
 _DISCORD_ROLES_KEY = "discord_roles"
 _SERVICE_TOGGLES_KEY = "service_toggles"
 _TICKET_FEATURES_KEY = "ticket_features"
+_PANEL_CONFIG_KEY = "info_panel_config"
 
 _ALL_SERVICE_KEYS: list[str] = [
     "wom_name_change",
     "clan_stats",
     "ranking",
     "competition_snapshot",
+    "competition_schedule",
     "metric_compaction",
     "discord_chat",
     "party_expiry",

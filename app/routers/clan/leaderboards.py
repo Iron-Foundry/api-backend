@@ -17,6 +17,34 @@ from ._leaderboard_cache import _build_kc_cache, _build_leagues_cache
 router = APIRouter()
 
 
+def _dedup_flat(entries: list[dict]) -> list[dict]:
+    """Remove entries where the same discord_user_id already appeared. Assumes entries are pre-sorted best-first."""
+    seen: set[int] = set()
+    out: list[dict] = []
+    for e in entries:
+        uid = e.pop("_discord_user_id", None)
+        if uid is None or uid not in seen:
+            if uid is not None:
+                seen.add(uid)
+            out.append(e)
+    return out
+
+
+def _dedup_pb(entries: list[dict]) -> list[dict]:
+    """Remove PB entries where same discord_user_id already holds a time in the same activity+variant. Assumes sorted by time ASC."""
+    seen: set[tuple] = set()
+    out: list[dict] = []
+    for e in entries:
+        uid = e.pop("_discord_user_id", None)
+        if uid is not None:
+            key = (uid, e["activity"], e["variant"])
+            if key in seen:
+                continue
+            seen.add(key)
+        out.append(e)
+    return out
+
+
 @router.get("/leaderboards")
 async def clan_leaderboards(session: AsyncSession = Depends(get_session)) -> list[dict]:
     """Return all personal best entries from the leaderboards table, sorted by activity then time."""
@@ -34,7 +62,7 @@ async def clan_leaderboards(session: AsyncSession = Depends(get_session)) -> lis
         if e["player_name"]:
             entries_by_name.setdefault(e["player_name"].lower(), []).append(e)
     await _enrich_with_ranks(entries_by_name, session)
-    return result_dicts
+    return _dedup_pb(result_dicts)
 
 
 @router.get("/leaderboards/killcounts")
@@ -56,6 +84,8 @@ async def killcount_leaderboard(
             for e in boss.get("entries", []):
                 entries_by_name.setdefault(e["player_name"].lower(), []).append(e)
         await _enrich_with_ranks(entries_by_name, session)
+        for boss in data:
+            boss["entries"] = _dedup_flat(boss.get("entries", []))
     return data
 
 
@@ -75,6 +105,7 @@ async def leagues_leaderboard(
     if data:
         entries_by_name = {e["player_name"].lower(): [e] for e in data}
         await _enrich_with_ranks(entries_by_name, session)
+        data = _dedup_flat(data)
     return data
 
 
@@ -109,4 +140,4 @@ async def collection_log_leaderboard(session: AsyncSession = Depends(get_session
         if e["player_name"]:
             entries_by_name_clog.setdefault(e["player_name"].lower(), []).append(e)
     await _enrich_with_ranks(entries_by_name_clog, session)
-    return result_dicts
+    return _dedup_flat(result_dicts)

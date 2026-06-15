@@ -74,25 +74,31 @@ async def _enrich_with_ranks(
         return best_label
 
     rank_map: dict[str, tuple[str | None, str | None]] = {}
+    uid_map: dict[str, int | None] = {}
     ua_rows = await session.execute(
-        select(func.lower(UserAccount.rsn), User.clan_rank, User.discord_roles, UserAccount.is_primary)
+        select(func.lower(UserAccount.rsn), User.clan_rank, User.discord_roles, UserAccount.is_primary, UserAccount.discord_user_id)
         .join(User, User.discord_user_id == UserAccount.discord_user_id)
         .where(func.lower(UserAccount.rsn).in_(names))
     )
-    for rsn, clan_rank, discord_roles, is_primary in ua_rows:
+    for rsn, clan_rank, discord_roles, is_primary, discord_user_id in ua_rows:
         dr = _highest_discord_rank(discord_roles or []) if is_primary else None
         rank_map[rsn] = (clan_rank, dr)
+        uid_map[rsn] = discord_user_id
 
     legacy_rows = await session.execute(
-        select(func.lower(User.rsn), User.clan_rank, User.discord_roles)
+        select(func.lower(User.rsn), User.clan_rank, User.discord_roles, User.discord_user_id)
         .where(func.lower(User.rsn).in_(names), User.rsn.isnot(None))
     )
-    for rsn, clan_rank, discord_roles in legacy_rows:
+    for rsn, clan_rank, discord_roles, discord_user_id in legacy_rows:
         if rsn not in rank_map:
             rank_map[rsn] = (clan_rank, _highest_discord_rank(discord_roles or []))
+        if rsn not in uid_map:
+            uid_map[rsn] = discord_user_id
 
     for name, entry_list in entries_by_name.items():
         clan_rank, discord_rank = rank_map.get(name, (None, None))
+        uid = uid_map.get(name)
         for e in entry_list:
             e["clan_rank"] = clan_rank
             e["discord_rank"] = discord_rank
+            e["_discord_user_id"] = uid

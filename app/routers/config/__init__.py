@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from .discord_features import router as discord_features_router
 from .general import router as general_router
+from .panel_config import router as panel_config_router
 from .ranking import router as ranking_router
 from .service_toggles import router as service_toggles_router
 from .ticket_features import router as ticket_features_router
@@ -15,3 +16,4 @@ router.include_router(discord_features_router)
 router.include_router(ranking_router)
 router.include_router(service_toggles_router)
 router.include_router(ticket_features_router)
+router.include_router(panel_config_router)

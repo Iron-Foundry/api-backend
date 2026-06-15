@@ -43,6 +43,40 @@ async def referral_stats(
     return {"sources": sources, "recruiters": recruiters}
 
 
+@router.get("/referral-details")
+async def referral_details(
+    current_user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[dict]:
+    """Per-member referral source breakdown."""
+    await require_rank("staff.home", "read", current_user, session)
+    rows = await session.execute(
+        select(
+            User.discord_user_id,
+            User.discord_username,
+            User.discord_avatar_url,
+            User.rsn,
+            User.referral_source,
+            User.referral_detail,
+            User.join_date,
+            User.created_at,
+        ).order_by(User.join_date.asc().nulls_last())
+    )
+    return [
+        {
+            "discord_user_id": str(row.discord_user_id),
+            "discord_username": row.discord_username,
+            "discord_avatar_url": row.discord_avatar_url,
+            "rsn": row.rsn,
+            "referral_source": row.referral_source,
+            "referral_detail": row.referral_detail,
+            "join_date": row.join_date.isoformat() if row.join_date else None,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+        }
+        for row in rows
+    ]
+
+
 @router.get("/overview")
 async def staff_overview(
     current_user: dict = Depends(get_current_user),
