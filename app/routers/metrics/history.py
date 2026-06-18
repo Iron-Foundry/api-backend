@@ -13,6 +13,20 @@ from ._helpers import require_staff
 
 router = APIRouter()
 
+_SUM_KEYS = {"total_requests", "errors_4xx", "errors_5xx", "total_req_bytes", "total_resp_bytes",
+              "messages_dispatched", "closed_today"}
+
+
+def _flatten_compact_metrics(metrics_agg: dict) -> dict:
+    """Flatten compact {min,max,avg,sum,count} metrics to scalar values for frontend compatibility."""
+    result = {}
+    for key, val in metrics_agg.items():
+        if isinstance(val, dict) and "avg" in val:
+            result[key] = val["sum"] if key in _SUM_KEYS else val["avg"]
+        else:
+            result[key] = val
+    return result
+
 
 @router.get("/metrics/bandwidth")
 async def metrics_bandwidth(
@@ -122,7 +136,7 @@ async def metrics_history(
         default_factory=lambda: datetime.now(timezone.utc) - timedelta(days=7),
     ),
     to: datetime = Query(default_factory=lambda: datetime.now(timezone.utc)),
-    limit: int = Query(default=500, ge=1, le=2000),
+    limit: int = Query(default=2000, ge=1, le=2000),
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
@@ -154,14 +168,13 @@ async def metrics_history(
             MetricRecordCompact.date <= to.date(),
         )
         .order_by(MetricRecordCompact.date.desc())
-        .limit(limit)
     )
     compact = [
-        {"recorded_at": r.date.isoformat(), "metrics": r.metrics_agg, "sample_count": r.sample_count, "is_compact": True}
+        {"recorded_at": r.date.isoformat(), "metrics": _flatten_compact_metrics(r.metrics_agg), "sample_count": r.sample_count, "is_compact": True}
         for r in compact_rows.scalars()
     ]
 
-    all_records = sorted(raw + compact, key=lambda r: r["recorded_at"], reverse=True)[:limit]
+    all_records = sorted(raw + compact, key=lambda r: r["recorded_at"], reverse=True)
 
     modules_result = await session.execute(
         text(
