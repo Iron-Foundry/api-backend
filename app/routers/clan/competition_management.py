@@ -48,7 +48,7 @@ async def create_competition_endpoint(
             discord_contact=_WOM_DISCORD_CONTACT,
         )
         background_tasks.add_task(_invalidate_competitions_cache, valkey)
-        return result
+        return result.get("competition", result)
     except httpx.HTTPStatusError as exc:
         _handle_wom_error(exc)
 
