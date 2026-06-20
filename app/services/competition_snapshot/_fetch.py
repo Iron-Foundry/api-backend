@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 
 from loguru import logger
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from valkey.asyncio import Valkey
 
 from app.db.models import CompetitionSnapshot
@@ -79,7 +80,7 @@ async def fetch_metric_standings(
 
 
 async def backfill_start_if_needed(
-    session_factory,  # type: ignore[no-untyped-def]
+    session_factory: async_sessionmaker[AsyncSession],
     wom: WiseOldManHandler,
     comp_id: int,
     metric: str,

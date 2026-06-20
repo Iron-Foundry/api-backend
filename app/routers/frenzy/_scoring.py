@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -111,7 +112,7 @@ def _apply_pending_submissions(
     base_item: dict,
     base_activity: dict,
     base_milestone: dict,
-    pending: list[FrenzySubmission],
+    pending: Sequence[FrenzySubmission],
 ) -> tuple[dict, dict, dict]:
     item_p = dict(base_item)
     act_by_player: dict[str, dict[int, int]] = {}

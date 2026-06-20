@@ -80,7 +80,7 @@ class UpdateNotificationPrefsRequest(BaseModel):
     category_ids: list[str] = []
 
 
-async def require_party(party_id: str, session: AsyncSession):  # type: ignore[return]
+async def require_party(party_id: str, session: AsyncSession) -> PartyDB:
     party = await get_party(session, party_id)
     if not party:
         raise HTTPException(404, "Party not found")

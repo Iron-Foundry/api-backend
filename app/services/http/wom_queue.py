@@ -94,7 +94,7 @@ class WomRequestQueue:
 
     def submit(
         self, coro_fn: Callable[[], Any], priority: WomPriority
-    ) -> asyncio.Future:
+    ) -> asyncio.Future[httpx.Response]:
         """Enqueue a WOM request. Returns a Future resolved with the httpx.Response."""
         loop = asyncio.get_event_loop()
         future: asyncio.Future[httpx.Response] = loop.create_future()

@@ -8,8 +8,13 @@ import os
 from datetime import datetime, timedelta, timezone
 
 from loguru import logger
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from valkey.asyncio import Valkey
 
+from app.db.models.competition_schedule import (
+    CompetitionSchedule,
+    ScheduledCompetitionRun,
+)
 from app.services.competitions import CreateCompetitionInput, create_competition
 from app.services.http import WiseOldManHandler, WomPriority
 from .repository import (
@@ -42,7 +47,7 @@ class CompetitionScheduleService:
 
     def __init__(
         self,
-        session_factory,  # type: ignore[no-untyped-def]
+        session_factory: async_sessionmaker[AsyncSession] | None,
         valkey: Valkey,
         group_id: int,
         group_key: str,
@@ -142,7 +147,9 @@ class CompetitionScheduleService:
 
             await session.commit()
 
-    async def _build_poll_payload(self, run, sched) -> str:  # type: ignore[no-untyped-def]
+    async def _build_poll_payload(
+        self, run: ScheduledCompetitionRun, sched: CompetitionSchedule
+    ) -> str:
         effective_options = run.poll_options_override or sched.poll_options or []
         return json.dumps(
             {
@@ -154,7 +161,9 @@ class CompetitionScheduleService:
             }
         )
 
-    async def _fire_poll(self, session, sched, now: datetime) -> None:  # type: ignore[no-untyped-def]
+    async def _fire_poll(
+        self, session: AsyncSession, sched: CompetitionSchedule, now: datetime
+    ) -> None:
         run = await create_run(session, sched.id)
         payload = await self._build_poll_payload(run, sched)
         await self._valkey.publish(_CH_CREATE_POLL, payload)
@@ -176,7 +185,13 @@ class CompetitionScheduleService:
             run.id,
         )
 
-    async def _fire_existing_run(self, session, sched, run, now: datetime) -> None:  # type: ignore[no-untyped-def]
+    async def _fire_existing_run(
+        self,
+        session: AsyncSession,
+        sched: CompetitionSchedule,
+        run: ScheduledCompetitionRun,
+        now: datetime,
+    ) -> None:
         """Fire a pending_poll run that was created but never published (crash recovery)."""
         payload = await self._build_poll_payload(run, sched)
         await self._valkey.publish(_CH_CREATE_POLL, payload)
@@ -194,8 +209,9 @@ class CompetitionScheduleService:
             sched.id,
         )
 
-    async def _republish_poll(self, session, run) -> None:  # type: ignore[no-untyped-def]
-        from app.db.models.competition_schedule import CompetitionSchedule
+    async def _republish_poll(
+        self, session: AsyncSession, run: ScheduledCompetitionRun
+    ) -> None:
         from sqlalchemy import select as sa_select
 
         sched = (
@@ -214,8 +230,9 @@ class CompetitionScheduleService:
             run.id,
         )
 
-    async def _request_poll_close(self, session, run) -> None:  # type: ignore[no-untyped-def]
-        from app.db.models.competition_schedule import CompetitionSchedule
+    async def _request_poll_close(
+        self, session: AsyncSession, run: ScheduledCompetitionRun
+    ) -> None:
         from sqlalchemy import select as sa_select
 
         sched = (
@@ -242,13 +259,13 @@ class CompetitionScheduleService:
             run.id,
         )
 
-    async def _create_wom_competition(self, session, run) -> None:  # type: ignore[no-untyped-def]
-        # Idempotency: if wom_competition_id already set, just fix status
+    async def _create_wom_competition(
+        self, session: AsyncSession, run: ScheduledCompetitionRun
+    ) -> None:
         if run.wom_competition_id is not None:
             await update_run(session, run, status="competition_active")
             return
 
-        from app.db.models.competition_schedule import CompetitionSchedule
         from sqlalchemy import select as sa_select
 
         sched = (
@@ -314,8 +331,9 @@ class CompetitionScheduleService:
             await update_run(session, run, status="error", error_detail=str(exc))
             await session.commit()
 
-    async def _announce_results(self, session, run) -> None:  # type: ignore[no-untyped-def]
-        from app.db.models.competition_schedule import CompetitionSchedule
+    async def _announce_results(
+        self, session: AsyncSession, run: ScheduledCompetitionRun
+    ) -> None:
         from sqlalchemy import select as sa_select
 
         sched = (
@@ -412,7 +430,7 @@ class CompetitionScheduleService:
         run_id = data.get("run_id")
         msg_id = data.get("discord_poll_message_id")
         channel_id = data.get("discord_poll_channel_id")
-        if not run_id:
+        if not run_id or self._session_factory is None:
             return
         async with self._session_factory() as session:
             run = await get_run(session, run_id)
@@ -427,7 +445,7 @@ class CompetitionScheduleService:
 
     async def _handle_poll_result(self, data: dict) -> None:
         run_id = data.get("run_id")
-        if not run_id:
+        if not run_id or self._session_factory is None:
             return
         skipped = data.get("skipped", False)
         winning_metric = data.get("winning_metric")

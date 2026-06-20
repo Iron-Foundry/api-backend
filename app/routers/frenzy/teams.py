@@ -128,8 +128,10 @@ async def refresh_leaderboards(
 ) -> dict:
     await valkey.delete(_LB_FRESH_KEY)
     event = (
-        await session.execute(select(FrenzyEvent).where(FrenzyEvent.is_active == True))
-    ).scalar_one_or_none()  # noqa: E712
+        await session.execute(
+            select(FrenzyEvent).where(FrenzyEvent.is_active.is_(True))
+        )
+    ).scalar_one_or_none()
     metrics: list[str] = event.leaderboard_metrics if event else []
     wom_comp_id: int | None = event.wom_comp_id if event else None
     background_tasks.add_task(_build_lb_cache, valkey, wom_comp_id, metrics)

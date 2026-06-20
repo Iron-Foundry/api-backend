@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 
 from loguru import logger
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.models import MetricRecord, ServiceStatus
 from app.services.ccingest_metrics import CcIngestMetricsCollector
@@ -24,7 +25,7 @@ class WebSocketMetricsService:
     def __init__(
         self,
         connection_manager: ConnectionManager,
-        session_factory,  # type: ignore[no-untyped-def]
+        session_factory: async_sessionmaker[AsyncSession] | None,
         ccingest_collector: CcIngestMetricsCollector | None = None,
     ) -> None:
         self._cm = connection_manager

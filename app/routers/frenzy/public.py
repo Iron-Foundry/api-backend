@@ -24,8 +24,10 @@ async def get_active_event(
 ) -> dict:
     """Return the active event with all teams ranked by total points."""
     event = (
-        await session.execute(select(FrenzyEvent).where(FrenzyEvent.is_active == True))
-    ).scalar_one_or_none()  # noqa: E712
+        await session.execute(
+            select(FrenzyEvent).where(FrenzyEvent.is_active.is_(True))
+        )
+    ).scalar_one_or_none()
     if event is None:
         raise HTTPException(404, "No active frenzy event.")
 
@@ -117,8 +119,10 @@ async def get_active_team_detail(
 ) -> dict:
     """Full team detail: template merged with team progress and computed scores."""
     event = (
-        await session.execute(select(FrenzyEvent).where(FrenzyEvent.is_active == True))
-    ).scalar_one_or_none()  # noqa: E712
+        await session.execute(
+            select(FrenzyEvent).where(FrenzyEvent.is_active.is_(True))
+        )
+    ).scalar_one_or_none()
     if event is None:
         raise HTTPException(404, "No active frenzy event.")
 

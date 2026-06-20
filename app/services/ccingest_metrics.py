@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 
 from loguru import logger
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.models import MetricRecord
 
@@ -46,7 +47,11 @@ class CcIngestMetricsCollector:
 class CcIngestMetricsService:
     """Periodically flushes ccingest event counts into metric_records."""
 
-    def __init__(self, collector: CcIngestMetricsCollector, session_factory) -> None:  # type: ignore[no-untyped-def]
+    def __init__(
+        self,
+        collector: CcIngestMetricsCollector,
+        session_factory: async_sessionmaker[AsyncSession],
+    ) -> None:
         self._collector = collector
         self._session_factory = session_factory
         self._task: asyncio.Task[None] | None = None

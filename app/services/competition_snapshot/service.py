@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 
 from loguru import logger
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from valkey.asyncio import Valkey
 
 from app.db.models import CompetitionSnapshot, Config
@@ -25,7 +26,9 @@ POLL_INTERVAL = 1800  # 30 minutes
 class CompetitionSnapshotService:
     """Snapshots ongoing competition standings to DB every 30 minutes."""
 
-    def __init__(self, session_factory, valkey: Valkey) -> None:  # type: ignore[no-untyped-def]
+    def __init__(
+        self, session_factory: async_sessionmaker[AsyncSession] | None, valkey: Valkey
+    ) -> None:
         self._session_factory = session_factory
         self._valkey = valkey
         self._task: asyncio.Task[None] | None = None

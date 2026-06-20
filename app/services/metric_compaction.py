@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import asyncio
 from datetime import date, datetime, timedelta, timezone
-from typing import Any
+from typing import Any, cast
 
 from loguru import logger
 from sqlalchemy import delete, func, select
+from sqlalchemy.engine import CursorResult
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.db.models import MetricRecord, MetricRecordCompact
@@ -40,7 +42,9 @@ def _aggregate_metrics(rows: list[dict]) -> dict[str, Any]:
 class MetricCompactionService:
     """Compacts raw metric_records older than 3 months into daily aggregates."""
 
-    def __init__(self, session_factory) -> None:  # type: ignore[no-untyped-def]
+    def __init__(
+        self, session_factory: async_sessionmaker[AsyncSession] | None
+    ) -> None:
         self._session_factory = session_factory
         self._task: asyncio.Task[None] | None = None
 
@@ -124,13 +128,16 @@ class MetricCompactionService:
                         )
                     )
 
-                    del_result = await session.execute(
-                        delete(MetricRecord).where(
-                            MetricRecord.service_name == service_name,
-                            MetricRecord.module_name == module_name,
-                            MetricRecord.recorded_at >= day_start,
-                            MetricRecord.recorded_at < day_end,
-                        )
+                    del_result = cast(
+                        CursorResult,
+                        await session.execute(
+                            delete(MetricRecord).where(
+                                MetricRecord.service_name == service_name,
+                                MetricRecord.module_name == module_name,
+                                MetricRecord.recorded_at >= day_start,
+                                MetricRecord.recorded_at < day_end,
+                            )
+                        ),
                     )
                     deleted += del_result.rowcount
                     await session.commit()

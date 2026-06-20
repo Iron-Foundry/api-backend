@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 from loguru import logger
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.db.models import Config, PlayerRanking, PlayerSnapshot, UserAccount
@@ -26,8 +27,11 @@ class RankingService:
     """Fetches WOM player snapshots and ranks the clan once per day."""
 
     def __init__(
-        self, session_factory, group_id: int, api_key: str | None = None
-    ) -> None:  # type: ignore[no-untyped-def]
+        self,
+        session_factory: async_sessionmaker[AsyncSession] | None,
+        group_id: int,
+        api_key: str | None = None,
+    ) -> None:
         self._session_factory = session_factory
         self._group_id = group_id
         self._api_key = api_key

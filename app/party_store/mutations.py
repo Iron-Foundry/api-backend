@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timedelta, timezone
+from typing import cast
 
 from sqlalchemy import delete
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import PartyChatMessageDB, PartyDB, PartyMemberDB
@@ -90,10 +92,13 @@ async def add_member(
 
 
 async def remove_member(session: AsyncSession, party: PartyDB, user_id: str) -> bool:
-    result = await session.execute(
-        delete(PartyMemberDB).where(
-            PartyMemberDB.party_id == party.id, PartyMemberDB.user_id == user_id
-        )
+    result = cast(
+        CursorResult,
+        await session.execute(
+            delete(PartyMemberDB).where(
+                PartyMemberDB.party_id == party.id, PartyMemberDB.user_id == user_id
+            )
+        ),
     )
     if result.rowcount == 0:
         return False

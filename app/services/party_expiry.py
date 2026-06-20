@@ -5,12 +5,15 @@ from __future__ import annotations
 import asyncio
 
 from loguru import logger
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 
 class PartyExpiryService:
     """Polls for expired parties and closes them every 60 seconds."""
 
-    def __init__(self, session_factory) -> None:  # type: ignore[no-untyped-def]
+    def __init__(
+        self, session_factory: async_sessionmaker[AsyncSession] | None
+    ) -> None:
         self._session_factory = session_factory
         self._task: asyncio.Task[None] | None = None
 

@@ -9,7 +9,7 @@ from app.services.http.base import BaseRequestHandler
 
 class OsrsWikiHandler(BaseRequestHandler):
     base_url = "https://prices.runescape.wiki/api/v1/osrs"
-    default_headers: dict[str, str] = {  # type: ignore[assignment]
+    default_headers: dict[str, str] = {
         "User-Agent": "The Foundry Project - clan event tracker"
     }
     default_timeout = 5.0

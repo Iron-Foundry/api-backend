@@ -6,28 +6,29 @@ from datetime import datetime, timezone
 from typing import ClassVar
 
 from app.services.http.wom_queue import get_wom_queue
+from .wom_base import WomHandlerBase
 from .wom_cache import _CachedComp, _comp_status, _ttl_for, parse_dt
 
 
-class WomCompetitionMixin:
+class WomCompetitionMixin(WomHandlerBase):
     _comp_cache: ClassVar[dict[int, _CachedComp]] = {}
 
     async def create_competition(self, payload: dict) -> dict:
-        resp = await self._write_with_rate_limit("post", "/competitions", json=payload)  # type: ignore[attr-defined]
+        resp = await self._write_with_rate_limit("post", "/competitions", json=payload)
         resp.raise_for_status()
         return resp.json()
 
     async def edit_competition(self, comp_id: int, payload: dict) -> dict:
         resp = await self._write_with_rate_limit(
             "put", f"/competitions/{comp_id}", json=payload
-        )  # type: ignore[attr-defined]
+        )
         resp.raise_for_status()
         return resp.json()
 
     async def delete_competition(self, comp_id: int, payload: dict) -> None:
         resp = await self._write_with_rate_limit(
             "delete", f"/competitions/{comp_id}", json=payload
-        )  # type: ignore[attr-defined]
+        )
         resp.raise_for_status()
 
     async def get_competition_top5_progress(
@@ -35,7 +36,7 @@ class WomCompetitionMixin:
     ) -> list[dict]:
         resp = await self._get_with_rate_limit(
             f"/competitions/{comp_id}/top5-progress", params={"metric": metric}
-        )  # type: ignore[attr-defined]
+        )
         return resp.json() if resp.is_success else []
 
     async def get_competition_details(
@@ -44,8 +45,8 @@ class WomCompetitionMixin:
         params: dict | None = {"metric": metric} if metric else None
         queue = get_wom_queue()
         resp = await queue.submit(
-            lambda cid=comp_id, p=params: self.get(f"/competitions/{cid}", params=p),  # type: ignore[attr-defined]
-            self._priority,  # type: ignore[attr-defined]
+            lambda cid=comp_id, p=params: self.get(f"/competitions/{cid}", params=p),
+            self._priority,
         )
         resp.raise_for_status()
         return resp.json()
@@ -57,8 +58,8 @@ class WomCompetitionMixin:
         params = {"metric": metric, "date": date.strftime("%Y-%m-%dT%H:%M:%S.000Z")}
         queue = get_wom_queue()
         resp = await queue.submit(
-            lambda cid=comp_id, p=params: self.get(f"/competitions/{cid}", params=p),  # type: ignore[attr-defined]
-            self._priority,  # type: ignore[attr-defined]
+            lambda cid=comp_id, p=params: self.get(f"/competitions/{cid}", params=p),
+            self._priority,
         )
         resp.raise_for_status()
         return resp.json()

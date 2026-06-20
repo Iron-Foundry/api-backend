@@ -9,7 +9,7 @@ import httpx
 
 class BaseRequestHandler:
     base_url: ClassVar[str] = ""
-    default_headers: ClassVar[dict[str, str]] = {}
+    default_headers: dict[str, str] = {}
     default_timeout: ClassVar[float] = 30.0
 
     def __init__(self, *, timeout: float | None = None) -> None:

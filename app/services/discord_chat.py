@@ -7,13 +7,16 @@ import json
 from datetime import datetime, timezone
 
 from loguru import logger
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from valkey.asyncio import Valkey
 
 
 class DiscordChatService:
     """Subscribes to Valkey pubsub and forwards clan chat messages to WebSocket clients."""
 
-    def __init__(self, valkey_uri: str, session_factory) -> None:  # type: ignore[no-untyped-def]
+    def __init__(
+        self, valkey_uri: str, session_factory: async_sessionmaker[AsyncSession] | None
+    ) -> None:
         self._valkey_uri = valkey_uri
         self._session_factory = session_factory
         self._task: asyncio.Task[None] | None = None
@@ -126,6 +129,8 @@ class DiscordChatService:
                                             where=Metric.count < count,
                                         )
                                     )
+                                    if self._session_factory is None:
+                                        continue
                                     async with self._session_factory() as session:
                                         await session.execute(stmt)
                                         await session.commit()

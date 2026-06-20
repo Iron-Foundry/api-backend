@@ -44,7 +44,7 @@ class WiseOldManHandler(
         if group_key:
             headers["x-wom-group-token"] = group_key
 
-        self.default_headers = headers  # type: ignore[assignment]
+        self.default_headers = headers
 
     async def _get_with_rate_limit(
         self, path: str, *, params: dict | None = None
@@ -66,29 +66,32 @@ class WiseOldManHandler(
                 retry_after,
             )
             await asyncio.sleep(retry_after)
-        return resp  # type: ignore[return-value]
+        if resp is None:
+            raise RuntimeError(f"wom: no response for GET {path}")
+        return resp
 
     async def _write_with_rate_limit(
         self, method: str, path: str, *, json: dict | None = None
     ) -> httpx.Response:
         """POST/PUT/DELETE via priority queue with proactive sleep and 429 retry."""
         queue = get_wom_queue()
+        _p, _j = path, json
+        if method == "post":
+
+            async def coro_fn() -> httpx.Response:
+                return await self.post(_p, json=_j)
+        elif method == "put":
+
+            async def coro_fn() -> httpx.Response:
+                return await self.put(_p, json=_j)
+        else:
+
+            async def coro_fn() -> httpx.Response:
+                return await self.delete(_p, json=_j)
+
         resp: httpx.Response | None = None
         for attempt in range(3):
-            if method == "post":
-
-                async def _coro(p: str = path, j: dict | None = json) -> httpx.Response:
-                    return await self.post(p, json=j)
-            elif method == "put":
-
-                async def _coro(p: str = path, j: dict | None = json) -> httpx.Response:  # type: ignore[misc]
-                    return await self.put(p, json=j)
-            else:
-
-                async def _coro(p: str = path, j: dict | None = json) -> httpx.Response:  # type: ignore[misc]
-                    return await self.delete(p, json=j)
-
-            resp = await queue.submit(_coro, self._priority)
+            resp = await queue.submit(coro_fn, self._priority)
             if resp.status_code != 429:
                 return resp
             retry_after = float(resp.headers.get("retry-after", "5"))
@@ -100,4 +103,6 @@ class WiseOldManHandler(
                 retry_after,
             )
             await asyncio.sleep(retry_after)
-        return resp  # type: ignore[return-value]
+        if resp is None:
+            raise RuntimeError(f"wom: no response for {method.upper()} {path}")
+        return resp

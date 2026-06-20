@@ -95,8 +95,8 @@ async def me(
             .select_from(UserAccount)
             .where(
                 UserAccount.discord_user_id == discord_user_id,
-                UserAccount.is_primary == False,
-            )  # noqa: E712
+                UserAccount.is_primary.is_(False),
+            )
         )
     ).scalar_one() or 0
 

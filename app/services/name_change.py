@@ -4,6 +4,7 @@ import asyncio
 
 from loguru import logger
 from sqlalchemy import func, select, update
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.models import UserAccount
 from app.services.feed_event import insert_feed_event
@@ -16,7 +17,7 @@ POLL_INTERVAL = 1800  # 30 minutes
 class WomNameChangeService:
     def __init__(
         self,
-        session_factory,  # type: ignore[no-untyped-def]
+        session_factory: async_sessionmaker[AsyncSession] | None,
         group_id: int,
         group_key: str | None,
         clan_name: str,
@@ -142,6 +143,8 @@ class WomNameChangeService:
         if not history:
             return
 
+        if self._session_factory is None:
+            return
         async with self._session_factory() as session:
             ua_result = await session.execute(
                 select(UserAccount.id).where(

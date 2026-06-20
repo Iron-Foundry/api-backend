@@ -175,8 +175,8 @@ async def set_primary_account(
         update(UserAccount)
         .where(
             UserAccount.discord_user_id == discord_user_id,
-            UserAccount.is_primary == True,
-        )  # noqa: E712
+            UserAccount.is_primary.is_(True),
+        )
         .values(is_primary=False)
     )
     await session.execute(

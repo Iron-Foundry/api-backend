@@ -25,8 +25,10 @@ async def get_leaderboards(
 ) -> dict:
     """Leaderboard data with Valkey stale-while-revalidate."""
     event = (
-        await session.execute(select(FrenzyEvent).where(FrenzyEvent.is_active == True))
-    ).scalar_one_or_none()  # noqa: E712
+        await session.execute(
+            select(FrenzyEvent).where(FrenzyEvent.is_active.is_(True))
+        )
+    ).scalar_one_or_none()
 
     metrics: list[str] = []
     wom_comp_id: int | None = None
@@ -56,8 +58,10 @@ async def get_team_history(
 ) -> dict:
     """Time-series of cumulative approved points for a team, plus per-player contribution."""
     event = (
-        await session.execute(select(FrenzyEvent).where(FrenzyEvent.is_active == True))
-    ).scalar_one_or_none()  # noqa: E712
+        await session.execute(
+            select(FrenzyEvent).where(FrenzyEvent.is_active.is_(True))
+        )
+    ).scalar_one_or_none()
     if event is None:
         raise HTTPException(404, "No active frenzy event.")
 
@@ -158,8 +162,10 @@ async def get_team_history(
 async def get_event_history(session: AsyncSession = Depends(get_session)) -> dict:
     """All teams' cumulative points over time - used for rank-over-time chart."""
     event = (
-        await session.execute(select(FrenzyEvent).where(FrenzyEvent.is_active == True))
-    ).scalar_one_or_none()  # noqa: E712
+        await session.execute(
+            select(FrenzyEvent).where(FrenzyEvent.is_active.is_(True))
+        )
+    ).scalar_one_or_none()
     if event is None:
         raise HTTPException(404, "No active frenzy event.")
 

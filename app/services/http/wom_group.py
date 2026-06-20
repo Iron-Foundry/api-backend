@@ -7,19 +7,20 @@ from datetime import datetime, timezone
 from loguru import logger
 
 from app.services.http.wom_queue import get_wom_queue
+from .wom_base import WomHandlerBase
 from .wom_cache import parse_dt
 
 
-class WomGroupMixin:
+class WomGroupMixin(WomHandlerBase):
     async def get_group(self, group_id: str | int) -> dict:
-        resp = await self._get_with_rate_limit(f"/groups/{group_id}")  # type: ignore[attr-defined]
+        resp = await self._get_with_rate_limit(f"/groups/{group_id}")
         resp.raise_for_status()
         return resp.json()
 
     async def get_group_hiscores(
         self, group_id: str | int, metric: str, limit: int = 50, offset: int = 0
     ) -> list[dict]:
-        resp = await self._get_with_rate_limit(  # type: ignore[attr-defined]
+        resp = await self._get_with_rate_limit(
             f"/groups/{group_id}/hiscores",
             params={"metric": metric, "limit": limit, "offset": offset},
         )
@@ -32,8 +33,8 @@ class WomGroupMixin:
         resp = await queue.submit(
             lambda gid=group_id, lim=limit: self.get(
                 f"/groups/{gid}/name-changes", params={"limit": lim}
-            ),  # type: ignore[attr-defined]
-            self._priority,  # type: ignore[attr-defined]
+            ),
+            self._priority,
         )
         resp.raise_for_status()
         return resp.json()
@@ -41,7 +42,7 @@ class WomGroupMixin:
     async def get_group_competitions(
         self, group_id: str | int, *, limit: int = 20, offset: int = 0
     ) -> list[dict]:
-        resp = await self._get_with_rate_limit(  # type: ignore[attr-defined]
+        resp = await self._get_with_rate_limit(
             f"/groups/{group_id}/competitions",
             params={"limit": limit, "offset": offset},
         )
@@ -83,7 +84,7 @@ class WomGroupMixin:
         try:
             while len(results) < top_n:
                 fetch = min(page_size, top_n - len(results))
-                resp = await self._get_with_rate_limit(  # type: ignore[attr-defined]
+                resp = await self._get_with_rate_limit(
                     f"/groups/{group_id}/hiscores",
                     params={"metric": metric, "limit": fetch, "offset": offset},
                 )

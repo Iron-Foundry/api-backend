@@ -251,6 +251,10 @@ async def member_feed(
             seen_ids.add(row.id)
             all_rows.append(row)
 
-    items = [_build_feed_item(row, discord_user_id, rsn_lower_set) for row in all_rows]
+    items: list[dict] = [
+        item
+        for row in all_rows
+        if (item := _build_feed_item(row, discord_user_id, rsn_lower_set)) is not None
+    ]
     items.sort(key=lambda x: x["timestamp"], reverse=True)  # type: ignore[index]
     return items[skip : skip + limit]

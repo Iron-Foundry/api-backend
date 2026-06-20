@@ -4,6 +4,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models import Badge
 from app.services.page_permissions import check_page_permission
 from app.services.rank_mappings import get_effective_roles
 
@@ -20,7 +21,7 @@ class AssignBody(BaseModel):
     discord_user_id: int
 
 
-def serialize_badge(b) -> dict:  # type: ignore[no-untyped-def]
+def serialize_badge(b: Badge) -> dict:
     return {
         "id": str(b.id),
         "name": b.name,

@@ -140,7 +140,10 @@ async def list_submissions(
         "limit": limit,
         "offset": offset,
         "submissions": [
-            _submission_to_dict(s, reviewers.get(s.reviewed_by)) for s in rows
+            _submission_to_dict(
+                s, reviewers.get(s.reviewed_by) if s.reviewed_by is not None else None
+            )
+            for s in rows
         ],
     }
 

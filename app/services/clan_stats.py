@@ -6,9 +6,13 @@ import asyncio
 import os
 from datetime import datetime, timezone
 
+from typing import cast
+
 from loguru import logger
 from sqlalchemy import ARRAY, Text, bindparam, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.engine import CursorResult
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.models import ClanStats
 from app.services.http import WiseOldManHandler, WomPriority
@@ -32,7 +36,9 @@ _RAID_METRICS = [
 class ClanStatsService:
     """Refreshes clan_stats (id=1) every hour from WiseOldMan."""
 
-    def __init__(self, session_factory) -> None:  # type: ignore[no-untyped-def]
+    def __init__(
+        self, session_factory: async_sessionmaker[AsyncSession] | None
+    ) -> None:
         self._session_factory = session_factory
         self._task: asyncio.Task[None] | None = None
 
@@ -79,11 +85,12 @@ class ClanStatsService:
                 return_exceptions=True,
             )
 
-        if isinstance(group_data, Exception):
+        if isinstance(group_data, BaseException):
             logger.warning("ClanStatsService: WOM fetch failed: {}", group_data)
             return
 
-        raw: dict = group_data  # type: ignore[assignment]
+        assert isinstance(group_data, dict)
+        raw: dict = group_data
         memberships = raw.get("memberships") or []
 
         def _safe_int(v: object) -> int:
@@ -146,7 +153,9 @@ class ClanStatsService:
         await _sync_wom_ranks(self._session_factory, memberships)
 
 
-async def _sync_wom_ranks(session_factory, memberships: list[dict]) -> None:  # type: ignore[no-untyped-def]
+async def _sync_wom_ranks(
+    session_factory: async_sessionmaker[AsyncSession], memberships: list[dict]
+) -> None:
     """Bulk-write WOM in-game ranks to users.clan_rank for all matched members."""
     wom_ranks: dict[str, str] = {
         m["player"]["username"].lower(): m["role"]
@@ -163,8 +172,10 @@ async def _sync_wom_ranks(session_factory, memberships: list[dict]) -> None:  # 
     _params = [bindparam("rsns", type_=_arr), bindparam("roles", type_=_arr)]
 
     async with session_factory() as session:
-        r1 = await session.execute(
-            text("""
+        r1 = cast(
+            CursorResult,
+            await session.execute(
+                text("""
                 UPDATE users u
                    SET clan_rank  = wd.role,
                        updated_at = now()
@@ -174,10 +185,13 @@ async def _sync_wom_ranks(session_factory, memberships: list[dict]) -> None:  # 
                  WHERE ua.discord_user_id = u.discord_user_id
                    AND (u.clan_rank IS DISTINCT FROM wd.role)
             """).bindparams(*_params),
-            {"rsns": rsns, "roles": roles},
+                {"rsns": rsns, "roles": roles},
+            ),
         )
-        r2 = await session.execute(
-            text("""
+        r2 = cast(
+            CursorResult,
+            await session.execute(
+                text("""
                 UPDATE users u
                    SET clan_rank  = wd.role,
                        updated_at = now()
@@ -186,7 +200,8 @@ async def _sync_wom_ranks(session_factory, memberships: list[dict]) -> None:  # 
                  WHERE lower(u.rsn) = wd.rsn
                    AND (u.clan_rank IS DISTINCT FROM wd.role)
             """).bindparams(*_params),
-            {"rsns": rsns, "roles": roles},
+                {"rsns": rsns, "roles": roles},
+            ),
         )
         await session.commit()
 

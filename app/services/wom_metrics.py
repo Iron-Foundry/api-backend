@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from loguru import logger
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
 from app.db.models import MetricRecord
 from app.services.http.wom_queue import get_wom_queue
 
@@ -19,7 +21,9 @@ _MODULE_NAME = "wom_rate_limit"
 class WomMetricsService:
     """Flushes new WOM queue snapshots to the DB every 30 seconds."""
 
-    def __init__(self, session_factory) -> None:  # type: ignore[no-untyped-def]
+    def __init__(
+        self, session_factory: async_sessionmaker[AsyncSession] | None
+    ) -> None:
         self._session_factory = session_factory
         self._task: asyncio.Task[None] | None = None
         self._last_flushed_ts: float = 0.0
