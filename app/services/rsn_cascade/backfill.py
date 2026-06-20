@@ -65,7 +65,16 @@ async def backfill_user_from_rsn(
             .where(
                 func.lower(Event.player_name) == rsn.lower(),
                 Event.data["rank"].as_string().isnot(None),
-                Event.type.in_(["loot", "level", "xp_milestone", "quest", "diary", "combat_achievement"]),
+                Event.type.in_(
+                    [
+                        "loot",
+                        "level",
+                        "xp_milestone",
+                        "quest",
+                        "diary",
+                        "combat_achievement",
+                    ]
+                ),
             )
             .order_by(Event.timestamp.desc())
             .limit(1)
@@ -76,7 +85,9 @@ async def backfill_user_from_rsn(
 
     if not total_loot_value:
         loot_result = await session.execute(
-            select(func.coalesce(func.sum(Event.data["coin_value"].as_integer()), 0)).where(
+            select(
+                func.coalesce(func.sum(Event.data["coin_value"].as_integer()), 0)
+            ).where(
                 func.lower(Event.player_name) == rsn.lower(),
                 Event.type.in_(["loot", "loot_key", "clue_item"]),
             )
@@ -87,7 +98,9 @@ async def backfill_user_from_rsn(
 
     if not collection_log_slots:
         cl_result = await session.execute(
-            select(func.coalesce(func.max(Event.data["log_slots"].as_integer()), 0)).where(
+            select(
+                func.coalesce(func.max(Event.data["log_slots"].as_integer()), 0)
+            ).where(
                 func.lower(Event.player_name) == rsn.lower(),
                 Event.type == "collection_log",
             )
@@ -103,7 +116,9 @@ async def backfill_user_from_rsn(
     if backfill:
         backfill["updated_at"] = datetime.now(timezone.utc)
         await session.execute(
-            update(User).where(User.discord_user_id == discord_user_id).values(**backfill)
+            update(User)
+            .where(User.discord_user_id == discord_user_id)
+            .values(**backfill)
         )
 
     return backfill

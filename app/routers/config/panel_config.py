@@ -16,7 +16,9 @@ router = APIRouter()
     "/panel",
     dependencies=[Depends(require_page_permission("staff.panel", "read"))],
 )
-async def get_panel_config(session: AsyncSession = Depends(get_session)) -> InfoPanelConfig:
+async def get_panel_config(
+    session: AsyncSession = Depends(get_session),
+) -> InfoPanelConfig:
     data = await get_config_value(_PANEL_CONFIG_KEY, session)
     if not data:
         return InfoPanelConfig()

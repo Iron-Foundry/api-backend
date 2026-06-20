@@ -18,19 +18,29 @@ class WomCompetitionMixin:
         return resp.json()
 
     async def edit_competition(self, comp_id: int, payload: dict) -> dict:
-        resp = await self._write_with_rate_limit("put", f"/competitions/{comp_id}", json=payload)  # type: ignore[attr-defined]
+        resp = await self._write_with_rate_limit(
+            "put", f"/competitions/{comp_id}", json=payload
+        )  # type: ignore[attr-defined]
         resp.raise_for_status()
         return resp.json()
 
     async def delete_competition(self, comp_id: int, payload: dict) -> None:
-        resp = await self._write_with_rate_limit("delete", f"/competitions/{comp_id}", json=payload)  # type: ignore[attr-defined]
+        resp = await self._write_with_rate_limit(
+            "delete", f"/competitions/{comp_id}", json=payload
+        )  # type: ignore[attr-defined]
         resp.raise_for_status()
 
-    async def get_competition_top5_progress(self, comp_id: int, metric: str) -> list[dict]:
-        resp = await self._get_with_rate_limit(f"/competitions/{comp_id}/top5-progress", params={"metric": metric})  # type: ignore[attr-defined]
+    async def get_competition_top5_progress(
+        self, comp_id: int, metric: str
+    ) -> list[dict]:
+        resp = await self._get_with_rate_limit(
+            f"/competitions/{comp_id}/top5-progress", params={"metric": metric}
+        )  # type: ignore[attr-defined]
         return resp.json() if resp.is_success else []
 
-    async def get_competition_details(self, comp_id: int, *, metric: str | None = None) -> dict:
+    async def get_competition_details(
+        self, comp_id: int, *, metric: str | None = None
+    ) -> dict:
         params: dict | None = {"metric": metric} if metric else None
         queue = get_wom_queue()
         resp = await queue.submit(
@@ -40,7 +50,9 @@ class WomCompetitionMixin:
         resp.raise_for_status()
         return resp.json()
 
-    async def get_competition_details_at(self, comp_id: int, *, metric: str, date: datetime) -> dict:
+    async def get_competition_details_at(
+        self, comp_id: int, *, metric: str, date: datetime
+    ) -> dict:
         """Fetch competition standings as of a specific UTC datetime."""
         params = {"metric": metric, "date": date.strftime("%Y-%m-%dT%H:%M:%S.000Z")}
         queue = get_wom_queue()
@@ -63,8 +75,10 @@ class WomCompetitionMixin:
         entry = self._comp_cache.get(comp_id)
         now = datetime.now(timezone.utc)
 
-        stale = entry is None or (entry.expires_at is not None and now >= entry.expires_at) or (
-            now >= entry.starts_at and _comp_status(entry) == "upcoming"
+        stale = (
+            entry is None
+            or (entry.expires_at is not None and now >= entry.expires_at)
+            or (now >= entry.starts_at and _comp_status(entry) == "upcoming")
         )
 
         if stale:
@@ -74,7 +88,10 @@ class WomCompetitionMixin:
             if ends_at is None:
                 ends_at = parse_dt(data["endsAt"])
             self._comp_cache[comp_id] = _CachedComp(
-                data=data, starts_at=starts_at, ends_at=ends_at, expires_at=_ttl_for(now, starts_at, ends_at)
+                data=data,
+                starts_at=starts_at,
+                ends_at=ends_at,
+                expires_at=_ttl_for(now, starts_at, ends_at),
             )
 
         return self._comp_cache[comp_id].data

@@ -24,7 +24,9 @@ async def trigger_ranking_run(request: Request) -> dict:
     """Trigger an immediate ranking run. Staff only."""
     svc = getattr(request.app.state, "ranking_service", None)
     if svc is None:
-        raise HTTPException(503, "Ranking service not running (WOM_GROUP_ID not configured)")
+        raise HTTPException(
+            503, "Ranking service not running (WOM_GROUP_ID not configured)"
+        )
     if not svc.run_now():
         raise HTTPException(409, "Ranking run already in progress")
     return {"status": "triggered"}
@@ -42,7 +44,9 @@ async def preview_ranking(
     """Re-rank from cached snapshots using a trial config. No DB writes."""
     svc = getattr(request.app.state, "ranking_service", None)
     if svc is None:
-        raise HTTPException(503, "Ranking service not running (WOM_GROUP_ID not configured)")
+        raise HTTPException(
+            503, "Ranking service not running (WOM_GROUP_ID not configured)"
+        )
 
     config = dict(_DEFAULT_CONFIG)
     config.update(body)
@@ -72,29 +76,42 @@ async def preview_ranking(
         else:
             unchanged += 1
 
-        players.append({
-            "rsn": p["rsn"],
-            "current_rank": cur_rank,
-            "current_points": cur_points,
-            "preview_rank": p["rank"],
-            "preview_points": p["points"],
-            "boss_points": p["boss_points"],
-            "skill_points": p["skill_points"],
-            "rank_changed": rank_changed,
-            "points_delta": p["points"] - cur_points if cur_points is not None else None,
-        })
+        players.append(
+            {
+                "rsn": p["rsn"],
+                "current_rank": cur_rank,
+                "current_points": cur_points,
+                "preview_rank": p["rank"],
+                "preview_points": p["points"],
+                "boss_points": p["boss_points"],
+                "skill_points": p["skill_points"],
+                "rank_changed": rank_changed,
+                "points_delta": p["points"] - cur_points
+                if cur_points is not None
+                else None,
+            }
+        )
 
     players.sort(
         key=lambda x: (
             0 if x["rank_changed"] else 1,
-            -abs(RANK_ORDER.get(x["preview_rank"], 0) - RANK_ORDER.get(x["current_rank"] or "No Rank", 0)),
+            -abs(
+                RANK_ORDER.get(x["preview_rank"], 0)
+                - RANK_ORDER.get(x["current_rank"] or "No Rank", 0)
+            ),
             -(x["points_delta"] or 0),
         )
     )
 
     breakdown = compute_breakdown(
-        [{"rank": p["preview_rank"], "boss_points": p["boss_points"], "skill_points": p["skill_points"]}
-         for p in players]
+        [
+            {
+                "rank": p["preview_rank"],
+                "boss_points": p["boss_points"],
+                "skill_points": p["skill_points"],
+            }
+            for p in players
+        ]
     )
     breakdown["promotions"] = promotions
     breakdown["demotions"] = demotions

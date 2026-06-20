@@ -9,10 +9,23 @@ from valkey.asyncio import Valkey
 from app.services.http import WiseOldManHandler
 
 from ._constants import (
-    _ACTIVITIES_KEY, _ACTIVITY_METRICS, _BOSS_METRICS, _BOSSES_KEY, _ITEMS_KEY,
-    _LB_FRESH_KEY, _LB_FRESH_TTL, _LB_LOCK_KEY, _LB_LOCK_TTL, _LB_STALE_KEY,
-    _LB_STALE_TTL, _OSRS_REF_TTL, _WIKI_IMAGE_BASE, _WOM_API_KEY,
-    _WOM_DISCORD_CONTACT, _WOM_GROUP_ID, _wiki_icon,
+    _ACTIVITIES_KEY,
+    _ACTIVITY_METRICS,
+    _BOSS_METRICS,
+    _BOSSES_KEY,
+    _ITEMS_KEY,
+    _LB_FRESH_KEY,
+    _LB_FRESH_TTL,
+    _LB_LOCK_KEY,
+    _LB_LOCK_TTL,
+    _LB_STALE_KEY,
+    _LB_STALE_TTL,
+    _OSRS_REF_TTL,
+    _WIKI_IMAGE_BASE,
+    _WOM_API_KEY,
+    _WOM_DISCORD_CONTACT,
+    _WOM_GROUP_ID,
+    _wiki_icon,
 )
 
 
@@ -66,18 +79,28 @@ async def warm_osrs_caches(valkey: Valkey) -> None:
         await _refresh_osrs_activities(valkey)
 
 
-async def _build_lb_cache(valkey: Valkey, wom_comp_id: int | None, metrics: list[str]) -> None:
+async def _build_lb_cache(
+    valkey: Valkey, wom_comp_id: int | None, metrics: list[str]
+) -> None:
     acquired = await valkey.set(_LB_LOCK_KEY, "1", ex=_LB_LOCK_TTL, nx=True)
     if not acquired:
         return
     try:
         out: list[dict] = []
-        async with WiseOldManHandler(api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT, timeout=15.0) as wom:
+        async with WiseOldManHandler(
+            api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT, timeout=15.0
+        ) as wom:
             for metric in metrics:
                 entries = await wom.fetch_kc_metric(_WOM_GROUP_ID, metric)
                 if entries:
                     boss_name, _ = _BOSS_METRICS.get(metric, (metric, metric))
-                    out.append({"metric": metric, "display_name": boss_name, "entries": entries})
+                    out.append(
+                        {
+                            "metric": metric,
+                            "display_name": boss_name,
+                            "entries": entries,
+                        }
+                    )
 
         if out:
             payload = json.dumps(out)

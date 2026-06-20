@@ -10,7 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_session
 from app.services.page_permissions import require_page_permission
 
-from ._helpers import _ALL_SERVICE_KEYS, _SERVICE_TOGGLES_KEY, get_service_toggles, set_config_value
+from ._helpers import (
+    _ALL_SERVICE_KEYS,
+    _SERVICE_TOGGLES_KEY,
+    get_service_toggles,
+    set_config_value,
+)
 
 router = APIRouter()
 
@@ -41,7 +46,9 @@ async def set_service_toggle(
 ) -> dict[str, bool]:
     """Enable or disable a background service. Persists to DB and applies at runtime."""
     if service_key not in _ALL_SERVICE_KEYS:
-        raise HTTPException(status_code=404, detail=f"Unknown service key: {service_key}")
+        raise HTTPException(
+            status_code=404, detail=f"Unknown service key: {service_key}"
+        )
     current = await get_service_toggles(session)
     current[service_key] = body.enabled
     await set_config_value(_SERVICE_TOGGLES_KEY, current, session)
@@ -53,5 +60,7 @@ async def set_service_toggle(
         elif not body.enabled and svc.is_running:
             await svc.stop()
     else:
-        logger.warning("Service {} not in registry (may require WOM_GROUP_ID)", service_key)
+        logger.warning(
+            "Service {} not in registry (may require WOM_GROUP_ID)", service_key
+        )
     return current

@@ -7,9 +7,22 @@ from app.services.page_permissions import check_page_permission, get_admin_bypas
 from app.services.rank_mappings import get_effective_roles, get_role_label_map
 
 _DISCORD_ROLE_ORDER = [
-    "Guest", "Achiever", "Sapphire", "Emerald", "Ruby", "Diamond",
-    "Dragonstone", "Onyx", "Zenyte", "Ex-Moderator", "Foundry Mentors",
-    "Event Team", "Moderator", "Senior Moderator", "Deputy Owner", "Co-owner",
+    "Guest",
+    "Achiever",
+    "Sapphire",
+    "Emerald",
+    "Ruby",
+    "Diamond",
+    "Dragonstone",
+    "Onyx",
+    "Zenyte",
+    "Ex-Moderator",
+    "Foundry Mentors",
+    "Event Team",
+    "Moderator",
+    "Senior Moderator",
+    "Deputy Owner",
+    "Co-owner",
 ]
 
 _TICKET_TYPE_MIN_RANK: dict[str, str] = {
@@ -47,7 +60,11 @@ def has_min_rank_by_label(role_labels: list[str], min_role: str) -> bool:
 
 
 def allowed_ticket_types(role_labels: list[str]) -> list[str]:
-    return [t for t, min_r in _TICKET_TYPE_MIN_RANK.items() if has_min_rank_by_label(role_labels, min_r)]
+    return [
+        t
+        for t, min_r in _TICKET_TYPE_MIN_RANK.items()
+        if has_min_rank_by_label(role_labels, min_r)
+    ]
 
 
 async def get_roles(current_user: dict, session: AsyncSession) -> list[str]:
@@ -55,13 +72,17 @@ async def get_roles(current_user: dict, session: AsyncSession) -> list[str]:
     return await get_effective_roles(discord_user_id, session)
 
 
-async def require_rank(page_id: str, action: str, current_user: dict, session: AsyncSession) -> None:
+async def require_rank(
+    page_id: str, action: str, current_user: dict, session: AsyncSession
+) -> None:
     roles = await get_roles(current_user, session)
     if not await check_page_permission(page_id, action, roles, session):
         raise HTTPException(status_code=403, detail="Permission denied.")
 
 
-async def get_allowed_ticket_types(roles: list[str], session: AsyncSession) -> list[str]:
+async def get_allowed_ticket_types(
+    roles: list[str], session: AsyncSession
+) -> list[str]:
     bypass_roles = await get_admin_bypass_roles(session)
     if any(r in bypass_roles for r in roles):
         return list(_TICKET_TYPE_MIN_RANK.keys())

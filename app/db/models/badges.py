@@ -14,12 +14,16 @@ from .base import Base
 class Badge(Base):
     __tablename__ = "badges"
 
-    id: Mapped[UUID] = mapped_column(pg.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[UUID] = mapped_column(
+        pg.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     name: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
     icon: Mapped[str | None] = mapped_column(Text)
     color: Mapped[str] = mapped_column(Text, nullable=False, server_default="'#6366f1'")
-    text_color: Mapped[str] = mapped_column(Text, nullable=False, server_default="'#ffffff'")
+    text_color: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default="'#ffffff'"
+    )
     created_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     created_by: Mapped[int | None] = mapped_column(BigInteger)
 

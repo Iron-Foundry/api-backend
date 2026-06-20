@@ -28,7 +28,12 @@ async def list_accounts(
         .order_by(UserAccount.is_primary.desc(), UserAccount.created_at.asc())
     )
     return [
-        {"id": row.id, "rsn": row.rsn, "is_primary": row.is_primary, "created_at": row.created_at.isoformat()}
+        {
+            "id": row.id,
+            "rsn": row.rsn,
+            "is_primary": row.is_primary,
+            "created_at": row.created_at.isoformat(),
+        }
         for row in result.scalars()
     ]
 
@@ -40,13 +45,29 @@ async def get_me_rankings(
 ) -> list[dict]:
     discord_user_id = int(current_user["sub"])
     result = await session.execute(
-        select(UserAccount.rsn, UserAccount.is_primary, PlayerRanking.rank, PlayerRanking.points, PlayerRanking.boss_points, PlayerRanking.skill_points)
-        .outerjoin(PlayerRanking, func.lower(PlayerRanking.rsn) == func.lower(UserAccount.rsn))
+        select(
+            UserAccount.rsn,
+            UserAccount.is_primary,
+            PlayerRanking.rank,
+            PlayerRanking.points,
+            PlayerRanking.boss_points,
+            PlayerRanking.skill_points,
+        )
+        .outerjoin(
+            PlayerRanking, func.lower(PlayerRanking.rsn) == func.lower(UserAccount.rsn)
+        )
         .where(UserAccount.discord_user_id == discord_user_id)
         .order_by(UserAccount.is_primary.desc(), UserAccount.created_at.asc())
     )
     return [
-        {"rsn": row.rsn, "is_primary": row.is_primary, "rank": row.rank, "points": row.points, "boss_points": row.boss_points, "skill_points": row.skill_points}
+        {
+            "rsn": row.rsn,
+            "is_primary": row.is_primary,
+            "rank": row.rank,
+            "points": row.points,
+            "boss_points": row.boss_points,
+            "skill_points": row.skill_points,
+        }
         for row in result.all()
     ]
 
@@ -68,16 +89,24 @@ async def add_account(
     discord_user_id = int(current_user["sub"])
 
     conflict_result = await session.execute(
-        select(UserAccount.discord_user_id).where(func.lower(UserAccount.rsn) == rsn.lower())
+        select(UserAccount.discord_user_id).where(
+            func.lower(UserAccount.rsn) == rsn.lower()
+        )
     )
     conflict_owner = conflict_result.scalar_one_or_none()
     if conflict_owner == discord_user_id:
-        raise HTTPException(status_code=409, detail="That RSN is already linked to your account.")
+        raise HTTPException(
+            status_code=409, detail="That RSN is already linked to your account."
+        )
     if conflict_owner is not None:
-        raise HTTPException(status_code=409, detail="That RSN is linked to another account.")
+        raise HTTPException(
+            status_code=409, detail="That RSN is linked to another account."
+        )
 
     cap_result = await session.execute(
-        select(func.count()).select_from(UserAccount).where(UserAccount.discord_user_id == discord_user_id)
+        select(func.count())
+        .select_from(UserAccount)
+        .where(UserAccount.discord_user_id == discord_user_id)
     )
     current_count = cap_result.scalar_one() or 0
     if current_count >= _ACCOUNT_CAP:
@@ -85,21 +114,29 @@ async def add_account(
 
     now = datetime.now(timezone.utc)
     is_first = current_count == 0
-    new_row = UserAccount(discord_user_id=discord_user_id, rsn=rsn, is_primary=is_first, created_at=now)
+    new_row = UserAccount(
+        discord_user_id=discord_user_id, rsn=rsn, is_primary=is_first, created_at=now
+    )
     session.add(new_row)
     await session.flush()
 
     if is_first:
         await session.execute(
-            update(User).where(User.discord_user_id == discord_user_id).values(rsn=rsn, updated_at=now)
+            update(User)
+            .where(User.discord_user_id == discord_user_id)
+            .values(rsn=rsn, updated_at=now)
         )
 
     user_result = await session.execute(
-        select(User.clan_rank, User.total_loot_value, User.collection_log_slots).where(User.discord_user_id == discord_user_id)
+        select(User.clan_rank, User.total_loot_value, User.collection_log_slots).where(
+            User.discord_user_id == discord_user_id
+        )
     )
     user_row = user_result.one_or_none()
     await backfill_user_from_rsn(
-        session, discord_user_id, rsn,
+        session,
+        discord_user_id,
+        rsn,
         clan_rank=user_row.clan_rank if user_row else None,
         total_loot_value=user_row.total_loot_value if user_row else 0,
         collection_log_slots=user_row.collection_log_slots if user_row else 0,
@@ -108,7 +145,12 @@ async def add_account(
     await _wom_link_rsn(session, discord_user_id, rsn, new_row.id)
     await session.commit()
     logger.info("members/accounts: user {} added RSN {!r}", discord_user_id, rsn)
-    return {"id": new_row.id, "rsn": new_row.rsn, "is_primary": new_row.is_primary, "created_at": new_row.created_at.isoformat()}
+    return {
+        "id": new_row.id,
+        "rsn": new_row.rsn,
+        "is_primary": new_row.is_primary,
+        "created_at": new_row.created_at.isoformat(),
+    }
 
 
 @router.patch("/me/accounts/{account_id}/set-primary")
@@ -119,7 +161,9 @@ async def set_primary_account(
 ) -> dict:
     discord_user_id = int(current_user["sub"])
     row_result = await session.execute(
-        select(UserAccount).where(UserAccount.id == account_id, UserAccount.discord_user_id == discord_user_id)
+        select(UserAccount).where(
+            UserAccount.id == account_id, UserAccount.discord_user_id == discord_user_id
+        )
     )
     row = row_result.scalar_one_or_none()
     if not row:
@@ -129,11 +173,20 @@ async def set_primary_account(
     now = datetime.now(timezone.utc)
     await session.execute(
         update(UserAccount)
-        .where(UserAccount.discord_user_id == discord_user_id, UserAccount.is_primary == True)  # noqa: E712
+        .where(
+            UserAccount.discord_user_id == discord_user_id,
+            UserAccount.is_primary == True,
+        )  # noqa: E712
         .values(is_primary=False)
     )
-    await session.execute(update(UserAccount).where(UserAccount.id == account_id).values(is_primary=True))
-    await session.execute(update(User).where(User.discord_user_id == discord_user_id).values(rsn=row.rsn, updated_at=now))
+    await session.execute(
+        update(UserAccount).where(UserAccount.id == account_id).values(is_primary=True)
+    )
+    await session.execute(
+        update(User)
+        .where(User.discord_user_id == discord_user_id)
+        .values(rsn=row.rsn, updated_at=now)
+    )
     await session.commit()
     logger.info("members/accounts: user {} set primary {!r}", discord_user_id, row.rsn)
     return {"id": row.id, "rsn": row.rsn, "is_primary": True}
@@ -147,13 +200,17 @@ async def delete_account(
 ) -> None:
     discord_user_id = int(current_user["sub"])
     row_result = await session.execute(
-        select(UserAccount).where(UserAccount.id == account_id, UserAccount.discord_user_id == discord_user_id)
+        select(UserAccount).where(
+            UserAccount.id == account_id, UserAccount.discord_user_id == discord_user_id
+        )
     )
     row = row_result.scalar_one_or_none()
     if not row:
         raise HTTPException(status_code=404, detail="Account not found.")
     count_result = await session.execute(
-        select(func.count()).select_from(UserAccount).where(UserAccount.discord_user_id == discord_user_id)
+        select(func.count())
+        .select_from(UserAccount)
+        .where(UserAccount.discord_user_id == discord_user_id)
     )
     total = count_result.scalar_one() or 0
     if row.is_primary and total > 1:
@@ -163,7 +220,11 @@ async def delete_account(
         )
     now = datetime.now(timezone.utc)
     if total == 1:
-        await session.execute(update(User).where(User.discord_user_id == discord_user_id).values(rsn=None, updated_at=now))
+        await session.execute(
+            update(User)
+            .where(User.discord_user_id == discord_user_id)
+            .values(rsn=None, updated_at=now)
+        )
     await session.delete(row)
     await session.commit()
     logger.info("members/accounts: user {} removed RSN {!r}", discord_user_id, row.rsn)

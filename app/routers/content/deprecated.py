@@ -38,7 +38,9 @@ async def get_deprecated_entries(
                 "discord_username": u.discord_username,
                 "rsn": u.rsn,
                 "avatar": u.discord_avatar_url,
-            } if u else None,
+            }
+            if u
+            else None,
         }
         for e, cat, u in result.all()
     ]

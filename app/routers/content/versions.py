@@ -43,7 +43,9 @@ async def list_entry_versions(
                 "discord_username": u.discord_username,
                 "rsn": u.rsn,
                 "avatar": u.discord_avatar_url,
-            } if u else None,
+            }
+            if u
+            else None,
         }
         for v, u in result.all()
     ]
@@ -83,7 +85,9 @@ async def get_entry_version(
             "discord_username": u.discord_username,
             "rsn": u.rsn,
             "avatar": u.discord_avatar_url,
-        } if u else None,
+        }
+        if u
+        else None,
     }
 
 
@@ -122,14 +126,21 @@ async def revert_entry_to_version(
     entry.updated_at = now
 
     max_ver_result = await session.execute(
-        select(func.max(ContentEntryVersion.version_number))
-        .where(ContentEntryVersion.entry_id == entry_id)
+        select(func.max(ContentEntryVersion.version_number)).where(
+            ContentEntryVersion.entry_id == entry_id
+        )
     )
     next_ver = (max_ver_result.scalar_one_or_none() or 0) + 1
-    session.add(ContentEntryVersion(
-        entry_id=entry.id, version_number=next_ver,
-        title=entry.title, body=entry.body, edited_by=uid, created_at=now,
-    ))
+    session.add(
+        ContentEntryVersion(
+            entry_id=entry.id,
+            version_number=next_ver,
+            title=entry.title,
+            body=entry.body,
+            edited_by=uid,
+            created_at=now,
+        )
+    )
 
     if entry.created_by != uid:
         await session.execute(
@@ -141,6 +152,8 @@ async def revert_entry_to_version(
     await session.commit()
     updated_at = entry.updated_at
     return {
-        "id": str(entry.id), "title": entry.title, "slug": entry.slug,
+        "id": str(entry.id),
+        "title": entry.title,
+        "slug": entry.slug,
         "updated_at": updated_at.isoformat() if updated_at is not None else None,
     }

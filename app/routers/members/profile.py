@@ -29,7 +29,9 @@ async def update_privacy(
         values["hide_presence_notifications"] = body.hide_presence_notifications
     if len(values) == 1:
         return {}
-    await session.execute(update(User).where(User.discord_user_id == discord_user_id).values(**values))
+    await session.execute(
+        update(User).where(User.discord_user_id == discord_user_id).values(**values)
+    )
     await session.commit()
     logger.info("members/privacy: user {} updated privacy {}", discord_user_id, values)
     return {k: v for k, v in values.items() if k != "updated_at"}
@@ -42,8 +44,12 @@ async def get_me_stats(
 ) -> dict:
     discord_user_id = int(current_user["sub"])
     user_result = await session.execute(
-        select(User.collection_log_slots, User.collection_log_slots_max, User.total_loot_value, User.rsn)
-        .where(User.discord_user_id == discord_user_id)
+        select(
+            User.collection_log_slots,
+            User.collection_log_slots_max,
+            User.total_loot_value,
+            User.rsn,
+        ).where(User.discord_user_id == discord_user_id)
     )
     user_row = user_result.one_or_none()
     rank_tier: str | None = None
@@ -54,7 +60,9 @@ async def get_me_stats(
         rank_tier = ranking_result.scalar_one_or_none()
     return {
         "collection_log_slots": user_row.collection_log_slots if user_row else 0,
-        "collection_log_slots_max": user_row.collection_log_slots_max if user_row else 0,
+        "collection_log_slots_max": user_row.collection_log_slots_max
+        if user_row
+        else 0,
         "total_loot_value": user_row.total_loot_value if user_row else 0,
         "rank_tier": rank_tier,
     }
@@ -92,7 +100,9 @@ async def user_avatar(
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     """Return the stored Discord avatar URL for the given user ID."""
-    result = await session.execute(select(User.discord_avatar_url).where(User.discord_user_id == user_id))
+    result = await session.execute(
+        select(User.discord_avatar_url).where(User.discord_user_id == user_id)
+    )
     avatar_url = result.scalar_one_or_none()
     if not avatar_url:
         raise HTTPException(status_code=404, detail="Avatar not available.")

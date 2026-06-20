@@ -23,9 +23,7 @@ def upgrade() -> None:
         "ALTER TABLE events"
         " ADD COLUMN user_account_id BIGINT REFERENCES user_accounts(id) ON DELETE SET NULL"
     )
-    op.execute(
-        "CREATE INDEX ix_events_user_account_id ON events(user_account_id)"
-    )
+    op.execute("CREATE INDEX ix_events_user_account_id ON events(user_account_id)")
 
     op.execute(
         "ALTER TABLE coffer_events"

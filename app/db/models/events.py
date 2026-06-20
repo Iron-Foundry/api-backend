@@ -14,10 +14,14 @@ class Event(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     type: Mapped[str] = mapped_column(Text, nullable=False)
-    timestamp: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    timestamp: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
     player_name: Mapped[str | None] = mapped_column(Text)
     sender: Mapped[str | None] = mapped_column(Text)
-    is_league_world: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    is_league_world: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
     raw_message: Mapped[str | None] = mapped_column(Text)
     data: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     user_id: Mapped[int | None] = mapped_column(BigInteger, index=True)
@@ -33,10 +37,14 @@ class CofferEvent(Base):
     __tablename__ = "coffer_events"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    timestamp: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    timestamp: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
     player_name: Mapped[str] = mapped_column(Text, nullable=False)
     sender: Mapped[str | None] = mapped_column(Text)
-    is_league_world: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    is_league_world: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
     raw_message: Mapped[str | None] = mapped_column(Text)
     amount: Mapped[int] = mapped_column(BigInteger, nullable=False)
     is_donation: Mapped[bool] = mapped_column(Boolean, nullable=False)
@@ -52,10 +60,14 @@ class MembershipEvent(Base):
     __tablename__ = "membership_events"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    timestamp: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    timestamp: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
     player_name: Mapped[str] = mapped_column(Text, nullable=False)
     sender: Mapped[str | None] = mapped_column(Text)
-    is_league_world: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    is_league_world: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
     raw_message: Mapped[str | None] = mapped_column(Text)
     expelled_by: Mapped[str | None] = mapped_column(Text)
     user_account_id: Mapped[int | None] = mapped_column(

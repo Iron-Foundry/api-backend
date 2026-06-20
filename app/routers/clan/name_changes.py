@@ -9,7 +9,17 @@ from valkey.asyncio import Valkey
 from app.dependencies import get_valkey
 from app.services.http import WiseOldManHandler, WomPriority
 
-from ._constants import _NC_FRESH_KEY, _NC_FRESH_TTL, _NC_LOCK_KEY, _NC_LOCK_TTL, _NC_STALE_KEY, _NC_STALE_TTL, _WOM_API_KEY, _WOM_DISCORD_CONTACT, _WOM_GROUP_ID
+from ._constants import (
+    _NC_FRESH_KEY,
+    _NC_FRESH_TTL,
+    _NC_LOCK_KEY,
+    _NC_LOCK_TTL,
+    _NC_STALE_KEY,
+    _NC_STALE_TTL,
+    _WOM_API_KEY,
+    _WOM_DISCORD_CONTACT,
+    _WOM_GROUP_ID,
+)
 
 router = APIRouter()
 
@@ -17,11 +27,20 @@ router = APIRouter()
 async def _build_name_changes_cache(valkey: Valkey) -> None:
     logger.info("name-changes cache: hydrating from WOM (group={})", _WOM_GROUP_ID)
     try:
-        wom = WiseOldManHandler(api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT, priority=WomPriority.NORMAL)
+        wom = WiseOldManHandler(
+            api_key=_WOM_API_KEY,
+            discord_contact=_WOM_DISCORD_CONTACT,
+            priority=WomPriority.NORMAL,
+        )
         changes = await wom.get_group_name_changes(_WOM_GROUP_ID, limit=50)
         result = [
-            {"old_name": c["oldName"], "new_name": c["newName"], "resolved_at": c.get("resolvedAt")}
-            for c in changes if c.get("status") == "approved"
+            {
+                "old_name": c["oldName"],
+                "new_name": c["newName"],
+                "resolved_at": c.get("resolvedAt"),
+            }
+            for c in changes
+            if c.get("status") == "approved"
         ]
         payload = json.dumps(result)
         await valkey.setex(_NC_FRESH_KEY, _NC_FRESH_TTL, payload)

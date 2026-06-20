@@ -24,7 +24,9 @@ async def build_item(
         author_discord_id = item.discord_user_id
 
     heart_count = (
-        await session.execute(select(func.count()).where(FeedbackReaction.feedback_id == item.id))
+        await session.execute(
+            select(func.count()).where(FeedbackReaction.feedback_id == item.id)
+        )
     ).scalar_one()
 
     is_hearted = False
@@ -39,12 +41,16 @@ async def build_item(
         ).scalar_one_or_none() is not None
 
     reply_count = (
-        await session.execute(select(func.count()).where(FeedbackReply.feedback_id == item.id))
+        await session.execute(
+            select(func.count()).where(FeedbackReply.feedback_id == item.id)
+        )
     ).scalar_one()
 
     last_reply_at_raw = (
         await session.execute(
-            select(func.max(FeedbackReply.created_at)).where(FeedbackReply.feedback_id == item.id)
+            select(func.max(FeedbackReply.created_at)).where(
+                FeedbackReply.feedback_id == item.id
+            )
         )
     ).scalar_one_or_none()
 
@@ -59,11 +65,18 @@ async def build_item(
 
     pinned_reply = None
     if pinned_reply_row:
-        if item.is_anonymous and pinned_reply_row.discord_user_id == item.discord_user_id:
+        if (
+            item.is_anonymous
+            and pinned_reply_row.discord_user_id == item.discord_user_id
+        ):
             pinned_reply = serialize_reply(pinned_reply_row, None, None)
         else:
-            pinned_author, pinned_clan_rank = await get_user_info(pinned_reply_row.discord_user_id, session)
-            pinned_reply = serialize_reply(pinned_reply_row, pinned_author, pinned_clan_rank)
+            pinned_author, pinned_clan_rank = await get_user_info(
+                pinned_reply_row.discord_user_id, session
+            )
+            pinned_reply = serialize_reply(
+                pinned_reply_row, pinned_author, pinned_clan_rank
+            )
 
     attachments = await resolve_attachments(item.attachment_ids or [], session)
 
@@ -90,12 +103,16 @@ async def build_item(
 
     if include_replies:
         replies = (
-            await session.execute(
-                select(FeedbackReply)
-                .where(FeedbackReply.feedback_id == item.id)
-                .order_by(FeedbackReply.created_at)
+            (
+                await session.execute(
+                    select(FeedbackReply)
+                    .where(FeedbackReply.feedback_id == item.id)
+                    .order_by(FeedbackReply.created_at)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         serialized_replies = []
         for r in replies:
             if item.is_anonymous and r.discord_user_id == item.discord_user_id:

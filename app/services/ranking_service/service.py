@@ -25,7 +25,9 @@ from .scoring import rank_from_snapshots
 class RankingService:
     """Fetches WOM player snapshots and ranks the clan once per day."""
 
-    def __init__(self, session_factory, group_id: int, api_key: str | None = None) -> None:  # type: ignore[no-untyped-def]
+    def __init__(
+        self, session_factory, group_id: int, api_key: str | None = None
+    ) -> None:  # type: ignore[no-untyped-def]
         self._session_factory = session_factory
         self._group_id = group_id
         self._api_key = api_key
@@ -46,7 +48,11 @@ class RankingService:
 
     async def start(self) -> None:
         self._task = asyncio.create_task(self._poll_loop(), name="ranking-service")
-        logger.info("RankingService started (group_id={}, poll_interval={}s)", self._group_id, POLL_INTERVAL)
+        logger.info(
+            "RankingService started (group_id={}, poll_interval={}s)",
+            self._group_id,
+            POLL_INTERVAL,
+        )
 
     async def stop(self) -> None:
         if self._task:
@@ -85,7 +91,10 @@ class RankingService:
             return _DEFAULT_CONFIG
         async with self._session_factory() as session:
             result = await session.execute(
-                select(Config.value).where(Config.guild_id == _GLOBAL_GUILD_ID, Config.key == _RANKING_CONFIG_KEY)
+                select(Config.value).where(
+                    Config.guild_id == _GLOBAL_GUILD_ID,
+                    Config.key == _RANKING_CONFIG_KEY,
+                )
             )
             stored = result.scalar_one_or_none()
         if not stored:
@@ -102,7 +111,11 @@ class RankingService:
         config = await self._get_config()
         logger.info("RankingService: fetching group {} from WOM", self._group_id)
 
-        async with WiseOldManHandler(api_key=self._api_key, discord_contact=_WOM_DISCORD_CONTACT, priority=WomPriority.LOW) as wom:
+        async with WiseOldManHandler(
+            api_key=self._api_key,
+            discord_contact=_WOM_DISCORD_CONTACT,
+            priority=WomPriority.LOW,
+        ) as wom:
             group_data = await wom.get_group(self._group_id)
             memberships = group_data.get("memberships", [])
             usernames = [m["player"]["username"] for m in memberships]
@@ -115,9 +128,15 @@ class RankingService:
                     if details:
                         snapshots_raw.append((username, details))
                 except Exception as exc:
-                    logger.warning("RankingService: failed to fetch {}: {}", username, exc)
+                    logger.warning(
+                        "RankingService: failed to fetch {}: {}", username, exc
+                    )
 
-        logger.info("RankingService: fetched {}/{} snapshots", len(snapshots_raw), len(usernames))
+        logger.info(
+            "RankingService: fetched {}/{} snapshots",
+            len(snapshots_raw),
+            len(usernames),
+        )
 
         now = datetime.now(timezone.utc)
         cleaned: list[dict] = []
@@ -130,25 +149,53 @@ class RankingService:
             if not snapshot:
                 continue
             data = snapshot.get("data", {})
-            skills = {n: float(info.get("experience", 0) if isinstance(info, dict) else info) for n, info in data.get("skills", {}).items() if n in skill_names}
-            bosses = {n: int(info.get("kills", 0) if isinstance(info, dict) else info) for n, info in data.get("bosses", {}).items()}
+            skills = {
+                n: float(info.get("experience", 0) if isinstance(info, dict) else info)
+                for n, info in data.get("skills", {}).items()
+                if n in skill_names
+            }
+            bosses = {
+                n: int(info.get("kills", 0) if isinstance(info, dict) else info)
+                for n, info in data.get("bosses", {}).items()
+            }
             cleaned.append({"rsn": rsn, "skills": skills, "bosses": bosses})
-            snapshot_rows.append({"rsn": rsn, "skills": skills, "bosses": bosses, "fetched_at": now})
+            snapshot_rows.append(
+                {"rsn": rsn, "skills": skills, "bosses": bosses, "fetched_at": now}
+            )
 
         ranked = rank_from_snapshots(cleaned, config)
 
         async with self._session_factory() as session:
-            rsn_map_result = await session.execute(select(UserAccount.discord_user_id, UserAccount.rsn))
-            rsn_to_user: dict[str, int] = {row.rsn.lower(): row.discord_user_id for row in rsn_map_result}
+            rsn_map_result = await session.execute(
+                select(UserAccount.discord_user_id, UserAccount.rsn)
+            )
+            rsn_to_user: dict[str, int] = {
+                row.rsn.lower(): row.discord_user_id for row in rsn_map_result
+            }
 
             if snapshot_rows:
                 snap_stmt = pg_insert(PlayerSnapshot).values(snapshot_rows)
                 await session.execute(
-                    snap_stmt.on_conflict_do_update(index_elements=["rsn"], set_={"skills": snap_stmt.excluded.skills, "bosses": snap_stmt.excluded.bosses, "fetched_at": snap_stmt.excluded.fetched_at})
+                    snap_stmt.on_conflict_do_update(
+                        index_elements=["rsn"],
+                        set_={
+                            "skills": snap_stmt.excluded.skills,
+                            "bosses": snap_stmt.excluded.bosses,
+                            "fetched_at": snap_stmt.excluded.fetched_at,
+                        },
+                    )
                 )
 
             ranking_rows = [
-                {"rsn": r["rsn"], "rank": r["rank"], "points": r["points"], "boss_points": r["boss_points"], "skill_points": r["skill_points"], "discord_user_id": rsn_to_user.get(r["rsn"]), "updated_at": now}
+                {
+                    "rsn": r["rsn"],
+                    "rank": r["rank"],
+                    "points": r["points"],
+                    "boss_points": r["boss_points"],
+                    "skill_points": r["skill_points"],
+                    "discord_user_id": rsn_to_user.get(r["rsn"]),
+                    "updated_at": now,
+                }
                 for r in ranked
             ]
             if ranking_rows:
@@ -156,7 +203,14 @@ class RankingService:
                 await session.execute(
                     rank_stmt.on_conflict_do_update(
                         index_elements=["rsn"],
-                        set_={"rank": rank_stmt.excluded.rank, "points": rank_stmt.excluded.points, "boss_points": rank_stmt.excluded.boss_points, "skill_points": rank_stmt.excluded.skill_points, "discord_user_id": rank_stmt.excluded.discord_user_id, "updated_at": rank_stmt.excluded.updated_at},
+                        set_={
+                            "rank": rank_stmt.excluded.rank,
+                            "points": rank_stmt.excluded.points,
+                            "boss_points": rank_stmt.excluded.boss_points,
+                            "skill_points": rank_stmt.excluded.skill_points,
+                            "discord_user_id": rank_stmt.excluded.discord_user_id,
+                            "updated_at": rank_stmt.excluded.updated_at,
+                        },
                     )
                 )
             await session.commit()
@@ -171,6 +225,11 @@ class RankingService:
         if self._session_factory is None:
             return []
         async with self._session_factory() as session:
-            result = await session.execute(select(PlayerSnapshot.rsn, PlayerSnapshot.skills, PlayerSnapshot.bosses))
-            snapshots = [{"rsn": row.rsn, "skills": row.skills, "bosses": row.bosses} for row in result]
+            result = await session.execute(
+                select(PlayerSnapshot.rsn, PlayerSnapshot.skills, PlayerSnapshot.bosses)
+            )
+            snapshots = [
+                {"rsn": row.rsn, "skills": row.skills, "bosses": row.bosses}
+                for row in result
+            ]
         return rank_from_snapshots(snapshots, config_override)

@@ -14,10 +14,26 @@ from app.services.dispatcher import is_duplicate, publish
 from app.services.parser import BroadcastType
 
 from ._broadcast_achievements import handle_achievement, handle_pet
-from ._broadcast_clan import handle_clan_leave, handle_coffer, handle_hcim_death, handle_new_member
+from ._broadcast_clan import (
+    handle_clan_leave,
+    handle_coffer,
+    handle_hcim_death,
+    handle_new_member,
+)
 from ._broadcast_loot import handle_clue_item, handle_loot, handle_loot_key
-from ._broadcast_misc import handle_league_area, handle_league_rank, handle_league_relic, handle_pk, handle_unknown
-from ._broadcast_stats import handle_collection_log, handle_level_up, handle_personal_best, handle_xp_milestone
+from ._broadcast_misc import (
+    handle_league_area,
+    handle_league_rank,
+    handle_league_relic,
+    handle_pk,
+    handle_unknown,
+)
+from ._broadcast_stats import (
+    handle_collection_log,
+    handle_level_up,
+    handle_personal_best,
+    handle_xp_milestone,
+)
 from ._helpers import any_opted_out, broadcast_player_names, now
 
 router = APIRouter()
@@ -47,7 +63,9 @@ _BROADCAST_HANDLERS = {
 }
 
 
-async def _handle_broadcast(payload: ClanChatPayload, clan: dict, session: AsyncSession, valkey: Valkey) -> None:
+async def _handle_broadcast(
+    payload: ClanChatPayload, clan: dict, session: AsyncSession, valkey: Valkey
+) -> None:
     kind = parser.classify(payload.message)
     ccingest_collector.record(kind.value)
 
@@ -71,7 +89,11 @@ async def ingest_chat(
         is_broadcast = payload.sender == payload.clan_name
 
         if await is_duplicate(valkey, clan["key"], payload.sender, payload.message):
-            logger.debug("[{}] Duplicate payload from {}, skipping", clan["guild_id"], payload.sender)
+            logger.debug(
+                "[{}] Duplicate payload from {}, skipping",
+                clan["guild_id"],
+                payload.sender,
+            )
             ccingest_collector.record("duplicate")
             continue
 
@@ -79,30 +101,42 @@ async def ingest_chat(
             await _handle_broadcast(payload, clan, session, valkey)
         else:
             ccingest_collector.record("chat")
-            await publish(valkey, "chat", {
-                "player_name": payload.sender,
-                "rank": payload.rank,
-                "raw_message": payload.message,
-                "timestamp": now().isoformat(),
-            })
+            await publish(
+                valkey,
+                "chat",
+                {
+                    "player_name": payload.sender,
+                    "rank": payload.rank,
+                    "raw_message": payload.message,
+                    "timestamp": now().isoformat(),
+                },
+            )
 
-    await session.execute(text(
-        "UPDATE events e SET user_id = u.discord_user_id"
-        " FROM (SELECT discord_user_id, lower(rsn) AS rsn_lower FROM user_accounts"
-        "       UNION SELECT discord_user_id, lower(rsn) FROM users WHERE rsn IS NOT NULL) u"
-        " WHERE replace(lower(e.player_name), chr(160), ' ') = u.rsn_lower AND e.user_id IS NULL"
-    ))
-    await session.execute(text(
-        "UPDATE events e SET user_account_id = ua.id FROM user_accounts ua"
-        " WHERE replace(lower(e.player_name), chr(160), ' ') = lower(ua.rsn) AND e.user_account_id IS NULL"
-    ))
-    await session.execute(text(
-        "UPDATE coffer_events ce SET user_account_id = ua.id FROM user_accounts ua"
-        " WHERE lower(ce.player_name) = lower(ua.rsn) AND ce.user_account_id IS NULL"
-    ))
-    await session.execute(text(
-        "UPDATE membership_events me SET user_account_id = ua.id FROM user_accounts ua"
-        " WHERE lower(me.player_name) = lower(ua.rsn) AND me.user_account_id IS NULL"
-    ))
+    await session.execute(
+        text(
+            "UPDATE events e SET user_id = u.discord_user_id"
+            " FROM (SELECT discord_user_id, lower(rsn) AS rsn_lower FROM user_accounts"
+            "       UNION SELECT discord_user_id, lower(rsn) FROM users WHERE rsn IS NOT NULL) u"
+            " WHERE replace(lower(e.player_name), chr(160), ' ') = u.rsn_lower AND e.user_id IS NULL"
+        )
+    )
+    await session.execute(
+        text(
+            "UPDATE events e SET user_account_id = ua.id FROM user_accounts ua"
+            " WHERE replace(lower(e.player_name), chr(160), ' ') = lower(ua.rsn) AND e.user_account_id IS NULL"
+        )
+    )
+    await session.execute(
+        text(
+            "UPDATE coffer_events ce SET user_account_id = ua.id FROM user_accounts ua"
+            " WHERE lower(ce.player_name) = lower(ua.rsn) AND ce.user_account_id IS NULL"
+        )
+    )
+    await session.execute(
+        text(
+            "UPDATE membership_events me SET user_account_id = ua.id FROM user_accounts ua"
+            " WHERE lower(me.player_name) = lower(ua.rsn) AND me.user_account_id IS NULL"
+        )
+    )
     await session.commit()
     return {"ok": True, "processed": len(payloads)}

@@ -29,26 +29,35 @@ router = APIRouter()
 
 
 @router.get("/config", dependencies=[Depends(get_current_user)])
-async def list_ticket_configs(session: AsyncSession = Depends(get_session)) -> list[TicketTypeConfigOut]:
+async def list_ticket_configs(
+    session: AsyncSession = Depends(get_session),
+) -> list[TicketTypeConfigOut]:
     row = await get_ticket_row(session)
     return [build_response(t, row) for t in _KNOWN_TYPES]
 
 
 @router.get("/config/panel", dependencies=[Depends(get_current_user)])
-async def get_panel_config(session: AsyncSession = Depends(get_session)) -> PanelConfigOut:
+async def get_panel_config(
+    session: AsyncSession = Depends(get_session),
+) -> PanelConfigOut:
     row = await get_ticket_row(session)
     return PanelConfigOut(images=get_images("panel", row))
 
 
 @router.get("/config/{type_id}", dependencies=[Depends(get_current_user)])
-async def get_ticket_config(type_id: str, session: AsyncSession = Depends(get_session)) -> TicketTypeConfigOut:
+async def get_ticket_config(
+    type_id: str, session: AsyncSession = Depends(get_session)
+) -> TicketTypeConfigOut:
     if type_id not in _KNOWN_TYPES:
         raise HTTPException(404, f"Unknown ticket type: {type_id}")
     row = await get_ticket_row(session)
     return build_response(type_id, row)
 
 
-@router.patch("/config/{type_id}", dependencies=[Depends(require_page_permission("staff.ticket-config", "edit"))])
+@router.patch(
+    "/config/{type_id}",
+    dependencies=[Depends(require_page_permission("staff.ticket-config", "edit"))],
+)
 async def patch_ticket_config(
     type_id: str,
     body: TicketTypeConfigPatch,
@@ -59,14 +68,21 @@ async def patch_ticket_config(
         raise HTTPException(404, f"Unknown ticket type: {type_id}")
     row = await get_ticket_row(session)
     type_configs: dict = dict(row.get("type_configs", {}))
-    type_configs[type_id] = {**merge_config(type_id, row), **body.model_dump(exclude_none=True)}
+    type_configs[type_id] = {
+        **merge_config(type_id, row),
+        **body.model_dump(exclude_none=True),
+    }
     row = {**row, "type_configs": type_configs}
     await set_ticket_row(row, session)
     await valkey.publish(_VALKEY_CHANNEL, json.dumps({"type_id": type_id}))
     return build_response(type_id, row)
 
 
-@router.post("/config/{type_id}/images", status_code=201, dependencies=[Depends(require_page_permission("staff.ticket-config", "edit"))])
+@router.post(
+    "/config/{type_id}/images",
+    status_code=201,
+    dependencies=[Depends(require_page_permission("staff.ticket-config", "edit"))],
+)
 async def upload_ticket_image(
     type_id: str,
     name: str = Form(...),
@@ -83,13 +99,21 @@ async def upload_ticket_image(
         raise HTTPException(413, "Image exceeds 8 MB limit")
     filename = file.filename or f"{name}.png"
     row = await get_ticket_row(session)
-    row = {**row, f"{type_id}_img_{name}_data": base64.b64encode(data).decode(), f"{type_id}_img_{name}_filename": filename}
+    row = {
+        **row,
+        f"{type_id}_img_{name}_data": base64.b64encode(data).decode(),
+        f"{type_id}_img_{name}_filename": filename,
+    }
     await set_ticket_row(row, session)
     await valkey.publish(_VALKEY_CHANNEL, json.dumps({"type_id": type_id}))
     return ImageInfo(name=name, filename=filename)
 
 
-@router.delete("/config/{type_id}/images/{name}", status_code=204, dependencies=[Depends(require_page_permission("staff.ticket-config", "delete"))])
+@router.delete(
+    "/config/{type_id}/images/{name}",
+    status_code=204,
+    dependencies=[Depends(require_page_permission("staff.ticket-config", "delete"))],
+)
 async def delete_ticket_image(
     type_id: str,
     name: str,

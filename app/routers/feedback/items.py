@@ -38,7 +38,9 @@ async def upload_attachment(
     uid = int(current_user["sub"])
 
     if file.content_type not in _ALLOWED_IMAGE_TYPES:
-        raise HTTPException(400, f"Only image files are allowed. Got: {file.content_type!r}")
+        raise HTTPException(
+            400, f"Only image files are allowed. Got: {file.content_type!r}"
+        )
 
     original_name = file.filename or "upload"
     ext = Path(original_name).suffix.lower()

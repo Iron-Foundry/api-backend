@@ -26,23 +26,30 @@ async def services_status(
     rows = await session.execute(select(ServiceStatus))
     services = list(rows.scalars())
 
-    stale_cutoff = datetime.now(timezone.utc) - timedelta(minutes=_STALE_THRESHOLD_MINUTES)
+    stale_cutoff = datetime.now(timezone.utc) - timedelta(
+        minutes=_STALE_THRESHOLD_MINUTES
+    )
     result: list[dict] = []
     for svc in services:
         is_healthy = svc.is_healthy and svc.last_seen > stale_cutoff
-        result.append({
-            "service_name": svc.service_name,
-            "is_healthy": is_healthy,
-            "last_seen": svc.last_seen.isoformat(),
-            "version": svc.version,
-            "uptime_seconds": svc.uptime_seconds,
-            "summary_metrics": svc.summary_metrics,
-        })
+        result.append(
+            {
+                "service_name": svc.service_name,
+                "is_healthy": is_healthy,
+                "last_seen": svc.last_seen.isoformat(),
+                "version": svc.version,
+                "uptime_seconds": svc.uptime_seconds,
+                "summary_metrics": svc.summary_metrics,
+            }
+        )
 
     live = api_backend_status(request)
     existing = next((r for r in result if r["service_name"] == "api-backend"), None)
     if existing:
-        existing["summary_metrics"] = {**existing["summary_metrics"], **live["summary_metrics"]}
+        existing["summary_metrics"] = {
+            **existing["summary_metrics"],
+            **live["summary_metrics"],
+        }
         existing["is_healthy"] = live["is_healthy"]
         existing["last_seen"] = live["last_seen"]
     else:
@@ -119,8 +126,12 @@ async def services_uptime(
                 total_count += 1
 
         uptime_pct = (
-            round((operational_count / total_count * 100), 2) if total_count > 0 else None
+            round((operational_count / total_count * 100), 2)
+            if total_count > 0
+            else None
         )
-        result.append({"service_name": service_name, "uptime_pct": uptime_pct, "days": day_list})
+        result.append(
+            {"service_name": service_name, "uptime_pct": uptime_pct, "days": day_list}
+        )
 
     return result

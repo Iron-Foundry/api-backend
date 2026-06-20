@@ -40,13 +40,16 @@ async def toggle_reaction(
         await session.delete(existing)
         reacted = False
     else:
-        session.add(ContentEntryReaction(entry_id=entry_id, discord_user_id=uid, created_at=now))
+        session.add(
+            ContentEntryReaction(entry_id=entry_id, discord_user_id=uid, created_at=now)
+        )
         reacted = True
 
     await session.commit()
 
     count_result = await session.execute(
-        select(func.count()).select_from(ContentEntryReaction)
+        select(func.count())
+        .select_from(ContentEntryReaction)
         .where(ContentEntryReaction.entry_id == entry_id)
     )
     return {"reacted": reacted, "count": count_result.scalar_one()}

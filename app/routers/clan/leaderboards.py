@@ -10,7 +10,12 @@ import json
 from app.db.models import Event, Leaderboard, User
 from app.dependencies import get_session, get_valkey
 
-from ._constants import _KC_FRESH_KEY, _KC_STALE_KEY, _LEAGUES_FRESH_KEY, _LEAGUES_STALE_KEY
+from ._constants import (
+    _KC_FRESH_KEY,
+    _KC_STALE_KEY,
+    _LEAGUES_FRESH_KEY,
+    _LEAGUES_STALE_KEY,
+)
 from ._helpers import _enrich_with_ranks
 from ._leaderboard_cache import _build_kc_cache, _build_leagues_cache
 
@@ -49,12 +54,20 @@ def _dedup_pb(entries: list[dict]) -> list[dict]:
 async def clan_leaderboards(session: AsyncSession = Depends(get_session)) -> list[dict]:
     """Return all personal best entries from the leaderboards table, sorted by activity then time."""
     result = await session.execute(
-        select(Leaderboard).where(Leaderboard.time_seconds > 0)
+        select(Leaderboard)
+        .where(Leaderboard.time_seconds > 0)
         .order_by(Leaderboard.activity, Leaderboard.variant, Leaderboard.time_seconds)
     )
     rows = result.scalars().all()
     result_dicts = [
-        {"player_name": r.player_name, "activity": r.activity, "variant": r.variant, "time_seconds": r.time_seconds, "clan_rank": None, "discord_rank": None}
+        {
+            "player_name": r.player_name,
+            "activity": r.activity,
+            "variant": r.variant,
+            "time_seconds": r.time_seconds,
+            "clan_rank": None,
+            "discord_rank": None,
+        }
         for r in rows
     ]
     entries_by_name: dict[str, list[dict]] = {}
@@ -110,29 +123,46 @@ async def leagues_leaderboard(
 
 
 @router.get("/leaderboards/collection-log")
-async def collection_log_leaderboard(session: AsyncSession = Depends(get_session)) -> list[dict]:
+async def collection_log_leaderboard(
+    session: AsyncSession = Depends(get_session),
+) -> list[dict]:
     """Players ranked by collection log slots. Excludes opted-out players."""
     opt_out_result = await session.execute(
-        select(func.lower(User.rsn)).where(User.stats_opt_out.is_(True), User.rsn.is_not(None))
+        select(func.lower(User.rsn)).where(
+            User.stats_opt_out.is_(True), User.rsn.is_not(None)
+        )
     )
     opt_out_rsns: set[str] = {row[0] for row in opt_out_result}
 
     global_max_result = await session.execute(
-        select(func.max(Event.data["log_slots_max"].as_integer()))
-        .where(Event.type == "collection_log", Event.is_league_world.is_(False))
+        select(func.max(Event.data["log_slots_max"].as_integer())).where(
+            Event.type == "collection_log", Event.is_league_world.is_(False)
+        )
     )
     global_slots_max: int = global_max_result.scalar_one_or_none() or 0
 
     slots_col = func.max(Event.data["log_slots"].as_integer())
     result = await session.execute(
         select(Event.player_name, slots_col.label("slots"))
-        .where(Event.type == "collection_log", Event.player_name.is_not(None), Event.is_league_world.is_(False))
+        .where(
+            Event.type == "collection_log",
+            Event.player_name.is_not(None),
+            Event.is_league_world.is_(False),
+        )
         .group_by(Event.player_name)
         .order_by(slots_col.desc().nulls_last())
     )
-    rows = [r for r in result if r.player_name and r.player_name.lower() not in opt_out_rsns]
+    rows = [
+        r for r in result if r.player_name and r.player_name.lower() not in opt_out_rsns
+    ]
     result_dicts = [
-        {"player_name": r.player_name, "slots": r.slots or 0, "slots_max": global_slots_max, "clan_rank": None, "discord_rank": None}
+        {
+            "player_name": r.player_name,
+            "slots": r.slots or 0,
+            "slots_max": global_slots_max,
+            "clan_rank": None,
+            "discord_rank": None,
+        }
         for r in rows
     ]
     entries_by_name_clog: dict[str, list[dict]] = {}

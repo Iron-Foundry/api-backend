@@ -101,11 +101,19 @@ async def get_ranking_results(
             "boss_points": r.boss_points,
             "skill_points": r.skill_points,
             "discord_user_id": r.discord_user_id,
-            "username": username_map.get(r.discord_user_id) if r.discord_user_id else None,
-            "clan_rank": clan_rank_map.get(r.discord_user_id) if r.discord_user_id else None,
+            "username": username_map.get(r.discord_user_id)
+            if r.discord_user_id
+            else None,
+            "clan_rank": clan_rank_map.get(r.discord_user_id)
+            if r.discord_user_id
+            else None,
             "alts": [
-                a for a in alt_map.get(r.discord_user_id, []) if a.lower() != r.rsn.lower()
-            ] if r.discord_user_id else [],
+                a
+                for a in alt_map.get(r.discord_user_id, [])
+                if a.lower() != r.rsn.lower()
+            ]
+            if r.discord_user_id
+            else [],
             "updated_at": r.updated_at.isoformat(),
         }
         for r in page

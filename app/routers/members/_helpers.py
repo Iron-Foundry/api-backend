@@ -21,8 +21,13 @@ _DISCORD_API = "https://discord.com/api"
 _WOM_API_KEY = os.getenv("WOM_API_KEY")
 
 _REFERRAL_SOURCES = {
-    "reddit", "osrs_discord", "website", "recruited_by",
-    "instagram", "other", "prefer_not_to_say",
+    "reddit",
+    "osrs_discord",
+    "website",
+    "recruited_by",
+    "instagram",
+    "other",
+    "prefer_not_to_say",
 }
 
 _RSN_RE = re.compile(r"^[A-Za-z0-9 _-]{1,12}$")
@@ -58,7 +63,10 @@ async def _upsert_primary_account(
     now = datetime.now(timezone.utc)
     await session.execute(
         update(UserAccount)
-        .where(UserAccount.discord_user_id == discord_user_id, UserAccount.is_primary == True)  # noqa: E712
+        .where(
+            UserAccount.discord_user_id == discord_user_id,
+            UserAccount.is_primary == True,
+        )  # noqa: E712
         .values(is_primary=False)
     )
     existing = await session.execute(
@@ -70,15 +78,25 @@ async def _upsert_primary_account(
     if existing.scalar_one_or_none():
         await session.execute(
             update(UserAccount)
-            .where(UserAccount.discord_user_id == discord_user_id, func.lower(UserAccount.rsn) == rsn.lower())
+            .where(
+                UserAccount.discord_user_id == discord_user_id,
+                func.lower(UserAccount.rsn) == rsn.lower(),
+            )
             .values(is_primary=True)
         )
     else:
-        await session.execute(pg_insert(UserAccount).values(
-            discord_user_id=discord_user_id, rsn=rsn, is_primary=True, created_at=now,
-        ))
+        await session.execute(
+            pg_insert(UserAccount).values(
+                discord_user_id=discord_user_id,
+                rsn=rsn,
+                is_primary=True,
+                created_at=now,
+            )
+        )
     await session.execute(
-        update(User).where(User.discord_user_id == discord_user_id).values(rsn=rsn, updated_at=now)
+        update(User)
+        .where(User.discord_user_id == discord_user_id)
+        .values(rsn=rsn, updated_at=now)
     )
 
 
@@ -93,16 +111,22 @@ async def _wom_link_rsn(
     if ua_id is None:
         return all_rsns
     try:
-        async with WiseOldManHandler(api_key=_WOM_API_KEY, priority=WomPriority.LOW) as wom:
+        async with WiseOldManHandler(
+            api_key=_WOM_API_KEY, priority=WomPriority.LOW
+        ) as wom:
             name_changes = await wom.get_player_name_changes(rsn)
         history = [c["oldName"] for c in name_changes if c.get("status") == "approved"]
         if history:
             await session.execute(
-                update(UserAccount).where(UserAccount.id == ua_id).values(rsn_history=history)
+                update(UserAccount)
+                .where(UserAccount.id == ua_id)
+                .values(rsn_history=history)
             )
             all_rsns = [rsn] + history
     except Exception as exc:
-        logger.warning("members: failed to fetch WOM name history for {!r}: {}", rsn, exc)
+        logger.warning(
+            "members: failed to fetch WOM name history for {!r}: {}", rsn, exc
+        )
 
     lower_rsns = [r.lower() for r in all_rsns]
     event_result = await session.execute(

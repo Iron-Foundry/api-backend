@@ -378,7 +378,11 @@ async def patch_run(
     patch = body.model_dump(exclude_none=True)
     effective_ends_at = patch.get("competition_ends_at") or run.competition_ends_at
     effective_status = patch.get("status") or run.status
-    if effective_status == "competition_active" and effective_ends_at and effective_ends_at <= _now():
+    if (
+        effective_status == "competition_active"
+        and effective_ends_at
+        and effective_ends_at <= _now()
+    ):
         raise HTTPException(
             422,
             f"competition_ends_at {effective_ends_at.isoformat()} is already in the past - "

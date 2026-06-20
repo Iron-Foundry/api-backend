@@ -4,9 +4,24 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from valkey.asyncio import Valkey
 
-from app.dependencies import get_current_user, get_optional_user, get_session, get_valkey
-from app.party_store import _recalc_status, close_party, create_party, list_active_parties, party_to_dict
-from app.services.discord_party import close_party_embed, edit_party_embed, post_party_embed
+from app.dependencies import (
+    get_current_user,
+    get_optional_user,
+    get_session,
+    get_valkey,
+)
+from app.party_store import (
+    _recalc_status,
+    close_party,
+    create_party,
+    list_active_parties,
+    party_to_dict,
+)
+from app.services.discord_party import (
+    close_party_embed,
+    edit_party_embed,
+    post_party_embed,
+)
 
 from ._helpers import (
     CreatePartyRequest,
@@ -65,7 +80,9 @@ async def create_new_party(
         description=body.description.strip() if body.description else None,
         vibe=body.vibe,
         max_size=body.max_size,
-        scheduled_at=resolve_scheduled_at(body.scheduled_at) if body.scheduled_at else None,
+        scheduled_at=resolve_scheduled_at(body.scheduled_at)
+        if body.scheduled_at
+        else None,
         ttl_hours=body.ttl_hours,
         notification_category_ids=body.notification_category_ids,
     )
@@ -113,7 +130,11 @@ async def update_party(
     await edit_party_embed(party)
 
     all_member_ids = [m.user_id for m in party.members]
-    await notify(valkey, all_member_ids, f"**{party.activity}** has been updated by the party leader.")
+    await notify(
+        valkey,
+        all_member_ids,
+        f"**{party.activity}** has been updated by the party leader.",
+    )
     return party_to_dict(party, uid)
 
 
@@ -131,7 +152,9 @@ async def close_party_endpoint(
         raise HTTPException(409, "Party is already closed")
     if party.leader_id != uid:
         if not await is_staff(int(current_user["sub"]), session):
-            raise HTTPException(403, "Only the party leader or staff can close this party")
+            raise HTTPException(
+                403, "Only the party leader or staff can close this party"
+            )
 
     await close_party(session, party)
     await close_party_embed(party)

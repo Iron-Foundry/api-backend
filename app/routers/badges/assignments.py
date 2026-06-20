@@ -29,7 +29,12 @@ async def badge_members(
         .order_by(UserBadge.assigned_at)
     )
     return [
-        {"discord_user_id": ub.discord_user_id, "username": username, "rsn": rsn, "assigned_at": ub.assigned_at.isoformat() if ub.assigned_at else None}
+        {
+            "discord_user_id": ub.discord_user_id,
+            "username": username,
+            "rsn": rsn,
+            "assigned_at": ub.assigned_at.isoformat() if ub.assigned_at else None,
+        }
         for ub, username, rsn in result
     ]
 
@@ -42,12 +47,19 @@ async def assign_badge(
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     await require_mentor(current_user, session)
-    badge = (await session.execute(select(Badge).where(Badge.id == badge_id))).scalar_one_or_none()
+    badge = (
+        await session.execute(select(Badge).where(Badge.id == badge_id))
+    ).scalar_one_or_none()
     if not badge:
         raise HTTPException(404, "Badge not found.")
     await session.execute(
         pg_insert(UserBadge)
-        .values(badge_id=badge_id, discord_user_id=body.discord_user_id, assigned_at=datetime.now(timezone.utc), assigned_by=int(current_user["sub"]))
+        .values(
+            badge_id=badge_id,
+            discord_user_id=body.discord_user_id,
+            assigned_at=datetime.now(timezone.utc),
+            assigned_by=int(current_user["sub"]),
+        )
         .on_conflict_do_nothing(constraint="user_badges_badge_id_discord_user_id_key")
     )
     await session.commit()
@@ -63,7 +75,9 @@ async def revoke_badge(
 ) -> dict:
     await require_mentor(current_user, session)
     await session.execute(
-        delete(UserBadge).where(UserBadge.badge_id == badge_id, UserBadge.discord_user_id == user_id)
+        delete(UserBadge).where(
+            UserBadge.badge_id == badge_id, UserBadge.discord_user_id == user_id
+        )
     )
     await session.commit()
     return {"ok": True}
@@ -76,6 +90,9 @@ async def my_badges(
 ) -> list[dict]:
     uid = int(current_user["sub"])
     result = await session.execute(
-        select(Badge).join(UserBadge, UserBadge.badge_id == Badge.id).where(UserBadge.discord_user_id == uid).order_by(UserBadge.assigned_at)
+        select(Badge)
+        .join(UserBadge, UserBadge.badge_id == Badge.id)
+        .where(UserBadge.discord_user_id == uid)
+        .order_by(UserBadge.assigned_at)
     )
     return [serialize_badge(b) for b in result.scalars()]

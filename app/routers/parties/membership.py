@@ -65,7 +65,8 @@ async def leave_party(
 
     leaving_member = next((m for m in party.members if m.user_id == uid), None)
     leaving_name = (
-        (leaving_member.rsn or leaving_member.username) if leaving_member
+        (leaving_member.rsn or leaving_member.username)
+        if leaving_member
         else current_user.get("username", "Unknown")
     )
     if not await remove_member(session, party, uid):
@@ -102,13 +103,23 @@ async def kick_member(
         raise HTTPException(409, "Party is closed")
 
     kicked_member = next((m for m in party.members if m.user_id == user_id), None)
-    kicked_name = (kicked_member.rsn or kicked_member.username) if kicked_member else "A member"
+    kicked_name = (
+        (kicked_member.rsn or kicked_member.username) if kicked_member else "A member"
+    )
     if not await remove_member(session, party, user_id):
         raise HTTPException(404, "Member not found in this party")
 
     await edit_party_embed(party)
 
     remaining_ids = [m.user_id for m in party.members]
-    await notify(valkey, [user_id], f"You were removed from **{party.activity}** by the party leader.")
-    await notify(valkey, remaining_ids, f"**{kicked_name}** was removed from **{party.activity}** by the leader.")
+    await notify(
+        valkey,
+        [user_id],
+        f"You were removed from **{party.activity}** by the party leader.",
+    )
+    await notify(
+        valkey,
+        remaining_ids,
+        f"**{kicked_name}** was removed from **{party.activity}** by the leader.",
+    )
     return party_to_dict(party, uid)

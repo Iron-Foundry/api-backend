@@ -63,7 +63,10 @@ async def staff_tickets(
         row.ticket_id
         for row in ticket_rows
         if (row.status == "closed" and row.closed_at is None)
-        or (row.created_at and row.created_at.astimezone(timezone.utc).date() == _BOGUS_DATE)
+        or (
+            row.created_at
+            and row.created_at.astimezone(timezone.utc).date() == _BOGUS_DATE
+        )
     }
     transcript_ts_map: dict[int, dict[str, str | None]] = {}
     if needs_transcript:
@@ -76,7 +79,9 @@ async def staff_tickets(
             ),
             {"ids": list(needs_transcript)},
         )
-        transcript_ts_map = {r.ticket_id: {"first_ts": r.first_ts, "last_ts": r.last_ts} for r in ts_rows}
+        transcript_ts_map = {
+            r.ticket_id: {"first_ts": r.first_ts, "last_ts": r.last_ts} for r in ts_rows
+        }
 
     tickets: list[dict] = []
     for row in ticket_rows:
@@ -87,27 +92,34 @@ async def staff_tickets(
             and row.created_at.astimezone(timezone.utc).date() == _BOGUS_DATE
         )
         created_at = (
-            td.get("first_ts") or row.created_at.isoformat() if bogus_created
+            td.get("first_ts") or row.created_at.isoformat()
+            if bogus_created
             else (row.created_at.isoformat() if row.created_at else None)
         )
-        tickets.append({
-            "ticket_id": row.ticket_id,
-            "guild_id": row.guild_id,
-            "ticket_type": row.ticket_type,
-            "status": row.status,
-            "created_at": created_at,
-            "closed_at": row.closed_at.isoformat() if row.closed_at else td.get("last_ts"),
-            "last_message_at": row.last_message_at.isoformat() if row.last_message_at else None,
-            "creator": {
-                "id": row.creator_id,
-                "display_name": row.creator_name,
-                "avatar_url": u.discord_avatar_url if u else None,
-                "rsn": u.rsn if u else None,
-            },
-            "closed_by_id": row.closed_by_id,
-            "close_reason": row.close_reason,
-            "staff_note": row.staff_note,
-        })
+        tickets.append(
+            {
+                "ticket_id": row.ticket_id,
+                "guild_id": row.guild_id,
+                "ticket_type": row.ticket_type,
+                "status": row.status,
+                "created_at": created_at,
+                "closed_at": row.closed_at.isoformat()
+                if row.closed_at
+                else td.get("last_ts"),
+                "last_message_at": row.last_message_at.isoformat()
+                if row.last_message_at
+                else None,
+                "creator": {
+                    "id": row.creator_id,
+                    "display_name": row.creator_name,
+                    "avatar_url": u.discord_avatar_url if u else None,
+                    "rsn": u.rsn if u else None,
+                },
+                "closed_by_id": row.closed_by_id,
+                "close_reason": row.close_reason,
+                "staff_note": row.staff_note,
+            }
+        )
     return tickets
 
 
@@ -124,13 +136,17 @@ async def staff_ticket_transcript(
 
     allowed = await get_allowed_ticket_types(roles, session)
     ticket_result = await session.execute(
-        select(Ticket.ticket_type).where(Ticket.ticket_id == ticket_id, Ticket.ticket_type.in_(allowed))
+        select(Ticket.ticket_type).where(
+            Ticket.ticket_id == ticket_id, Ticket.ticket_type.in_(allowed)
+        )
     )
     if not ticket_result.scalar_one_or_none():
         raise HTTPException(404, "Ticket not found or access denied.")
 
     tr = (
-        await session.execute(select(Transcript).where(Transcript.ticket_id == ticket_id))
+        await session.execute(
+            select(Transcript).where(Transcript.ticket_id == ticket_id)
+        )
     ).scalar_one_or_none()
     if not tr:
         raise HTTPException(404, "Transcript not available.")

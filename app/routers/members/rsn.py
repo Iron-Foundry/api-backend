@@ -9,7 +9,14 @@ from app.db.models import User, UserAccount
 from app.dependencies import get_current_user, get_session
 from app.services.rsn_cascade import backfill_user_from_rsn
 
-from ._helpers import _ACCOUNT_CAP, _CAP_MSG, _RSN_RE, RsnUpdate, _upsert_primary_account, _wom_link_rsn
+from ._helpers import (
+    _ACCOUNT_CAP,
+    _CAP_MSG,
+    _RSN_RE,
+    RsnUpdate,
+    _upsert_primary_account,
+    _wom_link_rsn,
+)
 
 router = APIRouter()
 
@@ -31,15 +38,21 @@ async def update_rsn(
     discord_user_id = int(current_user["sub"])
 
     conflict_result = await session.execute(
-        select(UserAccount.discord_user_id).where(func.lower(UserAccount.rsn) == rsn.lower())
+        select(UserAccount.discord_user_id).where(
+            func.lower(UserAccount.rsn) == rsn.lower()
+        )
     )
     conflict = conflict_result.scalar_one_or_none()
     if conflict and conflict != discord_user_id:
-        raise HTTPException(status_code=409, detail="That RSN is linked to another account.")
+        raise HTTPException(
+            status_code=409, detail="That RSN is linked to another account."
+        )
 
     if not conflict:
         cap_result = await session.execute(
-            select(func.count()).select_from(UserAccount).where(UserAccount.discord_user_id == discord_user_id)
+            select(func.count())
+            .select_from(UserAccount)
+            .where(UserAccount.discord_user_id == discord_user_id)
         )
         if (cap_result.scalar_one() or 0) >= _ACCOUNT_CAP:
             raise HTTPException(status_code=422, detail=_CAP_MSG)
@@ -48,18 +61,25 @@ async def update_rsn(
     logger.info("members/rsn: user {} set primary RSN {!r}", discord_user_id, rsn)
 
     user_result = await session.execute(
-        select(User.clan_rank, User.total_loot_value, User.collection_log_slots)
-        .where(User.discord_user_id == discord_user_id)
+        select(User.clan_rank, User.total_loot_value, User.collection_log_slots).where(
+            User.discord_user_id == discord_user_id
+        )
     )
     user_row = user_result.one_or_none()
     backfill = await backfill_user_from_rsn(
-        session, discord_user_id, rsn,
+        session,
+        discord_user_id,
+        rsn,
         clan_rank=user_row.clan_rank if user_row else None,
         total_loot_value=user_row.total_loot_value if user_row else 0,
         collection_log_slots=user_row.collection_log_slots if user_row else 0,
     )
     if backfill:
-        logger.info("members/rsn: backfilled fields {} for user {}", list(backfill.keys()), discord_user_id)
+        logger.info(
+            "members/rsn: backfilled fields {} for user {}",
+            list(backfill.keys()),
+            discord_user_id,
+        )
 
     ua_result = await session.execute(
         select(UserAccount.id).where(

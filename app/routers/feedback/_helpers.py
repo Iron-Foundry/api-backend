@@ -11,7 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import Asset, FeedbackReply, User
 
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "/app/uploads"))
-_ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp", "image/avif"}
+_ALLOWED_IMAGE_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "image/avif",
+}
 _ALLOWED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif"}
 _MAX_IMAGE_BYTES = 10 * 1024 * 1024
 _VALID_TYPES = ("suggestion", "bug")
@@ -42,7 +48,16 @@ class EditFeedbackBody(BaseModel):
 
 
 class UpdateStatusBody(BaseModel):
-    status: Literal["open", "planned", "implemented", "needs-triage", "wont-add", "reviewing", "patched", "wont-fix"]
+    status: Literal[
+        "open",
+        "planned",
+        "implemented",
+        "needs-triage",
+        "wont-add",
+        "reviewing",
+        "patched",
+        "wont-fix",
+    ]
 
 
 class PostReplyBody(BaseModel):
@@ -51,16 +66,22 @@ class PostReplyBody(BaseModel):
 
 async def get_username(discord_user_id: int, session: AsyncSession) -> str | None:
     from sqlalchemy import select
+
     result = await session.execute(
         select(User.discord_username).where(User.discord_user_id == discord_user_id)
     )
     return result.scalar_one_or_none()
 
 
-async def get_user_info(discord_user_id: int, session: AsyncSession) -> tuple[str | None, str | None]:
+async def get_user_info(
+    discord_user_id: int, session: AsyncSession
+) -> tuple[str | None, str | None]:
     from sqlalchemy import select
+
     result = await session.execute(
-        select(User.discord_username, User.clan_rank).where(User.discord_user_id == discord_user_id)
+        select(User.discord_username, User.clan_rank).where(
+            User.discord_user_id == discord_user_id
+        )
     )
     row = result.one_or_none()
     if row:
@@ -68,7 +89,9 @@ async def get_user_info(discord_user_id: int, session: AsyncSession) -> tuple[st
     return None, None
 
 
-async def resolve_attachments(attachment_ids: list, session: AsyncSession) -> list[dict]:
+async def resolve_attachments(
+    attachment_ids: list, session: AsyncSession
+) -> list[dict]:
     if not attachment_ids:
         return []
     results = []
@@ -79,16 +102,20 @@ async def resolve_attachments(attachment_ids: list, session: AsyncSession) -> li
             continue
         asset = await session.get(Asset, asset_uuid)
         if asset:
-            results.append({
-                "id": str(asset.id),
-                "url": f"/assets/file/{asset.filename}",
-                "original_name": asset.original_name,
-                "content_type": asset.content_type,
-            })
+            results.append(
+                {
+                    "id": str(asset.id),
+                    "url": f"/assets/file/{asset.filename}",
+                    "original_name": asset.original_name,
+                    "content_type": asset.content_type,
+                }
+            )
     return results
 
 
-def serialize_reply(reply: FeedbackReply, author_name: str | None, author_clan_rank: str | None = None) -> dict:
+def serialize_reply(
+    reply: FeedbackReply, author_name: str | None, author_clan_rank: str | None = None
+) -> dict:
     return {
         "id": reply.id,
         "feedback_id": reply.feedback_id,

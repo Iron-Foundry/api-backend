@@ -83,7 +83,10 @@ _BOSS_METRICS: dict[str, tuple[str, str]] = {
     "the_whisperer": ("The Whisperer", "The_Whisperer"),
     "theatre_of_blood": ("Theatre of Blood", "Theatre_of_Blood"),
     "theatre_of_blood_hard_mode": ("Theatre of Blood: HM", "Theatre_of_Blood"),
-    "thermonuclear_smoke_devil": ("Thermonuclear Smoke Devil", "Thermonuclear_Smoke_Devil"),
+    "thermonuclear_smoke_devil": (
+        "Thermonuclear Smoke Devil",
+        "Thermonuclear_Smoke_Devil",
+    ),
     "tombs_of_amascut": ("Tombs of Amascut", "Tombs_of_Amascut"),
     "tombs_of_amascut_expert_mode": ("Tombs of Amascut: Expert", "Tombs_of_Amascut"),
     "tzkal_zuk": ("TzKal-Zuk", "TzKal-Zuk"),

@@ -59,14 +59,24 @@ async def set_open(
     await _require_survey_edit(current_user, session)
 
     row = (
-        await session.execute(select(SurveyTemplate).where(SurveyTemplate.template_id == template_id))
+        await session.execute(
+            select(SurveyTemplate).where(SurveyTemplate.template_id == template_id)
+        )
     ).scalar_one_or_none()
     if row is None:
         raise HTTPException(404, "Template not found.")
 
     raw = row.questions or {}
-    updated: dict = {"fields": raw, "is_open": body.is_open} if isinstance(raw, list) else {**raw, "is_open": body.is_open}
-    await session.execute(update(SurveyTemplate).where(SurveyTemplate.template_id == template_id).values(questions=updated))
+    updated: dict = (
+        {"fields": raw, "is_open": body.is_open}
+        if isinstance(raw, list)
+        else {**raw, "is_open": body.is_open}
+    )
+    await session.execute(
+        update(SurveyTemplate)
+        .where(SurveyTemplate.template_id == template_id)
+        .values(questions=updated)
+    )
     await session.commit()
     return {"template_id": template_id, "is_open": body.is_open}
 
@@ -85,14 +95,24 @@ async def set_visibility(
         body.visibility = None
 
     row = (
-        await session.execute(select(SurveyTemplate).where(SurveyTemplate.template_id == template_id))
+        await session.execute(
+            select(SurveyTemplate).where(SurveyTemplate.template_id == template_id)
+        )
     ).scalar_one_or_none()
     if row is None:
         raise HTTPException(404, "Template not found.")
 
     raw = row.questions or {}
-    updated = {"fields": raw, "visibility": body.visibility} if isinstance(raw, list) else {**raw, "visibility": body.visibility}
-    await session.execute(update(SurveyTemplate).where(SurveyTemplate.template_id == template_id).values(questions=updated))
+    updated = (
+        {"fields": raw, "visibility": body.visibility}
+        if isinstance(raw, list)
+        else {**raw, "visibility": body.visibility}
+    )
+    await session.execute(
+        update(SurveyTemplate)
+        .where(SurveyTemplate.template_id == template_id)
+        .values(questions=updated)
+    )
     await session.commit()
     return {"template_id": template_id, "visibility": body.visibility}
 
@@ -117,7 +137,14 @@ async def create_template(
         "visibility": None,
     }
     now = datetime.now(timezone.utc)
-    session.add(SurveyTemplate(template_id=template_id, title=body.title, questions=questions, created_at=now))
+    session.add(
+        SurveyTemplate(
+            template_id=template_id,
+            title=body.title,
+            questions=questions,
+            created_at=now,
+        )
+    )
     await session.commit()
 
     return {
@@ -146,7 +173,9 @@ async def update_template(
     await _require_survey_edit(current_user, session)
 
     row = (
-        await session.execute(select(SurveyTemplate).where(SurveyTemplate.template_id == template_id))
+        await session.execute(
+            select(SurveyTemplate).where(SurveyTemplate.template_id == template_id)
+        )
     ).scalar_one_or_none()
     if row is None:
         raise HTTPException(404, "Template not found.")
@@ -163,7 +192,9 @@ async def update_template(
         "visibility": visibility,
     }
     await session.execute(
-        update(SurveyTemplate).where(SurveyTemplate.template_id == template_id).values(title=body.title, questions=updated)
+        update(SurveyTemplate)
+        .where(SurveyTemplate.template_id == template_id)
+        .values(title=body.title, questions=updated)
     )
     await session.commit()
 

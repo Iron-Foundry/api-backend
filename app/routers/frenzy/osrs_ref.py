@@ -9,7 +9,11 @@ from valkey.asyncio import Valkey
 from app.dependencies import get_valkey
 
 from ._constants import _ACTIVITIES_KEY, _BOSSES_KEY, _ITEMS_KEY
-from ._osrs_cache import _refresh_osrs_activities, _refresh_osrs_bosses, _refresh_osrs_items
+from ._osrs_cache import (
+    _refresh_osrs_activities,
+    _refresh_osrs_bosses,
+    _refresh_osrs_items,
+)
 
 router = APIRouter()
 
@@ -33,7 +37,9 @@ async def search_osrs_items(
         return []
     norm_q = q.lower().replace("'", "").strip()
     all_items: list[dict] = json.loads(raw)
-    return [item for item in all_items if norm_q in item["name"].lower().replace("'", "")][:30]
+    return [
+        item for item in all_items if norm_q in item["name"].lower().replace("'", "")
+    ][:30]
 
 
 @router.get("/osrs/bosses")

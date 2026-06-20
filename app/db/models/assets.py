@@ -14,7 +14,9 @@ from .base import Base
 class Asset(Base):
     __tablename__ = "assets"
 
-    id: Mapped[UUID] = mapped_column(pg.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[UUID] = mapped_column(
+        pg.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     filename: Mapped[str] = mapped_column(Text, nullable=False)
     original_name: Mapped[str] = mapped_column(Text, nullable=False)
     content_type: Mapped[str] = mapped_column(Text, nullable=False)

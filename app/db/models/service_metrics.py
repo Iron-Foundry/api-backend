@@ -2,7 +2,16 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from sqlalchemy import BigInteger, Boolean, Date, Index, Integer, Text, TIMESTAMP, UniqueConstraint
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Date,
+    Index,
+    Integer,
+    Text,
+    TIMESTAMP,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -16,10 +25,14 @@ class ServiceStatus(Base):
 
     service_name: Mapped[str] = mapped_column(Text, primary_key=True)
     is_healthy: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    last_seen: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    last_seen: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
     version: Mapped[str | None] = mapped_column(Text)
     uptime_seconds: Mapped[int | None] = mapped_column(BigInteger)
-    summary_metrics: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    summary_metrics: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
 
 
 class MetricRecord(Base):
@@ -33,7 +46,9 @@ class MetricRecord(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     service_name: Mapped[str] = mapped_column(Text, nullable=False)
     module_name: Mapped[str] = mapped_column(Text, nullable=False)
-    recorded_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    recorded_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
     metrics: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
 
 
@@ -42,7 +57,9 @@ class MetricRecordCompact(Base):
 
     __tablename__ = "metric_records_compact"
     __table_args__ = (
-        UniqueConstraint("service_name", "module_name", "date", name="uq_metric_compact_day"),
+        UniqueConstraint(
+            "service_name", "module_name", "date", name="uq_metric_compact_day"
+        ),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -50,4 +67,6 @@ class MetricRecordCompact(Base):
     module_name: Mapped[str] = mapped_column(Text, nullable=False)
     date: Mapped[date] = mapped_column(Date, nullable=False)
     sample_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    metrics_agg: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    metrics_agg: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )

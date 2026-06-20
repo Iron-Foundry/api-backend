@@ -36,7 +36,9 @@ class CompetitionSnapshotService:
 
     async def start(self) -> None:
         self._task = asyncio.create_task(self._poll_loop(), name="comp-snapshot")
-        logger.info("CompetitionSnapshotService started (poll_interval={}s)", POLL_INTERVAL)
+        logger.info(
+            "CompetitionSnapshotService started (poll_interval={}s)", POLL_INTERVAL
+        )
 
     async def stop(self) -> None:
         if self._task:
@@ -61,37 +63,60 @@ class CompetitionSnapshotService:
 
         async with self._session_factory() as session:
             result = await session.execute(
-                select(Config.value).where(Config.guild_id == _GLOBAL_GUILD_ID, Config.key == _COMP_METRIC_MAP_KEY)
+                select(Config.value).where(
+                    Config.guild_id == _GLOBAL_GUILD_ID,
+                    Config.key == _COMP_METRIC_MAP_KEY,
+                )
             )
             metric_map: dict = result.scalar_one_or_none() or {}
 
         if not metric_map:
-            logger.debug("CompetitionSnapshotService: no metric map configured - skipping")
+            logger.debug(
+                "CompetitionSnapshotService: no metric map configured - skipping"
+            )
             return
 
         snapshots: list[CompetitionSnapshot] = []
         now = datetime.now(timezone.utc)
 
-        async with WiseOldManHandler(api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT, priority=WomPriority.NORMAL) as wom:
+        async with WiseOldManHandler(
+            api_key=_WOM_API_KEY,
+            discord_contact=_WOM_DISCORD_CONTACT,
+            priority=WomPriority.NORMAL,
+        ) as wom:
             ongoing = await load_ongoing_comps(self._valkey, wom, _WOM_GROUP_ID)
 
             if not ongoing:
                 logger.debug("CompetitionSnapshotService: no ongoing competitions")
                 return
 
-            logger.info("CompetitionSnapshotService: snapshotting {} ongoing competition(s)", len(ongoing))
+            logger.info(
+                "CompetitionSnapshotService: snapshotting {} ongoing competition(s)",
+                len(ongoing),
+            )
 
             for comp in ongoing:
                 comp_id: int = comp["id"]
-                starts_at = datetime.fromisoformat(comp["startsAt"].replace("Z", "+00:00"))
+                starts_at = datetime.fromisoformat(
+                    comp["startsAt"].replace("Z", "+00:00")
+                )
                 metrics: list[str] = metric_map.get(str(comp_id), [])
 
                 for metric in metrics:
                     standings = await fetch_metric_standings(wom, comp_id, metric)
                     if standings is None:
                         continue
-                    snapshots.append(CompetitionSnapshot(comp_id=comp_id, metric=metric, captured_at=now, series=standings))
-                    await backfill_start_if_needed(self._session_factory, wom, comp_id, metric, starts_at)
+                    snapshots.append(
+                        CompetitionSnapshot(
+                            comp_id=comp_id,
+                            metric=metric,
+                            captured_at=now,
+                            series=standings,
+                        )
+                    )
+                    await backfill_start_if_needed(
+                        self._session_factory, wom, comp_id, metric, starts_at
+                    )
 
         if not snapshots:
             return
@@ -100,4 +125,8 @@ class CompetitionSnapshotService:
             session.add_all(snapshots)
             await session.commit()
 
-        logger.info("CompetitionSnapshotService: stored {} snapshot(s) ({})", len(snapshots), ", ".join(s.metric for s in snapshots))
+        logger.info(
+            "CompetitionSnapshotService: stored {} snapshot(s) ({})",
+            len(snapshots),
+            ", ".join(s.metric for s in snapshots),
+        )

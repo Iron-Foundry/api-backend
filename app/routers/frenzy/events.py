@@ -25,13 +25,29 @@ def _slugify(name: str) -> str:
 
 
 @router.get("/events")
-async def list_events(session: AsyncSession = Depends(get_session), _perm: None = _PERM) -> list[dict]:
-    rows = (await session.execute(select(FrenzyEvent).order_by(FrenzyEvent.created_at.desc()))).scalars().all()
+async def list_events(
+    session: AsyncSession = Depends(get_session), _perm: None = _PERM
+) -> list[dict]:
+    rows = (
+        (
+            await session.execute(
+                select(FrenzyEvent).order_by(FrenzyEvent.created_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
     return [
-        {"id": e.id, "name": e.name, "template_id": e.template_id, "wom_comp_id": e.wom_comp_id,
-         "starts_at": e.starts_at.isoformat() if e.starts_at else None,
-         "ends_at": e.ends_at.isoformat() if e.ends_at else None,
-         "is_active": e.is_active, "created_at": e.created_at.isoformat()}
+        {
+            "id": e.id,
+            "name": e.name,
+            "template_id": e.template_id,
+            "wom_comp_id": e.wom_comp_id,
+            "starts_at": e.starts_at.isoformat() if e.starts_at else None,
+            "ends_at": e.ends_at.isoformat() if e.ends_at else None,
+            "is_active": e.is_active,
+            "created_at": e.created_at.isoformat(),
+        }
         for e in rows
     ]
 
@@ -43,16 +59,27 @@ async def create_event(
     _perm: None = _PERM,
     current_user: dict = Depends(get_current_user),
 ) -> dict:
-    tmpl = (await session.execute(select(FrenzyTemplate).where(FrenzyTemplate.id == body.template_id))).scalar_one_or_none()
+    tmpl = (
+        await session.execute(
+            select(FrenzyTemplate).where(FrenzyTemplate.id == body.template_id)
+        )
+    ).scalar_one_or_none()
     if tmpl is None:
         raise HTTPException(404, "Template not found.")
 
     now = datetime.now(timezone.utc)
     event = FrenzyEvent(
-        name=body.name, template_id=body.template_id, wom_comp_id=body.wom_comp_id,
-        leaderboard_metrics=body.leaderboard_metrics, trusted_sources=body.trusted_sources,
-        starts_at=body.starts_at, ends_at=body.ends_at, is_active=False,
-        created_by=int(current_user["sub"]), created_at=now, updated_at=now,
+        name=body.name,
+        template_id=body.template_id,
+        wom_comp_id=body.wom_comp_id,
+        leaderboard_metrics=body.leaderboard_metrics,
+        trusted_sources=body.trusted_sources,
+        starts_at=body.starts_at,
+        ends_at=body.ends_at,
+        is_active=False,
+        created_by=int(current_user["sub"]),
+        created_at=now,
+        updated_at=now,
     )
     session.add(event)
     await session.commit()
@@ -60,32 +87,62 @@ async def create_event(
 
 
 @router.get("/events/{event_id}")
-async def get_event(event_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM) -> dict:
-    event = (await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))).scalar_one_or_none()
+async def get_event(
+    event_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM
+) -> dict:
+    event = (
+        await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))
+    ).scalar_one_or_none()
     if event is None:
         raise HTTPException(404, "Event not found.")
 
-    teams = (await session.execute(
-        select(FrenzyTeam).where(FrenzyTeam.event_id == event_id).order_by(FrenzyTeam.sort_order)
-    )).scalars().all()
+    teams = (
+        (
+            await session.execute(
+                select(FrenzyTeam)
+                .where(FrenzyTeam.event_id == event_id)
+                .order_by(FrenzyTeam.sort_order)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     return {
-        "id": event.id, "name": event.name, "template_id": event.template_id,
-        "wom_comp_id": event.wom_comp_id, "leaderboard_metrics": event.leaderboard_metrics,
+        "id": event.id,
+        "name": event.name,
+        "template_id": event.template_id,
+        "wom_comp_id": event.wom_comp_id,
+        "leaderboard_metrics": event.leaderboard_metrics,
         "trusted_sources": event.trusted_sources or [],
         "starts_at": event.starts_at.isoformat() if event.starts_at else None,
         "ends_at": event.ends_at.isoformat() if event.ends_at else None,
-        "is_active": event.is_active, "created_at": event.created_at.isoformat(),
-        "teams": [{"id": t.id, "name": t.name, "slug": t.slug, "icon_url": t.icon_url, "sort_order": t.sort_order, "participants": t.participants or []} for t in teams],
+        "is_active": event.is_active,
+        "created_at": event.created_at.isoformat(),
+        "teams": [
+            {
+                "id": t.id,
+                "name": t.name,
+                "slug": t.slug,
+                "icon_url": t.icon_url,
+                "sort_order": t.sort_order,
+                "participants": t.participants or [],
+            }
+            for t in teams
+        ],
     }
 
 
 @router.patch("/events/{event_id}")
 async def patch_event(
-    event_id: int, body: EventPatch,
-    session: AsyncSession = Depends(get_session), _perm: None = _PERM,
+    event_id: int,
+    body: EventPatch,
+    session: AsyncSession = Depends(get_session),
+    _perm: None = _PERM,
 ) -> dict:
-    event = (await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))).scalar_one_or_none()
+    event = (
+        await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))
+    ).scalar_one_or_none()
     if event is None:
         raise HTTPException(404, "Event not found.")
 
@@ -107,8 +164,12 @@ async def patch_event(
 
 
 @router.delete("/events/{event_id}")
-async def delete_event(event_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM) -> dict:
-    event = (await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))).scalar_one_or_none()
+async def delete_event(
+    event_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM
+) -> dict:
+    event = (
+        await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))
+    ).scalar_one_or_none()
     if event is None:
         raise HTTPException(404, "Event not found.")
     await session.delete(event)
@@ -117,19 +178,29 @@ async def delete_event(event_id: int, session: AsyncSession = Depends(get_sessio
 
 
 @router.post("/events/{event_id}/activate")
-async def activate_event(event_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM) -> dict:
-    event = (await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))).scalar_one_or_none()
+async def activate_event(
+    event_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM
+) -> dict:
+    event = (
+        await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))
+    ).scalar_one_or_none()
     if event is None:
         raise HTTPException(404, "Event not found.")
-    await session.execute(update(FrenzyEvent).where(FrenzyEvent.id != event_id).values(is_active=False))
+    await session.execute(
+        update(FrenzyEvent).where(FrenzyEvent.id != event_id).values(is_active=False)
+    )
     event.is_active = True
     await session.commit()
     return {"ok": True, "active_event_id": event_id}
 
 
 @router.post("/events/{event_id}/deactivate")
-async def deactivate_event(event_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM) -> dict:
-    event = (await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))).scalar_one_or_none()
+async def deactivate_event(
+    event_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM
+) -> dict:
+    event = (
+        await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))
+    ).scalar_one_or_none()
     if event is None:
         raise HTTPException(404, "Event not found.")
     event.is_active = False
@@ -138,20 +209,28 @@ async def deactivate_event(event_id: int, session: AsyncSession = Depends(get_se
 
 
 @router.post("/events/{event_id}/sync-wom")
-async def sync_event_from_wom(event_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM) -> dict:
+async def sync_event_from_wom(
+    event_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM
+) -> dict:
     """Pull teams, participants, and dates from the linked WOM competition."""
-    event = (await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))).scalar_one_or_none()
+    event = (
+        await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))
+    ).scalar_one_or_none()
     if event is None:
         raise HTTPException(404, "Event not found.")
     if not event.wom_comp_id:
         raise HTTPException(400, "Event has no WOM competition ID set.")
 
-    async with WiseOldManHandler(api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT, timeout=15.0) as wom:
+    async with WiseOldManHandler(
+        api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT, timeout=15.0
+    ) as wom:
         comp = await wom.get_competition_details(event.wom_comp_id)
 
     now = datetime.now(timezone.utc)
     if comp.get("startsAt"):
-        event.starts_at = datetime.fromisoformat(comp["startsAt"].replace("Z", "+00:00"))
+        event.starts_at = datetime.fromisoformat(
+            comp["startsAt"].replace("Z", "+00:00")
+        )
     if comp.get("endsAt"):
         event.ends_at = datetime.fromisoformat(comp["endsAt"].replace("Z", "+00:00"))
     event.updated_at = now
@@ -165,7 +244,16 @@ async def sync_event_from_wom(event_id: int, session: AsyncSession = Depends(get
             if t_name and rsn:
                 teams_map.setdefault(t_name, []).append(rsn)
 
-        existing = {t.slug: t for t in (await session.execute(select(FrenzyTeam).where(FrenzyTeam.event_id == event_id))).scalars().all()}
+        existing = {
+            t.slug: t
+            for t in (
+                await session.execute(
+                    select(FrenzyTeam).where(FrenzyTeam.event_id == event_id)
+                )
+            )
+            .scalars()
+            .all()
+        }
 
         for i, (team_name, participants) in enumerate(teams_map.items()):
             slug = _slugify(team_name)
@@ -173,15 +261,28 @@ async def sync_event_from_wom(event_id: int, session: AsyncSession = Depends(get
                 existing[slug].participants = participants
                 existing[slug].updated_at = now
             else:
-                session.add(FrenzyTeam(
-                    event_id=event_id, name=team_name, slug=slug, icon_url=None, sort_order=i,
-                    participants=participants, item_progress={}, activity_progress={}, milestone_progress={}, updated_at=now,
-                ))
-            synced_teams.append({"name": team_name, "slug": slug, "participants": participants})
+                session.add(
+                    FrenzyTeam(
+                        event_id=event_id,
+                        name=team_name,
+                        slug=slug,
+                        icon_url=None,
+                        sort_order=i,
+                        participants=participants,
+                        item_progress={},
+                        activity_progress={},
+                        milestone_progress={},
+                        updated_at=now,
+                    )
+                )
+            synced_teams.append(
+                {"name": team_name, "slug": slug, "participants": participants}
+            )
 
     await session.commit()
     return {
         "starts_at": event.starts_at.isoformat() if event.starts_at else None,
         "ends_at": event.ends_at.isoformat() if event.ends_at else None,
-        "teams_synced": len(synced_teams), "teams": synced_teams,
+        "teams_synced": len(synced_teams),
+        "teams": synced_teams,
     }

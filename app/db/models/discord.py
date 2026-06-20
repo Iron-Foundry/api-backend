@@ -20,5 +20,9 @@ class RolePanel(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
     max_selectable: Mapped[int | None] = mapped_column(Integer)
     roles: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )

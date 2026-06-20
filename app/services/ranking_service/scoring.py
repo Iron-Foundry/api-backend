@@ -111,13 +111,15 @@ def rank_from_snapshots(snapshots: list[dict], config: dict) -> list[dict]:
 
         raw = (boss_raw * mults["boss"] + skill_raw * mults["skill"]) / 2
         points = int(raw * 1000)
-        results.append({
-            "rsn": rsn,
-            "rank": _assign_rank(points, thresholds),
-            "points": points,
-            "boss_points": int(boss_raw * mults["boss"] * 1000 / 2),
-            "skill_points": int(skill_raw * mults["skill"] * 1000 / 2),
-        })
+        results.append(
+            {
+                "rsn": rsn,
+                "rank": _assign_rank(points, thresholds),
+                "points": points,
+                "boss_points": int(boss_raw * mults["boss"] * 1000 / 2),
+                "skill_points": int(skill_raw * mults["skill"] * 1000 / 2),
+            }
+        )
 
     results.sort(key=lambda p: (-_RANK_ORDER.get(p["rank"], 0), -p["points"]))
     return results

@@ -12,18 +12,26 @@ def _with_members(q):
 
 
 async def get_party(session: AsyncSession, party_id: str) -> PartyDB | None:
-    result = await session.execute(_with_members(select(PartyDB).where(PartyDB.id == party_id)))
+    result = await session.execute(
+        _with_members(select(PartyDB).where(PartyDB.id == party_id))
+    )
     return result.scalar_one_or_none()
 
 
 async def list_active_parties(session: AsyncSession) -> list[PartyDB]:
     result = await session.execute(
-        _with_members(select(PartyDB).where(PartyDB.status != "closed").order_by(PartyDB.created_at.desc()))
+        _with_members(
+            select(PartyDB)
+            .where(PartyDB.status != "closed")
+            .order_by(PartyDB.created_at.desc())
+        )
     )
     return list(result.scalars().all())
 
 
-async def get_chat_messages(session: AsyncSession, party_id: str, limit: int = 50) -> list[PartyChatMessageDB]:
+async def get_chat_messages(
+    session: AsyncSession, party_id: str, limit: int = 50
+) -> list[PartyChatMessageDB]:
     result = await session.execute(
         select(PartyChatMessageDB)
         .where(PartyChatMessageDB.party_id == party_id)
@@ -36,9 +44,12 @@ async def get_chat_messages(session: AsyncSession, party_id: str, limit: int = 5
 async def expire_parties(session: AsyncSession) -> list[PartyDB]:
     """Mark timed-out parties as closed and return the newly-expired list."""
     from datetime import datetime, timezone
+
     now = datetime.now(timezone.utc)
     result = await session.execute(
-        _with_members(select(PartyDB).where(PartyDB.status != "closed", PartyDB.expires_at <= now))
+        _with_members(
+            select(PartyDB).where(PartyDB.status != "closed", PartyDB.expires_at <= now)
+        )
     )
     parties = list(result.scalars().all())
     for party in parties:

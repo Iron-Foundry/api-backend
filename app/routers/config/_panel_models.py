@@ -83,17 +83,19 @@ class PanelMessage(BaseModel):
 
 def _default_messages() -> list[PanelMessage]:
     return [
-        PanelMessage(sections=[
-            ServerStatsSection(),
-            CompetitionsSection(),
-            NameChangesSection(),
-            AchievementsSection(),
-            PersonalBestsSection(),
-            ChannelTocSection(),
-            WebsiteLinksSection(),
-            FreeTextSection(),
-            HeaderImageSection(),
-        ])
+        PanelMessage(
+            sections=[
+                ServerStatsSection(),
+                CompetitionsSection(),
+                NameChangesSection(),
+                AchievementsSection(),
+                PersonalBestsSection(),
+                ChannelTocSection(),
+                WebsiteLinksSection(),
+                FreeTextSection(),
+                HeaderImageSection(),
+            ]
+        )
     ]
 
 

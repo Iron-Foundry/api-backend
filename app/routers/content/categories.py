@@ -12,7 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import ContentCategory, ContentEntry
 from app.dependencies import get_current_user, get_session
 
-from ._helpers import _require_mentor, _require_senior_mod, _slugify, _validate_page_type
+from ._helpers import (
+    _require_mentor,
+    _require_senior_mod,
+    _slugify,
+    _validate_page_type,
+)
 
 router = APIRouter()
 
@@ -66,7 +71,12 @@ async def get_categories(
     entries_by_cat: dict = defaultdict(list)
     for entry_id, title, slug, cat_id, sort_order in entries_result:
         entries_by_cat[cat_id].append(
-            {"id": str(entry_id), "title": title, "slug": slug, "sort_order": sort_order}
+            {
+                "id": str(entry_id),
+                "title": title,
+                "slug": slug,
+                "sort_order": sort_order,
+            }
         )
 
     cat_map = {
@@ -131,16 +141,24 @@ async def create_category(
 
     now = datetime.now(timezone.utc)
     cat = ContentCategory(
-        page_type=page_type, parent_id=body.parent_id, slug=slug, label=label,
-        sort_order=0, created_at=now, created_by=int(current_user["sub"]),
+        page_type=page_type,
+        parent_id=body.parent_id,
+        slug=slug,
+        label=label,
+        sort_order=0,
+        created_at=now,
+        created_by=int(current_user["sub"]),
     )
     session.add(cat)
     await session.commit()
     return {
-        "id": str(cat.id), "label": cat.label, "slug": cat.slug,
+        "id": str(cat.id),
+        "label": cat.label,
+        "slug": cat.slug,
         "sort_order": cat.sort_order,
         "parent_id": str(cat.parent_id) if cat.parent_id else None,
-        "children": [], "entries": [],
+        "children": [],
+        "entries": [],
     }
 
 
@@ -194,7 +212,9 @@ async def patch_category(
 
     await session.commit()
     return {
-        "id": str(cat.id), "label": cat.label, "slug": cat.slug,
+        "id": str(cat.id),
+        "label": cat.label,
+        "slug": cat.slug,
         "sort_order": cat.sort_order,
         "parent_id": str(cat.parent_id) if cat.parent_id else None,
     }

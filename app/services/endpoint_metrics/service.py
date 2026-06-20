@@ -27,7 +27,9 @@ class EndpointMetricsService:
         self._start_time = time.monotonic()
 
     async def start(self) -> None:
-        self._task = asyncio.create_task(self._poll_loop(), name="endpoint-metrics-flush")
+        self._task = asyncio.create_task(
+            self._poll_loop(), name="endpoint-metrics-flush"
+        )
         logger.info("EndpointMetricsService started (interval={}s)", _FLUSH_INTERVAL)
 
     async def stop(self) -> None:

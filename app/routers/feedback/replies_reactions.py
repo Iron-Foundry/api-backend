@@ -40,16 +40,20 @@ async def toggle_react(
         await session.delete(existing)
         hearted = False
     else:
-        session.add(FeedbackReaction(
-            feedback_id=feedback_id,
-            discord_user_id=discord_user_id,
-            created_at=datetime.now(timezone.utc),
-        ))
+        session.add(
+            FeedbackReaction(
+                feedback_id=feedback_id,
+                discord_user_id=discord_user_id,
+                created_at=datetime.now(timezone.utc),
+            )
+        )
         hearted = True
 
     await session.commit()
     heart_count = (
-        await session.execute(select(func.count()).where(FeedbackReaction.feedback_id == feedback_id))
+        await session.execute(
+            select(func.count()).where(FeedbackReaction.feedback_id == feedback_id)
+        )
     ).scalar_one()
     return {"hearted": hearted, "heart_count": heart_count}
 
@@ -103,13 +107,17 @@ async def pin_reply(
         raise HTTPException(404, "Reply not found")
 
     for pinned in (
-        await session.execute(
-            select(FeedbackReply).where(
-                FeedbackReply.feedback_id == feedback_id,
-                FeedbackReply.is_pinned == True,  # noqa: E712
+        (
+            await session.execute(
+                select(FeedbackReply).where(
+                    FeedbackReply.feedback_id == feedback_id,
+                    FeedbackReply.is_pinned == True,  # noqa: E712
+                )
             )
         )
-    ).scalars().all():
+        .scalars()
+        .all()
+    ):
         pinned.is_pinned = False
 
     reply.is_pinned = True

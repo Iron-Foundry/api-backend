@@ -65,8 +65,12 @@ COMBAT_TIER_UNLOCK = re.compile(
     re.IGNORECASE,
 )
 PET = [
-    re.compile(r"^(?P<player>.+?) has a funny feeling like (?:they'?re|he's|she's) being followed"),
-    re.compile(r"^(?P<player>.+?) feels something weird sneaking into (?:their|his|her) backpack"),
+    re.compile(
+        r"^(?P<player>.+?) has a funny feeling like (?:they'?re|he's|she's) being followed"
+    ),
+    re.compile(
+        r"^(?P<player>.+?) feels something weird sneaking into (?:their|his|her) backpack"
+    ),
 ]
 NEW_MEMBER = re.compile(
     r"^(?P<player>.+?) has been invited into the clan by (?P<inviter>.+?)\.?$"

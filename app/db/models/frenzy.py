@@ -2,7 +2,16 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, ForeignKey, Index, Integer, Text, TIMESTAMP, UniqueConstraint
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    ForeignKey,
+    Index,
+    Integer,
+    Text,
+    TIMESTAMP,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -18,11 +27,19 @@ class FrenzyTemplate(Base):
     tiers: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     activities: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
     milestones: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
-    multipliers: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
-    version_number: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    multipliers: Mapped[list] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )
+    version_number: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="1"
+    )
     created_by: Mapped[int | None] = mapped_column(BigInteger)
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
 
 
 class FrenzyTemplateVersion(Base):
@@ -43,7 +60,9 @@ class FrenzyTemplateVersion(Base):
     milestones: Mapped[dict] = mapped_column(JSONB, nullable=False)
     multipliers: Mapped[list] = mapped_column(JSONB, nullable=False)
     edited_by: Mapped[int | None] = mapped_column(BigInteger)
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
 
 
 class FrenzyEvent(Base):
@@ -51,16 +70,28 @@ class FrenzyEvent(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
-    template_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("frenzy_templates.id"), nullable=False)
+    template_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("frenzy_templates.id"), nullable=False
+    )
     wom_comp_id: Mapped[int | None] = mapped_column(Integer)
-    leaderboard_metrics: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
-    trusted_sources: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    leaderboard_metrics: Mapped[list] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )
+    trusted_sources: Mapped[list] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )
     starts_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     ends_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
     created_by: Mapped[int | None] = mapped_column(BigInteger)
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
 
 
 class FrenzyTeam(Base):
@@ -77,18 +108,30 @@ class FrenzyTeam(Base):
     slug: Mapped[str] = mapped_column(Text, nullable=False)
     icon_url: Mapped[str | None] = mapped_column(Text)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
-    participants: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
-    item_progress: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
-    activity_progress: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
-    milestone_progress: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
-    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    participants: Mapped[list] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )
+    item_progress: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
+    activity_progress: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
+    milestone_progress: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
 
 
 class FrenzySubmission(Base):
     __tablename__ = "frenzy_submissions"
     __table_args__ = (
         Index("ix_frenzy_submissions_team_status", "team_id", "status"),
-        Index("ix_frenzy_submissions_event_status", "event_id", "status", "submitted_at"),
+        Index(
+            "ix_frenzy_submissions_event_status", "event_id", "status", "submitted_at"
+        ),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -108,9 +151,15 @@ class FrenzySubmission(Base):
     submission_type: Mapped[str] = mapped_column(Text, nullable=False)
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="pending")
-    auto_approved: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    auto_approved: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
     reviewed_by: Mapped[int | None] = mapped_column(BigInteger)
     reviewed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     review_notes: Mapped[str | None] = mapped_column(Text)
-    submitted_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    submitted_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )

@@ -21,8 +21,9 @@ async def get_api_key(
 ) -> dict:
     discord_user_id = int(current_user["sub"])
     result = await session.execute(
-        select(User.api_key, User.key_is_active, User.key_created_at)
-        .where(User.discord_user_id == discord_user_id)
+        select(User.api_key, User.key_is_active, User.key_created_at).where(
+            User.discord_user_id == discord_user_id
+        )
     )
     row = result.one_or_none()
     if not row or not row.api_key:

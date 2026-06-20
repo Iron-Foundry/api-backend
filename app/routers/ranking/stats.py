@@ -42,8 +42,14 @@ async def get_ranking_stats(session: AsyncSession = Depends(get_session)) -> dic
     all_deduplicated = await get_all_deduplicated(session)
 
     breakdown = compute_breakdown(
-        [{"rank": r.rank, "boss_points": r.boss_points, "skill_points": r.skill_points}
-         for r in all_deduplicated]
+        [
+            {
+                "rank": r.rank,
+                "boss_points": r.boss_points,
+                "skill_points": r.skill_points,
+            }
+            for r in all_deduplicated
+        ]
     )
 
     user_ids = [r.discord_user_id for r in all_deduplicated if r.discord_user_id]
@@ -51,7 +57,9 @@ async def get_ranking_stats(session: AsyncSession = Depends(get_session)) -> dic
     rank_overlap: dict[str, dict[str, int]] = {}
     if user_ids:
         cfg_result = await session.execute(
-            select(Config.value).where(Config.guild_id == 0, Config.key == "clan_rank_mappings")
+            select(Config.value).where(
+                Config.guild_id == 0, Config.key == "clan_rank_mappings"
+            )
         )
         cfg = cfg_result.scalar_one_or_none() or {}
         role_id_to_rank: dict[str, tuple[int, str]] = {
@@ -81,9 +89,13 @@ async def get_ranking_stats(session: AsyncSession = Depends(get_session)) -> dic
         for r in all_deduplicated:
             if not r.discord_user_id:
                 continue
-            clan_rank_raw, discord_roles = user_data_by_id.get(r.discord_user_id, (None, []))
+            clan_rank_raw, discord_roles = user_data_by_id.get(
+                r.discord_user_id, (None, [])
+            )
             display_rank = _highest_discord_rank(discord_roles) or (
-                INGAME_TO_DISPLAY.get(clan_rank_raw, clan_rank_raw) if clan_rank_raw else None
+                INGAME_TO_DISPLAY.get(clan_rank_raw, clan_rank_raw)
+                if clan_rank_raw
+                else None
             )
             if display_rank:
                 clan_rank_dist[display_rank] = clan_rank_dist.get(display_rank, 0) + 1

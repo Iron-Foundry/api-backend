@@ -55,7 +55,9 @@ async def _enrich_with_ranks(
         return
 
     cfg_result = await session.execute(
-        select(Config.value).where(Config.guild_id == _GLOBAL_GUILD_ID, Config.key == "clan_rank_mappings")
+        select(Config.value).where(
+            Config.guild_id == _GLOBAL_GUILD_ID, Config.key == "clan_rank_mappings"
+        )
     )
     cfg = cfg_result.scalar_one_or_none() or {}
     role_id_to_rank: dict[str, tuple[int, str]] = {
@@ -76,7 +78,13 @@ async def _enrich_with_ranks(
     rank_map: dict[str, tuple[str | None, str | None]] = {}
     uid_map: dict[str, int | None] = {}
     ua_rows = await session.execute(
-        select(func.lower(UserAccount.rsn), User.clan_rank, User.discord_roles, UserAccount.is_primary, UserAccount.discord_user_id)
+        select(
+            func.lower(UserAccount.rsn),
+            User.clan_rank,
+            User.discord_roles,
+            UserAccount.is_primary,
+            UserAccount.discord_user_id,
+        )
         .join(User, User.discord_user_id == UserAccount.discord_user_id)
         .where(func.lower(UserAccount.rsn).in_(names))
     )
@@ -86,8 +94,12 @@ async def _enrich_with_ranks(
         uid_map[rsn] = discord_user_id
 
     legacy_rows = await session.execute(
-        select(func.lower(User.rsn), User.clan_rank, User.discord_roles, User.discord_user_id)
-        .where(func.lower(User.rsn).in_(names), User.rsn.isnot(None))
+        select(
+            func.lower(User.rsn),
+            User.clan_rank,
+            User.discord_roles,
+            User.discord_user_id,
+        ).where(func.lower(User.rsn).in_(names), User.rsn.isnot(None))
     )
     for rsn, clan_rank, discord_roles, discord_user_id in legacy_rows:
         if rsn not in rank_map:

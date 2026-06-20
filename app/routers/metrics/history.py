@@ -13,8 +13,15 @@ from ._helpers import require_staff
 
 router = APIRouter()
 
-_SUM_KEYS = {"total_requests", "errors_4xx", "errors_5xx", "total_req_bytes", "total_resp_bytes",
-              "messages_dispatched", "closed_today"}
+_SUM_KEYS = {
+    "total_requests",
+    "errors_4xx",
+    "errors_5xx",
+    "total_req_bytes",
+    "total_resp_bytes",
+    "messages_dispatched",
+    "closed_today",
+}
 
 
 def _flatten_compact_metrics(metrics_agg: dict) -> dict:
@@ -86,16 +93,20 @@ async def wom_rate_limit_metrics(
 
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=minutes)
     db_rows = (
-        await session.execute(
-            select(MetricRecord)
-            .where(
-                MetricRecord.service_name == "api-backend",
-                MetricRecord.module_name == "wom_rate_limit",
-                MetricRecord.recorded_at >= cutoff,
+        (
+            await session.execute(
+                select(MetricRecord)
+                .where(
+                    MetricRecord.service_name == "api-backend",
+                    MetricRecord.module_name == "wom_rate_limit",
+                    MetricRecord.recorded_at >= cutoff,
+                )
+                .order_by(MetricRecord.recorded_at)
             )
-            .order_by(MetricRecord.recorded_at)
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     seen_ts: set[float] = set()
     result: list[dict] = []
@@ -103,25 +114,29 @@ async def wom_rate_limit_metrics(
     for row in db_rows:
         ts = row.recorded_at.timestamp()
         seen_ts.add(round(ts, 1))
-        result.append({
-            "ts": ts,
-            "remaining": row.metrics.get("remaining", 100),
-            "reservedUsed": row.metrics.get("reserved_used", 0),
-            "queueHigh": row.metrics.get("queue_high", 0),
-            "queueNormal": row.metrics.get("queue_normal", 0),
-            "queueLow": row.metrics.get("queue_low", 0),
-        })
+        result.append(
+            {
+                "ts": ts,
+                "remaining": row.metrics.get("remaining", 100),
+                "reservedUsed": row.metrics.get("reserved_used", 0),
+                "queueHigh": row.metrics.get("queue_high", 0),
+                "queueNormal": row.metrics.get("queue_normal", 0),
+                "queueLow": row.metrics.get("queue_low", 0),
+            }
+        )
 
     for s in get_wom_queue().snapshot_history():
         if round(s.ts, 1) not in seen_ts:
-            result.append({
-                "ts": s.ts,
-                "remaining": s.remaining,
-                "reservedUsed": s.reserved_used,
-                "queueHigh": s.queue_high,
-                "queueNormal": s.queue_normal,
-                "queueLow": s.queue_low,
-            })
+            result.append(
+                {
+                    "ts": s.ts,
+                    "remaining": s.remaining,
+                    "reservedUsed": s.reserved_used,
+                    "queueHigh": s.queue_high,
+                    "queueNormal": s.queue_normal,
+                    "queueLow": s.queue_low,
+                }
+            )
 
     result.sort(key=lambda r: r["ts"])
     return result
@@ -155,7 +170,11 @@ async def metrics_history(
         .limit(limit)
     )
     raw = [
-        {"recorded_at": r.recorded_at.isoformat(), "metrics": r.metrics, "is_compact": False}
+        {
+            "recorded_at": r.recorded_at.isoformat(),
+            "metrics": r.metrics,
+            "is_compact": False,
+        }
         for r in raw_rows.scalars()
     ]
 
@@ -170,7 +189,12 @@ async def metrics_history(
         .order_by(MetricRecordCompact.date.desc())
     )
     compact = [
-        {"recorded_at": r.date.isoformat(), "metrics": _flatten_compact_metrics(r.metrics_agg), "sample_count": r.sample_count, "is_compact": True}
+        {
+            "recorded_at": r.date.isoformat(),
+            "metrics": _flatten_compact_metrics(r.metrics_agg),
+            "sample_count": r.sample_count,
+            "is_compact": True,
+        }
         for r in compact_rows.scalars()
     ]
 

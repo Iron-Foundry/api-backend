@@ -33,7 +33,11 @@ _calc_item_pts = _calc_item_points
 
 
 def _calc_tier_entry_points(entry: dict, current_value: float) -> float:
-    tiers_done = sum(1 for t in ["tier1", "tier2", "tier3", "tier4"] if current_value >= entry.get(t, 0))
+    tiers_done = sum(
+        1
+        for t in ["tier1", "tier2", "tier3", "tier4"]
+        if current_value >= entry.get(t, 0)
+    )
     base = entry.get("point_step", 0) * tiers_done
     if current_value >= entry.get("tier4", 0) and tiers_done == 4:
         return base * entry.get("multiplier", 1)
@@ -51,11 +55,15 @@ def _compute_scores_from_progress(
     milestone_progress: dict,
 ) -> dict:
     multipliers: list = template.multipliers or []
-    unlocked_mults = [m for m in multipliers if _is_multiplier_unlocked(m, item_progress)]
+    unlocked_mults = [
+        m for m in multipliers if _is_multiplier_unlocked(m, item_progress)
+    ]
     unlocked_affects: dict[str, float] = {}
     for m in unlocked_mults:
         for src in m.get("affects", []):
-            unlocked_affects[src] = unlocked_affects.get(src, 1.0) * m.get("factor", 1.0)
+            unlocked_affects[src] = unlocked_affects.get(src, 1.0) * m.get(
+                "factor", 1.0
+            )
 
     tier_pts: dict[str, float] = {}
     for tier_name, tier_data in (template.tiers or {}).items():
@@ -78,7 +86,9 @@ def _compute_scores_from_progress(
     milestone_pts = 0.0
     for _cat, entries in (template.milestones or {}).items():
         for entry in entries:
-            milestone_pts += _calc_tier_entry_points(entry, milestone_progress.get(entry.get("name", ""), 0))
+            milestone_pts += _calc_tier_entry_points(
+                entry, milestone_progress.get(entry.get("name", ""), 0)
+            )
 
     return {
         "tier_points": tier_pts,
@@ -116,12 +126,16 @@ def _apply_pending_submissions(
             name = p["name"]
             uid = sub.discord_user_id
             act_by_player.setdefault(name, {})
-            act_by_player[name][uid] = max(act_by_player[name].get(uid, 0), p.get("value", 0))
+            act_by_player[name][uid] = max(
+                act_by_player[name].get(uid, 0), p.get("value", 0)
+            )
         elif sub.submission_type == "milestone":
             name = p["name"]
             uid = sub.discord_user_id
             mil_by_player.setdefault(name, {})
-            mil_by_player[name][uid] = max(mil_by_player[name].get(uid, 0), p.get("value", 0))
+            mil_by_player[name][uid] = max(
+                mil_by_player[name].get(uid, 0), p.get("value", 0)
+            )
 
     act_p = dict(base_activity)
     for name, by_player in act_by_player.items():
@@ -137,12 +151,19 @@ def _apply_pending_submissions(
 async def _recompute_team_progress(session: AsyncSession, team: FrenzyTeam) -> None:
     """Rebuild team JSONB caches from all approved submissions for this team."""
     submissions = (
-        await session.execute(
-            select(FrenzySubmission)
-            .where(FrenzySubmission.team_id == team.id, FrenzySubmission.status == "approved")
-            .order_by(FrenzySubmission.submitted_at)
+        (
+            await session.execute(
+                select(FrenzySubmission)
+                .where(
+                    FrenzySubmission.team_id == team.id,
+                    FrenzySubmission.status == "approved",
+                )
+                .order_by(FrenzySubmission.submitted_at)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     item_progress: dict[str, int] = {}
     activity_by_player: dict[str, dict[int, int]] = {}
@@ -157,14 +178,20 @@ async def _recompute_team_progress(session: AsyncSession, team: FrenzyTeam) -> N
             name = p["name"]
             uid = sub.discord_user_id
             activity_by_player.setdefault(name, {})
-            activity_by_player[name][uid] = max(activity_by_player[name].get(uid, 0), p.get("value", 0))
+            activity_by_player[name][uid] = max(
+                activity_by_player[name].get(uid, 0), p.get("value", 0)
+            )
         elif sub.submission_type == "milestone":
             name = p["name"]
             uid = sub.discord_user_id
             milestone_by_player.setdefault(name, {})
-            milestone_by_player[name][uid] = max(milestone_by_player[name].get(uid, 0), p.get("value", 0))
+            milestone_by_player[name][uid] = max(
+                milestone_by_player[name].get(uid, 0), p.get("value", 0)
+            )
 
     team.item_progress = item_progress
     team.activity_progress = {n: sum(v.values()) for n, v in activity_by_player.items()}
-    team.milestone_progress = {n: sum(v.values()) for n, v in milestone_by_player.items()}
+    team.milestone_progress = {
+        n: sum(v.values()) for n, v in milestone_by_player.items()
+    }
     team.updated_at = datetime.now(timezone.utc)

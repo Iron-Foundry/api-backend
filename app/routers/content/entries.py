@@ -8,10 +8,22 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import ContentCategory, ContentCollaborator, ContentEntry, ContentEntryReaction, ContentEntryVersion, User
+from app.db.models import (
+    ContentCategory,
+    ContentCollaborator,
+    ContentEntry,
+    ContentEntryReaction,
+    ContentEntryVersion,
+    User,
+)
 from app.dependencies import get_current_user, get_optional_user, get_session
 
-from ._helpers import _require_mentor, _slug_exists_in_page_type, _slugify, _validate_page_type
+from ._helpers import (
+    _require_mentor,
+    _slug_exists_in_page_type,
+    _slugify,
+    _validate_page_type,
+)
 
 router = APIRouter()
 
@@ -48,7 +60,11 @@ async def get_entry_by_slug(
 
     collab_result = await session.execute(
         select(ContentCollaborator, User)
-        .join(User, User.discord_user_id == ContentCollaborator.discord_user_id, isouter=True)
+        .join(
+            User,
+            User.discord_user_id == ContentCollaborator.discord_user_id,
+            isouter=True,
+        )
         .where(ContentCollaborator.entry_id == entry.id)
         .order_by(ContentCollaborator.added_at)
     )
@@ -82,7 +98,8 @@ async def get_entry_by_slug(
             }
 
     reaction_count_result = await session.execute(
-        select(func.count()).select_from(ContentEntryReaction)
+        select(func.count())
+        .select_from(ContentEntryReaction)
         .where(ContentEntryReaction.entry_id == entry.id)
     )
     reaction_count = reaction_count_result.scalar_one()
@@ -103,13 +120,17 @@ async def get_entry_by_slug(
         "slug": entry.slug,
         "body": entry.body,
         "created_at": entry.created_at.isoformat() if entry.created_at else None,
-        "updated_at": entry.updated_at.isoformat() if entry.updated_at is not None else None,
+        "updated_at": entry.updated_at.isoformat()
+        if entry.updated_at is not None
+        else None,
         "author": {
             "discord_user_id": author.discord_user_id if author else None,
             "discord_username": author.discord_username if author else None,
             "rsn": author.rsn if author else None,
             "avatar": author.discord_avatar_url if author else None,
-        } if author else None,
+        }
+        if author
+        else None,
         "collaborators": collaborators,
         "last_updated_by": last_updated_by,
         "reaction_count": reaction_count,
@@ -137,7 +158,11 @@ async def get_entry(
 
     collab_result = await session.execute(
         select(ContentCollaborator, User)
-        .join(User, User.discord_user_id == ContentCollaborator.discord_user_id, isouter=True)
+        .join(
+            User,
+            User.discord_user_id == ContentCollaborator.discord_user_id,
+            isouter=True,
+        )
         .where(ContentCollaborator.entry_id == entry_id)
         .order_by(ContentCollaborator.added_at)
     )
@@ -156,13 +181,17 @@ async def get_entry(
         "title": entry.title,
         "body": entry.body,
         "created_at": entry.created_at.isoformat() if entry.created_at else None,
-        "updated_at": entry.updated_at.isoformat() if entry.updated_at is not None else None,
+        "updated_at": entry.updated_at.isoformat()
+        if entry.updated_at is not None
+        else None,
         "author": {
             "discord_user_id": author.discord_user_id if author else None,
             "discord_username": author.discord_username if author else None,
             "rsn": author.rsn if author else None,
             "avatar": author.discord_avatar_url if author else None,
-        } if author else None,
+        }
+        if author
+        else None,
         "collaborators": collaborators,
     }
 
@@ -201,16 +230,25 @@ async def create_entry(
         slug = _slugify(title)
 
     if await _slug_exists_in_page_type(slug, page_type, session):
-        raise HTTPException(409, f"An entry with slug '{slug}' already exists under {page_type}.")
+        raise HTTPException(
+            409, f"An entry with slug '{slug}' already exists under {page_type}."
+        )
 
     now = datetime.now(timezone.utc)
     entry = ContentEntry(
-        category_id=category_id, slug=slug, title=title, body=body.body,
-        created_by=int(current_user["sub"]), created_at=now, updated_at=now,
+        category_id=category_id,
+        slug=slug,
+        title=title,
+        body=body.body,
+        created_by=int(current_user["sub"]),
+        created_at=now,
+        updated_at=now,
     )
     session.add(entry)
     await session.commit()
     return {
-        "id": str(entry.id), "title": entry.title, "slug": entry.slug,
+        "id": str(entry.id),
+        "title": entry.title,
+        "slug": entry.slug,
         "category_id": str(entry.category_id),
     }

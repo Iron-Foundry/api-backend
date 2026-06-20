@@ -21,7 +21,9 @@ async def get_notification_preferences(
     """Return the current user's party notification preferences."""
     uid = int(current_user["sub"])
     result = await session.execute(
-        select(PartyNotificationPreferences).where(PartyNotificationPreferences.user_id == uid)
+        select(PartyNotificationPreferences).where(
+            PartyNotificationPreferences.user_id == uid
+        )
     )
     prefs = result.scalar_one_or_none()
     return {"category_ids": prefs.category_ids if prefs else []}
@@ -38,7 +40,9 @@ async def update_notification_preferences(
     await session.execute(
         pg_insert(PartyNotificationPreferences)
         .values(user_id=uid, category_ids=body.category_ids)
-        .on_conflict_do_update(index_elements=["user_id"], set_={"category_ids": body.category_ids})
+        .on_conflict_do_update(
+            index_elements=["user_id"], set_={"category_ids": body.category_ids}
+        )
     )
     await session.commit()
     return {"category_ids": body.category_ids}

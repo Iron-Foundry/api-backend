@@ -11,7 +11,13 @@ from app.db.models import SurveyActive, SurveyTemplate, WebSurveySubmission
 from app.dependencies import get_current_user, get_session
 from app.services.page_permissions import check_page_permission
 
-from ._helpers import extract_fields, extract_is_open, get_roles, list_templates, normalize_visibility
+from ._helpers import (
+    extract_fields,
+    extract_is_open,
+    get_roles,
+    list_templates,
+    normalize_visibility,
+)
 
 router = APIRouter()
 
@@ -51,7 +57,9 @@ async def get_template(
     is_staff = await check_page_permission("staff.surveys", "read", roles, session)
 
     row = (
-        await session.execute(select(SurveyTemplate).where(SurveyTemplate.template_id == template_id))
+        await session.execute(
+            select(SurveyTemplate).where(SurveyTemplate.template_id == template_id)
+        )
     ).scalar_one_or_none()
     if row is None:
         raise HTTPException(404, "Template not found.")
@@ -105,7 +113,9 @@ async def submit_response(
     discord_user_id = int(current_user["sub"])
 
     row = (
-        await session.execute(select(SurveyTemplate).where(SurveyTemplate.template_id == template_id))
+        await session.execute(
+            select(SurveyTemplate).where(SurveyTemplate.template_id == template_id)
+        )
     ).scalar_one_or_none()
     if row is None:
         raise HTTPException(404, "Template not found.")
@@ -125,15 +135,19 @@ async def submit_response(
         raise HTTPException(409, "You have already submitted a response.")
 
     fields = extract_fields(raw)
-    missing = [f["id"] for f in fields if f.get("required") and f["id"] not in body.answers]
+    missing = [
+        f["id"] for f in fields if f.get("required") and f["id"] not in body.answers
+    ]
     if missing:
         raise HTTPException(422, {"missing_required": missing})
 
-    session.add(WebSurveySubmission(
-        template_id=template_id,
-        discord_user_id=discord_user_id,
-        answers=body.answers,
-        submitted_at=datetime.now(timezone.utc),
-    ))
+    session.add(
+        WebSurveySubmission(
+            template_id=template_id,
+            discord_user_id=discord_user_id,
+            answers=body.answers,
+            submitted_at=datetime.now(timezone.utc),
+        )
+    )
     await session.commit()
     return {"template_id": template_id, "submitted": True}

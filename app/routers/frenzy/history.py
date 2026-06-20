@@ -24,7 +24,9 @@ async def get_leaderboards(
     valkey: Valkey = Depends(get_valkey),
 ) -> dict:
     """Leaderboard data with Valkey stale-while-revalidate."""
-    event = (await session.execute(select(FrenzyEvent).where(FrenzyEvent.is_active == True))).scalar_one_or_none()  # noqa: E712
+    event = (
+        await session.execute(select(FrenzyEvent).where(FrenzyEvent.is_active == True))
+    ).scalar_one_or_none()  # noqa: E712
 
     metrics: list[str] = []
     wom_comp_id: int | None = None
@@ -53,23 +55,42 @@ async def get_team_history(
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     """Time-series of cumulative approved points for a team, plus per-player contribution."""
-    event = (await session.execute(select(FrenzyEvent).where(FrenzyEvent.is_active == True))).scalar_one_or_none()  # noqa: E712
+    event = (
+        await session.execute(select(FrenzyEvent).where(FrenzyEvent.is_active == True))
+    ).scalar_one_or_none()  # noqa: E712
     if event is None:
         raise HTTPException(404, "No active frenzy event.")
 
-    team = (await session.execute(
-        select(FrenzyTeam).where(FrenzyTeam.event_id == event.id, FrenzyTeam.slug == team_slug)
-    )).scalar_one_or_none()
+    team = (
+        await session.execute(
+            select(FrenzyTeam).where(
+                FrenzyTeam.event_id == event.id, FrenzyTeam.slug == team_slug
+            )
+        )
+    ).scalar_one_or_none()
     if team is None:
         raise HTTPException(404, "Team not found.")
 
-    template = (await session.execute(select(FrenzyTemplate).where(FrenzyTemplate.id == event.template_id))).scalar_one()
+    template = (
+        await session.execute(
+            select(FrenzyTemplate).where(FrenzyTemplate.id == event.template_id)
+        )
+    ).scalar_one()
 
-    approved_subs = (await session.execute(
-        select(FrenzySubmission)
-        .where(FrenzySubmission.team_id == team.id, FrenzySubmission.status == "approved")
-        .order_by(FrenzySubmission.submitted_at)
-    )).scalars().all()
+    approved_subs = (
+        (
+            await session.execute(
+                select(FrenzySubmission)
+                .where(
+                    FrenzySubmission.team_id == team.id,
+                    FrenzySubmission.status == "approved",
+                )
+                .order_by(FrenzySubmission.submitted_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     item_p: dict[str, int] = {}
     act_by_player: dict[str, dict[int, int]] = {}
@@ -86,12 +107,16 @@ async def get_team_history(
             name = p["name"]
             uid = sub.discord_user_id
             act_by_player.setdefault(name, {})
-            act_by_player[name][uid] = max(act_by_player[name].get(uid, 0), p.get("value", 0))
+            act_by_player[name][uid] = max(
+                act_by_player[name].get(uid, 0), p.get("value", 0)
+            )
         elif sub.submission_type == "milestone":
             name = p["name"]
             uid = sub.discord_user_id
             mil_by_player.setdefault(name, {})
-            mil_by_player[name][uid] = max(mil_by_player[name].get(uid, 0), p.get("value", 0))
+            mil_by_player[name][uid] = max(
+                mil_by_player[name].get(uid, 0), p.get("value", 0)
+            )
 
         act_p = {n: sum(v.values()) for n, v in act_by_player.items()}
         mil_p = {n: sum(v.values()) for n, v in mil_by_player.items()}
@@ -108,31 +133,65 @@ async def get_team_history(
                         if item.get("name") == item_name:
                             item_pts = _calc_item_pts(item, p.get("quantity", 1))
                             break
-            player_contribution[sub.player_rsn] = player_contribution.get(sub.player_rsn, 0.0) + item_pts
+            player_contribution[sub.player_rsn] = (
+                player_contribution.get(sub.player_rsn, 0.0) + item_pts
+            )
 
-        points_series.append({
-            "timestamp": sub.submitted_at.isoformat(), "total_points": scores["total"],
-            "player_rsn": sub.player_rsn, "submission_type": sub.submission_type, "payload": sub.payload,
-        })
+        points_series.append(
+            {
+                "timestamp": sub.submitted_at.isoformat(),
+                "total_points": scores["total"],
+                "player_rsn": sub.player_rsn,
+                "submission_type": sub.submission_type,
+                "payload": sub.payload,
+            }
+        )
 
-    return {"team_slug": team_slug, "series": points_series, "player_contribution": player_contribution}
+    return {
+        "team_slug": team_slug,
+        "series": points_series,
+        "player_contribution": player_contribution,
+    }
 
 
 @router.get("/active/history")
 async def get_event_history(session: AsyncSession = Depends(get_session)) -> dict:
     """All teams' cumulative points over time - used for rank-over-time chart."""
-    event = (await session.execute(select(FrenzyEvent).where(FrenzyEvent.is_active == True))).scalar_one_or_none()  # noqa: E712
+    event = (
+        await session.execute(select(FrenzyEvent).where(FrenzyEvent.is_active == True))
+    ).scalar_one_or_none()  # noqa: E712
     if event is None:
         raise HTTPException(404, "No active frenzy event.")
 
-    teams = (await session.execute(select(FrenzyTeam).where(FrenzyTeam.event_id == event.id))).scalars().all()
-    template = (await session.execute(select(FrenzyTemplate).where(FrenzyTemplate.id == event.template_id))).scalar_one()
+    teams = (
+        (
+            await session.execute(
+                select(FrenzyTeam).where(FrenzyTeam.event_id == event.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    template = (
+        await session.execute(
+            select(FrenzyTemplate).where(FrenzyTemplate.id == event.template_id)
+        )
+    ).scalar_one()
 
-    all_subs = (await session.execute(
-        select(FrenzySubmission)
-        .where(FrenzySubmission.event_id == event.id, FrenzySubmission.status == "approved")
-        .order_by(FrenzySubmission.submitted_at)
-    )).scalars().all()
+    all_subs = (
+        (
+            await session.execute(
+                select(FrenzySubmission)
+                .where(
+                    FrenzySubmission.event_id == event.id,
+                    FrenzySubmission.status == "approved",
+                )
+                .order_by(FrenzySubmission.submitted_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     item_states: dict[int, dict[str, int]] = {t.id: {} for t in teams}
     act_states: dict[int, dict[str, dict[int, int]]] = {t.id: {} for t in teams}
@@ -149,16 +208,27 @@ async def get_event_history(session: AsyncSession = Depends(get_session)) -> dic
             name = p["name"]
             uid = sub.discord_user_id
             act_states[tid].setdefault(name, {})
-            act_states[tid][name][uid] = max(act_states[tid][name].get(uid, 0), p.get("value", 0))
+            act_states[tid][name][uid] = max(
+                act_states[tid][name].get(uid, 0), p.get("value", 0)
+            )
         elif sub.submission_type == "milestone":
             name = p["name"]
             uid = sub.discord_user_id
             mil_states[tid].setdefault(name, {})
-            mil_states[tid][name][uid] = max(mil_states[tid][name].get(uid, 0), p.get("value", 0))
+            mil_states[tid][name][uid] = max(
+                mil_states[tid][name].get(uid, 0), p.get("value", 0)
+            )
 
         act_p = {n: sum(v.values()) for n, v in act_states[tid].items()}
         mil_p = {n: sum(v.values()) for n, v in mil_states[tid].items()}
         scores = _compute_scores_from_progress(template, item_states[tid], act_p, mil_p)
-        team_series[tid].append({"timestamp": sub.submitted_at.isoformat(), "total_points": scores["total"]})
+        team_series[tid].append(
+            {"timestamp": sub.submitted_at.isoformat(), "total_points": scores["total"]}
+        )
 
-    return {"teams": [{"id": t.id, "name": t.name, "slug": t.slug, "series": team_series[t.id]} for t in teams]}
+    return {
+        "teams": [
+            {"id": t.id, "name": t.name, "slug": t.slug, "series": team_series[t.id]}
+            for t in teams
+        ]
+    }

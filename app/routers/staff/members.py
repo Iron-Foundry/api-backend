@@ -38,26 +38,30 @@ async def staff_members(
     )
     if search:
         pattern = f"%{search}%"
-        stmt = stmt.where(User.rsn.ilike(pattern) | User.discord_username.ilike(pattern))
+        stmt = stmt.where(
+            User.rsn.ilike(pattern) | User.discord_username.ilike(pattern)
+        )
     stmt = stmt.order_by(User.join_date.asc().nulls_last()).limit(limit)
     result = await session.execute(stmt)
     members: list[dict] = []
     for row in result:
-        members.append({
-            "discord_user_id": str(row.discord_user_id),
-            "discord_username": row.discord_username,
-            "discord_avatar_url": row.discord_avatar_url,
-            "rsn": row.rsn,
-            "clan_rank": row.clan_rank,
-            "discord_roles": row.discord_roles,
-            "stats_opt_out": row.stats_opt_out,
-            "join_date": row.join_date.isoformat() if row.join_date else None,
-            "created_at": row.created_at.isoformat() if row.created_at else None,
-            "total_loot_value": row.total_loot_value,
-            "collection_log_slots": row.collection_log_slots,
-            "recruited_by": str(row.recruited_by) if row.recruited_by else None,
-            "key_is_active": row.key_is_active,
-        })
+        members.append(
+            {
+                "discord_user_id": str(row.discord_user_id),
+                "discord_username": row.discord_username,
+                "discord_avatar_url": row.discord_avatar_url,
+                "rsn": row.rsn,
+                "clan_rank": row.clan_rank,
+                "discord_roles": row.discord_roles,
+                "stats_opt_out": row.stats_opt_out,
+                "join_date": row.join_date.isoformat() if row.join_date else None,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "total_loot_value": row.total_loot_value,
+                "collection_log_slots": row.collection_log_slots,
+                "recruited_by": str(row.recruited_by) if row.recruited_by else None,
+                "key_is_active": row.key_is_active,
+            }
+        )
     return members
 
 
@@ -70,22 +74,30 @@ async def staff_member_detail(
     """Full member detail for the sheet view. Requires staff.members read permission."""
     await require_rank("staff.members", "read", current_user, session)
 
-    row = (await session.execute(select(User).where(User.discord_user_id == discord_user_id))).scalar_one_or_none()
+    row = (
+        await session.execute(
+            select(User).where(User.discord_user_id == discord_user_id)
+        )
+    ).scalar_one_or_none()
     if row is None:
         raise HTTPException(status_code=404, detail="Member not found.")
 
-    badge_rows = (await session.execute(
-        select(Badge, UserBadge.assigned_at, UserBadge.assigned_by)
-        .join(UserBadge, UserBadge.badge_id == Badge.id)
-        .where(UserBadge.discord_user_id == discord_user_id)
-        .order_by(UserBadge.assigned_at.asc())
-    )).all()
+    badge_rows = (
+        await session.execute(
+            select(Badge, UserBadge.assigned_at, UserBadge.assigned_by)
+            .join(UserBadge, UserBadge.badge_id == Badge.id)
+            .where(UserBadge.discord_user_id == discord_user_id)
+            .order_by(UserBadge.assigned_at.asc())
+        )
+    ).all()
 
     ranking = None
     if row.rsn:
-        ranking_row = (await session.execute(
-            select(PlayerRanking).where(PlayerRanking.rsn.ilike(row.rsn))
-        )).scalar_one_or_none()
+        ranking_row = (
+            await session.execute(
+                select(PlayerRanking).where(PlayerRanking.rsn.ilike(row.rsn))
+            )
+        ).scalar_one_or_none()
         if ranking_row:
             ranking = {
                 "rank": ranking_row.rank,
@@ -95,9 +107,13 @@ async def staff_member_detail(
                 "updated_at": ranking_row.updated_at.isoformat(),
             }
 
-    ticket_count = (await session.execute(
-        select(func.count()).select_from(Ticket).where(Ticket.creator_id == discord_user_id)
-    )).scalar_one()
+    ticket_count = (
+        await session.execute(
+            select(func.count())
+            .select_from(Ticket)
+            .where(Ticket.creator_id == discord_user_id)
+        )
+    ).scalar_one()
 
     return {
         "discord_user_id": str(row.discord_user_id),
@@ -119,8 +135,12 @@ async def staff_member_detail(
         "referral_source": row.referral_source,
         "referral_detail": row.referral_detail,
         "key_is_active": row.key_is_active,
-        "key_created_at": row.key_created_at.isoformat() if row.key_created_at else None,
-        "key_expires_at": row.key_expires_at.isoformat() if row.key_expires_at else None,
+        "key_created_at": row.key_created_at.isoformat()
+        if row.key_created_at
+        else None,
+        "key_expires_at": row.key_expires_at.isoformat()
+        if row.key_expires_at
+        else None,
         "temp_vc_lock_status": row.temp_vc_lock_status,
         "temp_vc_member_limit": row.temp_vc_member_limit,
         "temp_vc_bitrate": row.temp_vc_bitrate,

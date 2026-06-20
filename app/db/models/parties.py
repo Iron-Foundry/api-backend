@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, ForeignKey, Integer, Text, TIMESTAMP, UniqueConstraint
+from sqlalchemy import (
+    BigInteger,
+    ForeignKey,
+    Integer,
+    Text,
+    TIMESTAMP,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -20,13 +27,19 @@ class PartyDB(Base):
     description: Mapped[str | None] = mapped_column(Text)
     vibe: Mapped[str] = mapped_column(Text, nullable=False, server_default="chill")
     max_size: Mapped[int] = mapped_column(Integer, nullable=False)
-    notification_category_ids: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    notification_category_ids: Mapped[list] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )
     hub_code: Mapped[str] = mapped_column(Text, nullable=False)
     discord_message_id: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="open")
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
     scheduled_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
-    expires_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
 
     members: Mapped[list[PartyMemberDB]] = relationship(
         "PartyMemberDB",
@@ -47,7 +60,9 @@ class PartyMemberDB(Base):
     user_id: Mapped[str] = mapped_column(Text, nullable=False)
     username: Mapped[str] = mapped_column(Text, nullable=False)
     rsn: Mapped[str | None] = mapped_column(Text)
-    joined_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    joined_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
 
     party: Mapped[PartyDB] = relationship("PartyDB", back_populates="members")
 
@@ -70,4 +85,6 @@ class PartyNotificationPreferences(Base):
     __tablename__ = "party_notification_preferences"
 
     user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    category_ids: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    category_ids: Mapped[list] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )

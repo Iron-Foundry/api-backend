@@ -4,7 +4,15 @@ import uuid
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, Text, TIMESTAMP, UniqueConstraint
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    ForeignKey,
+    Integer,
+    Text,
+    TIMESTAMP,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects import postgresql as pg
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -14,7 +22,9 @@ from .base import Base
 class ContentCategory(Base):
     __tablename__ = "content_categories"
 
-    id: Mapped[UUID] = mapped_column(pg.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[UUID] = mapped_column(
+        pg.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     page_type: Mapped[str] = mapped_column(Text, nullable=False)
     parent_id: Mapped[UUID | None] = mapped_column(
         pg.UUID(as_uuid=True),
@@ -31,7 +41,9 @@ class ContentCategory(Base):
 class ContentEntry(Base):
     __tablename__ = "content_entries"
 
-    id: Mapped[UUID] = mapped_column(pg.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[UUID] = mapped_column(
+        pg.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     category_id: Mapped[UUID] = mapped_column(
         pg.UUID(as_uuid=True),
         ForeignKey("content_categories.id", ondelete="CASCADE"),
@@ -44,7 +56,9 @@ class ContentEntry(Base):
     created_by: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     updated_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
-    deprecated: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    deprecated: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
     deprecated_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     deprecated_by: Mapped[int | None] = mapped_column(BigInteger)
 
@@ -75,13 +89,17 @@ class ContentEntryVersion(Base):
     title: Mapped[str] = mapped_column(Text, nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)
     edited_by: Mapped[int | None] = mapped_column(BigInteger)
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
 
 
 class ContentEntryReaction(Base):
     __tablename__ = "content_entry_reactions"
     __table_args__ = (
-        UniqueConstraint("entry_id", "discord_user_id", name="uq_content_entry_reaction"),
+        UniqueConstraint(
+            "entry_id", "discord_user_id", name="uq_content_entry_reaction"
+        ),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -92,4 +110,6 @@ class ContentEntryReaction(Base):
         index=True,
     )
     discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )

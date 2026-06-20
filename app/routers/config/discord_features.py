@@ -9,7 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_session
 from app.services.page_permissions import require_page_permission
 
-from ._helpers import _DISCORD_ROLES_KEY, get_config_value, get_guild_config_value, set_config_value, set_guild_config_value
+from ._helpers import (
+    _DISCORD_ROLES_KEY,
+    get_config_value,
+    get_guild_config_value,
+    set_config_value,
+    set_guild_config_value,
+)
 
 router = APIRouter()
 
@@ -38,11 +44,14 @@ class JoinRolesFeatureConfig(BaseModel):
     "/discord-roles",
     dependencies=[Depends(require_page_permission("staff.discord-config", "read"))],
 )
-async def get_discord_roles_config(session: AsyncSession = Depends(get_session)) -> dict:
+async def get_discord_roles_config(
+    session: AsyncSession = Depends(get_session),
+) -> dict:
     data = await get_config_value(_DISCORD_ROLES_KEY, session)
     return {
         "staff_role_id": data.get("staff_role_id") or os.getenv("STAFF_ROLE_ID", ""),
-        "senior_staff_role_id": data.get("senior_staff_role_id") or os.getenv("SENIOR_STAFF_ROLE_ID", ""),
+        "senior_staff_role_id": data.get("senior_staff_role_id")
+        or os.getenv("SENIOR_STAFF_ROLE_ID", ""),
         "owner_role_id": data.get("owner_role_id") or os.getenv("OWNER_ROLE_ID", ""),
         "mentor_role_id": data.get("mentor_role_id") or os.getenv("MENTOR_ROLE_ID", ""),
     }
@@ -66,7 +75,10 @@ async def set_discord_roles_config(
 )
 async def get_action_log_config(session: AsyncSession = Depends(get_session)) -> dict:
     data = await get_guild_config_value("action_log", session)
-    return {"forum_channel_id": str(data.get("forum_channel_id", "") or ""), "enabled": data.get("enabled", True)}
+    return {
+        "forum_channel_id": str(data.get("forum_channel_id", "") or ""),
+        "enabled": data.get("enabled", True),
+    }
 
 
 @router.put(
@@ -77,7 +89,9 @@ async def set_action_log_config(
     body: ActionLogFeatureConfig, session: AsyncSession = Depends(get_session)
 ) -> dict:
     existing = await get_guild_config_value("action_log", session)
-    existing.update({"forum_channel_id": body.forum_channel_id, "enabled": body.enabled})
+    existing.update(
+        {"forum_channel_id": body.forum_channel_id, "enabled": body.enabled}
+    )
     await set_guild_config_value("action_log", existing, session)
     return {"forum_channel_id": body.forum_channel_id, "enabled": body.enabled}
 

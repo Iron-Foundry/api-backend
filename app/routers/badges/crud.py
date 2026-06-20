@@ -22,7 +22,9 @@ async def list_badges(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=50, le=200),
 ) -> list[dict]:
-    result = await session.execute(select(Badge).order_by(Badge.name).offset(skip).limit(limit))
+    result = await session.execute(
+        select(Badge).order_by(Badge.name).offset(skip).limit(limit)
+    )
     return [serialize_badge(b) for b in result.scalars()]
 
 

@@ -3,7 +3,12 @@ from __future__ import annotations
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import SurveyActive, SurveyResponse, SurveyTemplate, WebSurveySubmission
+from app.db.models import (
+    SurveyActive,
+    SurveyResponse,
+    SurveyTemplate,
+    WebSurveySubmission,
+)
 from app.services.page_permissions import check_page_permission
 from app.services.rank_mappings import get_effective_roles
 
@@ -23,7 +28,10 @@ async def get_roles(current_user: dict, session: AsyncSession) -> list[str]:
 
 def extract_fields(raw: list | dict) -> list[dict]:
     fields: list[dict] = raw if isinstance(raw, list) else raw.get("fields", [])
-    return [{**f, "label": f["text"]} if "label" not in f and "text" in f else f for f in fields]
+    return [
+        {**f, "label": f["text"]} if "label" not in f and "text" in f else f
+        for f in fields
+    ]
 
 
 def extract_is_open(raw: list | dict) -> bool:
@@ -45,19 +53,25 @@ async def list_templates(
     response_counts: dict[str, int] = {
         r[0]: r[1]
         for r in await session.execute(
-            select(SurveyResponse.template_id, func.count().label("count")).group_by(SurveyResponse.template_id)
+            select(SurveyResponse.template_id, func.count().label("count")).group_by(
+                SurveyResponse.template_id
+            )
         )
     }
     web_response_counts: dict[str, int] = {
         r[0]: r[1]
         for r in await session.execute(
-            select(WebSurveySubmission.template_id, func.count().label("count")).group_by(WebSurveySubmission.template_id)
+            select(
+                WebSurveySubmission.template_id, func.count().label("count")
+            ).group_by(WebSurveySubmission.template_id)
         )
     }
     submitted_set: set[str] = {
         r.template_id
         for r in await session.execute(
-            select(WebSurveySubmission.template_id).where(WebSurveySubmission.discord_user_id == discord_user_id)
+            select(WebSurveySubmission.template_id).where(
+                WebSurveySubmission.discord_user_id == discord_user_id
+            )
         )
     }
 

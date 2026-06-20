@@ -29,6 +29,8 @@ async def get_ranking_config(session: AsyncSession = Depends(get_session)) -> di
     "/ranking",
     dependencies=[Depends(require_page_permission("staff.ranking", "edit"))],
 )
-async def set_ranking_config(body: dict, session: AsyncSession = Depends(get_session)) -> dict:
+async def set_ranking_config(
+    body: dict, session: AsyncSession = Depends(get_session)
+) -> dict:
     await set_config_value(_RANKING_CONFIG_KEY, body, session)
     return body

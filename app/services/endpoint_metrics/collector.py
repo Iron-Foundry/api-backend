@@ -86,7 +86,9 @@ class EndpointMetricsCollector:
             "total_requests": total_requests,
             "total_errors_4xx": total_4xx,
             "total_errors_5xx": total_5xx,
-            "avg_latency_ms": round(total_ms / total_requests, 1) if total_requests else 0.0,
+            "avg_latency_ms": round(total_ms / total_requests, 1)
+            if total_requests
+            else 0.0,
             "total_req_bytes": total_req_bytes,
             "total_resp_bytes": total_resp_bytes,
             "endpoints": endpoints,

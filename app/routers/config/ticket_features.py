@@ -20,9 +20,13 @@ class TicketFeaturesConfig(BaseModel):
     "/ticket-features",
     dependencies=[Depends(require_page_permission("staff.ticket-config", "read"))],
 )
-async def get_ticket_features(session: AsyncSession = Depends(get_session)) -> TicketFeaturesConfig:
+async def get_ticket_features(
+    session: AsyncSession = Depends(get_session),
+) -> TicketFeaturesConfig:
     data = await get_config_value(_TICKET_FEATURES_KEY, session)
-    return TicketFeaturesConfig(rank_pull_set_primary=bool(data.get("rank_pull_set_primary", False)))
+    return TicketFeaturesConfig(
+        rank_pull_set_primary=bool(data.get("rank_pull_set_primary", False))
+    )
 
 
 @router.put(

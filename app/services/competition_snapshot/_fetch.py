@@ -20,14 +20,19 @@ def _safe_gained(v: object) -> float:
     return max(0.0, float(v)) if isinstance(v, (int, float)) else 0.0
 
 
-async def load_ongoing_comps(valkey: Valkey, wom: WiseOldManHandler, wom_group_id: str) -> list[dict]:
+async def load_ongoing_comps(
+    valkey: Valkey, wom: WiseOldManHandler, wom_group_id: str
+) -> list[dict]:
     """Return ongoing competitions from Valkey cache, falling back to WOM."""
     for cache_key in (_COMPS_FRESH_KEY, _COMPS_STALE_KEY):
         raw = await valkey.get(cache_key)
         if raw:
             comps: list[dict] = json.loads(raw)
             ongoing = [c for c in comps if c.get("status") == "ongoing"]
-            logger.debug("CompetitionSnapshotService: {} competition(s) from Valkey cache", len(ongoing))
+            logger.debug(
+                "CompetitionSnapshotService: {} competition(s) from Valkey cache",
+                len(ongoing),
+            )
             return ongoing
 
     logger.info("CompetitionSnapshotService: Valkey cache cold, fetching from WOM")
@@ -35,17 +40,27 @@ async def load_ongoing_comps(valkey: Valkey, wom: WiseOldManHandler, wom_group_i
     return [c for c in all_comps if c.get("status") == "ongoing"]
 
 
-async def fetch_metric_standings(wom: WiseOldManHandler, comp_id: int, metric: str) -> list[dict] | None:
+async def fetch_metric_standings(
+    wom: WiseOldManHandler, comp_id: int, metric: str
+) -> list[dict] | None:
     """Fetch top-10 standings for a single (comp_id, metric) from WOM."""
     try:
         data = await wom.get_competition_details(comp_id, metric=metric)
     except Exception as exc:
-        logger.warning("CompetitionSnapshotService: WOM fetch failed comp={} metric={} - {}", comp_id, metric, exc)
+        logger.warning(
+            "CompetitionSnapshotService: WOM fetch failed comp={} metric={} - {}",
+            comp_id,
+            metric,
+            exc,
+        )
         return None
 
     standings = sorted(
         [
-            {"player_name": p["player"]["displayName"], "gained": _safe_gained((p.get("progress") or {}).get("gained"))}
+            {
+                "player_name": p["player"]["displayName"],
+                "gained": _safe_gained((p.get("progress") or {}).get("gained")),
+            }
             for p in data.get("participations", [])
         ],
         key=lambda x: x["gained"],
@@ -53,7 +68,11 @@ async def fetch_metric_standings(wom: WiseOldManHandler, comp_id: int, metric: s
     )[:10]
 
     if not standings or all(s["gained"] == 0 for s in standings):
-        logger.debug("CompetitionSnapshotService: skip - no gains yet comp={} metric={}", comp_id, metric)
+        logger.debug(
+            "CompetitionSnapshotService: skip - no gains yet comp={} metric={}",
+            comp_id,
+            metric,
+        )
         return None
 
     return standings
@@ -70,7 +89,10 @@ async def backfill_start_if_needed(
     async with session_factory() as session:
         result = await session.execute(
             select(CompetitionSnapshot.captured_at)
-            .where(CompetitionSnapshot.comp_id == comp_id, CompetitionSnapshot.metric == metric)
+            .where(
+                CompetitionSnapshot.comp_id == comp_id,
+                CompetitionSnapshot.metric == metric,
+            )
             .order_by(CompetitionSnapshot.captured_at.asc())
             .limit(1)
         )
@@ -81,19 +103,40 @@ async def backfill_start_if_needed(
 
     logger.info(
         "CompetitionSnapshotService: backfilling start snapshot comp={} metric={} starts_at={}",
-        comp_id, metric, starts_at.isoformat(),
+        comp_id,
+        metric,
+        starts_at.isoformat(),
     )
 
     try:
-        data = await wom.get_competition_details_at(comp_id, metric=metric, date=starts_at)
+        data = await wom.get_competition_details_at(
+            comp_id, metric=metric, date=starts_at
+        )
     except Exception as exc:
-        logger.warning("CompetitionSnapshotService: backfill WOM fetch failed comp={} metric={} - {}", comp_id, metric, exc)
+        logger.warning(
+            "CompetitionSnapshotService: backfill WOM fetch failed comp={} metric={} - {}",
+            comp_id,
+            metric,
+            exc,
+        )
         return
 
-    standings = [{"player_name": p["player"]["displayName"], "gained": 0.0} for p in data.get("participations", [])][:10]
+    standings = [
+        {"player_name": p["player"]["displayName"], "gained": 0.0}
+        for p in data.get("participations", [])
+    ][:10]
 
     async with session_factory() as session:
-        session.add(CompetitionSnapshot(comp_id=comp_id, metric=metric, captured_at=starts_at, series=standings))
+        session.add(
+            CompetitionSnapshot(
+                comp_id=comp_id, metric=metric, captured_at=starts_at, series=standings
+            )
+        )
         await session.commit()
 
-    logger.info("CompetitionSnapshotService: backfilled start snapshot comp={} metric={} participants={}", comp_id, metric, len(standings))
+    logger.info(
+        "CompetitionSnapshotService: backfilled start snapshot comp={} metric={} participants={}",
+        comp_id,
+        metric,
+        len(standings),
+    )

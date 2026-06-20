@@ -11,7 +11,9 @@ from loguru import logger
 
 DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "")
 DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", "")
-DISCORD_REDIRECT_URI = os.getenv("DISCORD_REDIRECT_URI", "http://localhost:8000/auth/callback")
+DISCORD_REDIRECT_URI = os.getenv(
+    "DISCORD_REDIRECT_URI", "http://localhost:8000/auth/callback"
+)
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_SERVER_TOKEN", "")
 GUILD_ID = os.getenv("GUILD_ID", "")
 JWT_SECRET = os.getenv("JWT_SECRET", "change-me")
@@ -36,7 +38,9 @@ def issue_jwt(discord_user_id: str, username: str, avatar: str | None) -> str:
 async def fetch_discord_roles(discord_user_id: int) -> list[str]:
     """Return the member's Discord role IDs via the bot token. Returns [] on failure."""
     if not DISCORD_BOT_TOKEN:
-        logger.warning("discord_roles: DISCORD_SERVER_TOKEN not set - skipping role fetch")
+        logger.warning(
+            "discord_roles: DISCORD_SERVER_TOKEN not set - skipping role fetch"
+        )
         return []
     if not GUILD_ID:
         logger.warning("discord_roles: GUILD_ID not set - skipping role fetch")
@@ -45,25 +49,55 @@ async def fetch_discord_roles(discord_user_id: int) -> list[str]:
     bot_headers = {"Authorization": f"Bot {DISCORD_BOT_TOKEN}"}
     try:
         async with httpx.AsyncClient() as client:
-            roles_resp = await client.get(f"{_DISCORD_API}/guilds/{GUILD_ID}/roles", headers=bot_headers)
+            roles_resp = await client.get(
+                f"{_DISCORD_API}/guilds/{GUILD_ID}/roles", headers=bot_headers
+            )
             if roles_resp.status_code != 200:
-                logger.warning("discord_roles: GET /guilds/{}/roles failed ({}) - body: {}", GUILD_ID, roles_resp.status_code, roles_resp.text)
+                logger.warning(
+                    "discord_roles: GET /guilds/{}/roles failed ({}) - body: {}",
+                    GUILD_ID,
+                    roles_resp.status_code,
+                    roles_resp.text,
+                )
                 return []
             role_map: dict[str, str] = {r["id"]: r["name"] for r in roles_resp.json()}
 
-            member_resp = await client.get(f"{_DISCORD_API}/guilds/{GUILD_ID}/members/{discord_user_id}", headers=bot_headers)
+            member_resp = await client.get(
+                f"{_DISCORD_API}/guilds/{GUILD_ID}/members/{discord_user_id}",
+                headers=bot_headers,
+            )
             if member_resp.status_code != 200:
-                logger.warning("discord_roles: GET /guilds/{}/members/{} failed ({}) - body: {}", GUILD_ID, discord_user_id, member_resp.status_code, member_resp.text)
+                logger.warning(
+                    "discord_roles: GET /guilds/{}/members/{} failed ({}) - body: {}",
+                    GUILD_ID,
+                    discord_user_id,
+                    member_resp.status_code,
+                    member_resp.text,
+                )
                 return []
 
             member_data = member_resp.json()
             role_ids = [rid for rid in member_data.get("roles", []) if rid in role_map]
-            logger.info("discord_roles: user {} has role IDs {} (names: {})", discord_user_id, role_ids, [role_map[rid] for rid in role_ids])
+            logger.info(
+                "discord_roles: user {} has role IDs {} (names: {})",
+                discord_user_id,
+                role_ids,
+                [role_map[rid] for rid in role_ids],
+            )
 
-            guild_resp = await client.get(f"{_DISCORD_API}/guilds/{GUILD_ID}", headers=bot_headers)
-            if guild_resp.status_code == 200 and guild_resp.json().get("owner_id") == str(discord_user_id):
-                logger.info("discord_roles: user {} is guild owner - injecting Co-owner role ID", discord_user_id)
-                co_owner_id = next((rid for rid, name in role_map.items() if name == "Co-owner"), None)
+            guild_resp = await client.get(
+                f"{_DISCORD_API}/guilds/{GUILD_ID}", headers=bot_headers
+            )
+            if guild_resp.status_code == 200 and guild_resp.json().get(
+                "owner_id"
+            ) == str(discord_user_id):
+                logger.info(
+                    "discord_roles: user {} is guild owner - injecting Co-owner role ID",
+                    discord_user_id,
+                )
+                co_owner_id = next(
+                    (rid for rid, name in role_map.items() if name == "Co-owner"), None
+                )
                 if co_owner_id and co_owner_id not in role_ids:
                     role_ids.append(co_owner_id)
                 elif not co_owner_id and "__owner__" not in role_ids:

@@ -17,7 +17,9 @@ async def member_tickets(
 ) -> list[dict]:
     discord_user_id = int(current_user["sub"])
     result = await session.execute(
-        select(Ticket).where(Ticket.creator_id == discord_user_id).order_by(Ticket.ticket_id.desc())
+        select(Ticket)
+        .where(Ticket.creator_id == discord_user_id)
+        .order_by(Ticket.ticket_id.desc())
     )
     return [
         {
@@ -26,7 +28,9 @@ async def member_tickets(
             "status": row.status,
             "created_at": row.created_at.isoformat() if row.created_at else None,
             "closed_at": row.closed_at.isoformat() if row.closed_at else None,
-            "last_message_at": row.last_message_at.isoformat() if row.last_message_at else None,
+            "last_message_at": row.last_message_at.isoformat()
+            if row.last_message_at
+            else None,
             "close_reason": row.close_reason,
         }
         for row in result.scalars()
@@ -49,10 +53,14 @@ async def member_ticket_transcript(
     )
     if not ticket_result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Ticket not found.")
-    tr_result = await session.execute(select(Transcript).where(Transcript.ticket_id == ticket_id))
+    tr_result = await session.execute(
+        select(Transcript).where(Transcript.ticket_id == ticket_id)
+    )
     tr = tr_result.scalar_one_or_none()
     if not tr:
-        raise HTTPException(status_code=404, detail="Transcript not available for this ticket.")
+        raise HTTPException(
+            status_code=404, detail="Transcript not available for this ticket."
+        )
     raw = tr.entries
     entries = raw.get("entries", []) if isinstance(raw, dict) else (raw or [])
     return {"ticket_id": tr.ticket_id, "entries": entries}

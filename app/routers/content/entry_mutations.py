@@ -12,7 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import ContentCollaborator, ContentEntry, ContentEntryVersion
 from app.dependencies import get_current_user, get_session
 
-from ._helpers import _require_mentor, _require_senior_mod, _slug_exists_in_page_type, _slugify, _validate_page_type
+from ._helpers import (
+    _require_mentor,
+    _require_senior_mod,
+    _slug_exists_in_page_type,
+    _slugify,
+    _validate_page_type,
+)
 
 router = APIRouter()
 
@@ -44,11 +50,22 @@ async def update_entry(
 
     fields = body.model_fields_set
     content_fields_check = fields - {"sort_order", "expected_updated_at"}
-    if content_fields_check and body.expected_updated_at is not None and entry.updated_at is not None:
-        def _to_utc(dt: datetime) -> datetime:
-            return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+    if (
+        content_fields_check
+        and body.expected_updated_at is not None
+        and entry.updated_at is not None
+    ):
 
-        if _to_utc(body.expected_updated_at).replace(microsecond=0) != _to_utc(entry.updated_at).replace(microsecond=0):
+        def _to_utc(dt: datetime) -> datetime:
+            return (
+                dt.replace(tzinfo=timezone.utc)
+                if dt.tzinfo is None
+                else dt.astimezone(timezone.utc)
+            )
+
+        if _to_utc(body.expected_updated_at).replace(microsecond=0) != _to_utc(
+            entry.updated_at
+        ).replace(microsecond=0):
             raise HTTPException(409, "edit_conflict")
 
     if "title" in fields and body.title is not None:
@@ -64,8 +81,13 @@ async def update_entry(
         if not new_slug:
             raise HTTPException(422, "Slug contains no valid characters.")
         if new_slug != entry.slug:
-            if await _slug_exists_in_page_type(new_slug, page_type, session, exclude_entry_id=entry_id):
-                raise HTTPException(409, f"An entry with slug '{new_slug}' already exists under {page_type}.")
+            if await _slug_exists_in_page_type(
+                new_slug, page_type, session, exclude_entry_id=entry_id
+            ):
+                raise HTTPException(
+                    409,
+                    f"An entry with slug '{new_slug}' already exists under {page_type}.",
+                )
             entry.slug = new_slug
 
     if "body" in fields and body.body is not None:
@@ -81,14 +103,21 @@ async def update_entry(
         entry.updated_at = now
 
         max_ver_result = await session.execute(
-            select(func.max(ContentEntryVersion.version_number))
-            .where(ContentEntryVersion.entry_id == entry_id)
+            select(func.max(ContentEntryVersion.version_number)).where(
+                ContentEntryVersion.entry_id == entry_id
+            )
         )
         next_ver = (max_ver_result.scalar_one_or_none() or 0) + 1
-        session.add(ContentEntryVersion(
-            entry_id=entry.id, version_number=next_ver,
-            title=entry.title, body=entry.body, edited_by=uid, created_at=now,
-        ))
+        session.add(
+            ContentEntryVersion(
+                entry_id=entry.id,
+                version_number=next_ver,
+                title=entry.title,
+                body=entry.body,
+                edited_by=uid,
+                created_at=now,
+            )
+        )
 
         if entry.created_by != uid:
             await session.execute(
@@ -99,8 +128,12 @@ async def update_entry(
 
     await session.commit()
     return {
-        "id": str(entry.id), "title": entry.title, "slug": entry.slug,
-        "updated_at": entry.updated_at.isoformat() if entry.updated_at is not None else None,
+        "id": str(entry.id),
+        "title": entry.title,
+        "slug": entry.slug,
+        "updated_at": entry.updated_at.isoformat()
+        if entry.updated_at is not None
+        else None,
     }
 
 

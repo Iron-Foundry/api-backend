@@ -71,7 +71,9 @@ async def any_opted_out(session: AsyncSession, player_names: list[str]) -> bool:
     return result.first() is not None
 
 
-async def update_player_rank(session: AsyncSession, player_name: str, rank: str) -> None:
+async def update_player_rank(
+    session: AsyncSession, player_name: str, rank: str
+) -> None:
     await session.execute(
         update(User)
         .where(func.lower(User.rsn) == player_name.lower(), User.clan_rank != rank)
@@ -79,7 +81,9 @@ async def update_player_rank(session: AsyncSession, player_name: str, rank: str)
     )
 
 
-async def increment_loot_value(session: AsyncSession, player_name: str, value: int) -> None:
+async def increment_loot_value(
+    session: AsyncSession, player_name: str, value: int
+) -> None:
     await session.execute(
         update(User)
         .where(func.lower(User.rsn) == player_name.lower())

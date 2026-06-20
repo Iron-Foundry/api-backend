@@ -17,10 +17,16 @@ class PlayerRanking(Base):
     rsn: Mapped[str] = mapped_column(Text, nullable=False)
     rank: Mapped[str] = mapped_column(Text, nullable=False)
     points: Mapped[int] = mapped_column(Integer, nullable=False)
-    boss_points: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
-    skill_points: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    boss_points: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="0"
+    )
+    skill_points: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="0"
+    )
     discord_user_id: Mapped[int | None] = mapped_column(BigInteger)
-    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
 
 
 class PlayerSnapshot(Base):
@@ -31,7 +37,9 @@ class PlayerSnapshot(Base):
     rsn: Mapped[str] = mapped_column(Text, nullable=False)
     skills: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     bosses: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
-    fetched_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
 
 
 class CompetitionSnapshot(Base):
@@ -45,5 +53,7 @@ class CompetitionSnapshot(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     comp_id: Mapped[int] = mapped_column(Integer, nullable=False)
     metric: Mapped[str] = mapped_column(Text, nullable=False)
-    captured_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    captured_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
     series: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")

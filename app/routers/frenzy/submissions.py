@@ -21,15 +21,23 @@ _PERM = Depends(require_page_permission("frenzy", "edit"))
 
 def _submission_to_dict(sub: FrenzySubmission, reviewer: User | None = None) -> dict:
     return {
-        "id": sub.id, "event_id": sub.event_id, "team_id": sub.team_id,
-        "discord_user_id": sub.discord_user_id, "player_rsn": sub.player_rsn,
-        "source": sub.source, "submission_type": sub.submission_type,
-        "payload": sub.payload, "status": sub.status, "auto_approved": sub.auto_approved,
+        "id": sub.id,
+        "event_id": sub.event_id,
+        "team_id": sub.team_id,
+        "discord_user_id": sub.discord_user_id,
+        "player_rsn": sub.player_rsn,
+        "source": sub.source,
+        "submission_type": sub.submission_type,
+        "payload": sub.payload,
+        "status": sub.status,
+        "auto_approved": sub.auto_approved,
         "reviewed_by": {
             "discord_user_id": reviewer.discord_user_id,
             "discord_username": reviewer.discord_username,
             "rsn": reviewer.rsn,
-        } if reviewer else None,
+        }
+        if reviewer
+        else None,
         "reviewed_at": sub.reviewed_at.isoformat() if sub.reviewed_at else None,
         "review_notes": sub.review_notes,
         "submitted_at": sub.submitted_at.isoformat(),
@@ -54,7 +62,9 @@ async def list_submissions(
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
 ) -> dict:
-    event = (await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))).scalar_one_or_none()
+    event = (
+        await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))
+    ).scalar_one_or_none()
     if event is None:
         raise HTTPException(404, "Event not found.")
 
@@ -63,7 +73,9 @@ async def list_submissions(
         stmt = stmt.where(FrenzySubmission.team_id == team_id)
     if status is not None:
         if status not in _VALID_STATUSES:
-            raise HTTPException(400, f"Invalid status. Must be one of: {_VALID_STATUSES}")
+            raise HTTPException(
+                400, f"Invalid status. Must be one of: {_VALID_STATUSES}"
+            )
         stmt = stmt.where(FrenzySubmission.status == status)
     if submission_type is not None:
         if submission_type not in _VALID_SUBMISSION_TYPES:
@@ -71,7 +83,9 @@ async def list_submissions(
         stmt = stmt.where(FrenzySubmission.submission_type == submission_type)
     if source is not None:
         if source not in _VALID_SOURCES:
-            raise HTTPException(400, f"Invalid source. Must be one of: {_VALID_SOURCES}")
+            raise HTTPException(
+                400, f"Invalid source. Must be one of: {_VALID_SOURCES}"
+            )
         stmt = stmt.where(FrenzySubmission.source == source)
     if player_rsn is not None:
         stmt = stmt.where(FrenzySubmission.player_rsn.ilike(f"%{player_rsn}%"))
@@ -83,28 +97,58 @@ async def list_submissions(
         stmt = stmt.where(FrenzySubmission.submitted_at <= submitted_before)
     if q is not None:
         like = f"%{q}%"
-        stmt = stmt.where(or_(
-            FrenzySubmission.player_rsn.ilike(like),
-            FrenzySubmission.payload["item_name"].astext.ilike(like),
-            FrenzySubmission.payload["source_name"].astext.ilike(like),
-            FrenzySubmission.payload["name"].astext.ilike(like),
-        ))
+        stmt = stmt.where(
+            or_(
+                FrenzySubmission.player_rsn.ilike(like),
+                FrenzySubmission.payload["item_name"].astext.ilike(like),
+                FrenzySubmission.payload["source_name"].astext.ilike(like),
+                FrenzySubmission.payload["name"].astext.ilike(like),
+            )
+        )
 
-    total = (await session.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one()
-    rows = (await session.execute(stmt.order_by(FrenzySubmission.submitted_at.desc()).limit(limit).offset(offset))).scalars().all()
+    total = (
+        await session.execute(select(func.count()).select_from(stmt.subquery()))
+    ).scalar_one()
+    rows = (
+        (
+            await session.execute(
+                stmt.order_by(FrenzySubmission.submitted_at.desc())
+                .limit(limit)
+                .offset(offset)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     reviewer_ids = {s.reviewed_by for s in rows if s.reviewed_by}
     reviewers: dict[int, User] = {}
     if reviewer_ids:
-        reviewer_rows = (await session.execute(select(User).where(User.discord_user_id.in_(reviewer_ids)))).scalars().all()
+        reviewer_rows = (
+            (
+                await session.execute(
+                    select(User).where(User.discord_user_id.in_(reviewer_ids))
+                )
+            )
+            .scalars()
+            .all()
+        )
         reviewers = {u.discord_user_id: u for u in reviewer_rows}
 
-    return {"total": total, "limit": limit, "offset": offset, "submissions": [_submission_to_dict(s, reviewers.get(s.reviewed_by)) for s in rows]}
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "submissions": [
+            _submission_to_dict(s, reviewers.get(s.reviewed_by)) for s in rows
+        ],
+    }
 
 
 @router.post("/events/{event_id}/submissions", status_code=201)
 async def create_submission(
-    event_id: int, body: SubmissionBody,
+    event_id: int,
+    body: SubmissionBody,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
     current_user: dict = Depends(get_current_user),
@@ -114,16 +158,22 @@ async def create_submission(
     if body.submission_type not in _VALID_SUBMISSION_TYPES:
         raise HTTPException(400, "Invalid submission_type.")
 
-    event = (await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))).scalar_one_or_none()
+    event = (
+        await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))
+    ).scalar_one_or_none()
     if event is None:
         raise HTTPException(404, "Event not found.")
 
     team_id: int | None = body.payload.get("team_id")
     if team_id is None:
         raise HTTPException(400, "payload must include team_id.")
-    team = (await session.execute(
-        select(FrenzyTeam).where(FrenzyTeam.id == team_id, FrenzyTeam.event_id == event_id)
-    )).scalar_one_or_none()
+    team = (
+        await session.execute(
+            select(FrenzyTeam).where(
+                FrenzyTeam.id == team_id, FrenzyTeam.event_id == event_id
+            )
+        )
+    ).scalar_one_or_none()
     if team is None:
         raise HTTPException(404, "Team not found in this event.")
 
@@ -133,12 +183,19 @@ async def create_submission(
     submitted_at = body.submitted_at or now
 
     sub = FrenzySubmission(
-        event_id=event_id, team_id=team.id, discord_user_id=body.discord_user_id,
-        player_rsn=body.player_rsn, source=body.source, submission_type=body.submission_type,
+        event_id=event_id,
+        team_id=team.id,
+        discord_user_id=body.discord_user_id,
+        player_rsn=body.player_rsn,
+        source=body.source,
+        submission_type=body.submission_type,
         payload={k: v for k, v in body.payload.items() if k != "team_id"},
-        status="approved" if auto_approve else "pending", auto_approved=auto_approve,
+        status="approved" if auto_approve else "pending",
+        auto_approved=auto_approve,
         reviewed_by=int(current_user["sub"]) if auto_approve else None,
-        reviewed_at=now if auto_approve else None, submitted_at=submitted_at, created_at=now,
+        reviewed_at=now if auto_approve else None,
+        submitted_at=submitted_at,
+        created_at=now,
     )
     session.add(sub)
     await session.flush()
@@ -152,7 +209,9 @@ async def create_submission(
 
 @router.patch("/events/{event_id}/submissions/{submission_id}")
 async def patch_submission(
-    event_id: int, submission_id: int, body: SubmissionPatch,
+    event_id: int,
+    submission_id: int,
+    body: SubmissionPatch,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
     current_user: dict = Depends(get_current_user),
@@ -160,9 +219,14 @@ async def patch_submission(
     if body.status not in _VALID_STATUSES:
         raise HTTPException(400, f"Invalid status. Must be one of: {_VALID_STATUSES}")
 
-    sub = (await session.execute(
-        select(FrenzySubmission).where(FrenzySubmission.id == submission_id, FrenzySubmission.event_id == event_id)
-    )).scalar_one_or_none()
+    sub = (
+        await session.execute(
+            select(FrenzySubmission).where(
+                FrenzySubmission.id == submission_id,
+                FrenzySubmission.event_id == event_id,
+            )
+        )
+    ).scalar_one_or_none()
     if sub is None:
         raise HTTPException(404, "Submission not found.")
 
@@ -173,7 +237,11 @@ async def patch_submission(
     sub.reviewed_at = datetime.now(timezone.utc)
 
     if body.status != prev_status and body.status in ("approved", "rejected"):
-        team = (await session.execute(select(FrenzyTeam).where(FrenzyTeam.id == sub.team_id))).scalar_one()
+        team = (
+            await session.execute(
+                select(FrenzyTeam).where(FrenzyTeam.id == sub.team_id)
+            )
+        ).scalar_one()
         await _recompute_team_progress(session, team)
 
     await session.commit()
@@ -182,12 +250,19 @@ async def patch_submission(
 
 @router.delete("/events/{event_id}/submissions/{submission_id}")
 async def delete_submission(
-    event_id: int, submission_id: int,
-    session: AsyncSession = Depends(get_session), _perm: None = _PERM,
+    event_id: int,
+    submission_id: int,
+    session: AsyncSession = Depends(get_session),
+    _perm: None = _PERM,
 ) -> dict:
-    sub = (await session.execute(
-        select(FrenzySubmission).where(FrenzySubmission.id == submission_id, FrenzySubmission.event_id == event_id)
-    )).scalar_one_or_none()
+    sub = (
+        await session.execute(
+            select(FrenzySubmission).where(
+                FrenzySubmission.id == submission_id,
+                FrenzySubmission.event_id == event_id,
+            )
+        )
+    ).scalar_one_or_none()
     if sub is None:
         raise HTTPException(404, "Submission not found.")
 
@@ -197,7 +272,9 @@ async def delete_submission(
     await session.flush()
 
     if was_approved:
-        team = (await session.execute(select(FrenzyTeam).where(FrenzyTeam.id == team_id))).scalar_one()
+        team = (
+            await session.execute(select(FrenzyTeam).where(FrenzyTeam.id == team_id))
+        ).scalar_one()
         await _recompute_team_progress(session, team)
 
     await session.commit()

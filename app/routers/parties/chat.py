@@ -53,7 +53,12 @@ async def send_chat(
     is_first_message = prior_count == 0
 
     msg = await add_chat_message(
-        session, party_id, user_id=uid, username=username, rsn=None, text=body.text.strip()
+        session,
+        party_id,
+        user_id=uid,
+        username=username,
+        rsn=None,
+        text=body.text.strip(),
     )
 
     if is_first_message:

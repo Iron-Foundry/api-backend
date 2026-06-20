@@ -21,12 +21,16 @@ async def referral_stats(
     await require_rank("staff.home", "read", current_user, session)
 
     source_rows = await session.execute(
-        select(User.referral_source, func.count().label("count")).group_by(User.referral_source)
+        select(User.referral_source, func.count().label("count")).group_by(
+            User.referral_source
+        )
     )
     sources = [
         {
             "source": row.referral_source,
-            "label": _SOURCE_LABELS.get(row.referral_source, row.referral_source or "Unanswered"),
+            "label": _SOURCE_LABELS.get(
+                row.referral_source, row.referral_source or "Unanswered"
+            ),
             "count": row.count,
         }
         for row in source_rows
@@ -38,7 +42,10 @@ async def referral_stats(
         .group_by(User.referral_detail)
         .order_by(func.count().desc())
     )
-    recruiters = [{"name": row.referral_detail or "Unknown", "count": row.count} for row in recruiter_rows]
+    recruiters = [
+        {"name": row.referral_detail or "Unknown", "count": row.count}
+        for row in recruiter_rows
+    ]
 
     return {"sources": sources, "recruiters": recruiters}
 
@@ -85,11 +92,17 @@ async def staff_overview(
     """High-level clan stats. Requires Mentor or higher."""
     await require_rank("staff.home", "read", current_user, session)
 
-    total_members = (await session.execute(select(func.count()).select_from(User))).scalar_one()
-    open_tickets = (
-        await session.execute(select(func.count()).select_from(Ticket).where(Ticket.status == "open"))
+    total_members = (
+        await session.execute(select(func.count()).select_from(User))
     ).scalar_one()
-    total_tickets = (await session.execute(select(func.count()).select_from(Ticket))).scalar_one()
+    open_tickets = (
+        await session.execute(
+            select(func.count()).select_from(Ticket).where(Ticket.status == "open")
+        )
+    ).scalar_one()
+    total_tickets = (
+        await session.execute(select(func.count()).select_from(Ticket))
+    ).scalar_one()
 
     return {
         "total_members": total_members,

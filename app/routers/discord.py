@@ -137,7 +137,8 @@ async def search_discord_members(
                 "username": m["user"].get("global_name") or m["user"]["username"],
                 "avatar": m["user"].get("avatar"),
             }
-            for m in members if "user" in m
+            for m in members
+            if "user" in m
         ]
     except Exception as exc:
         logger.warning("discord members search error: {}", exc)

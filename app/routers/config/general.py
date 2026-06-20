@@ -7,7 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Config
 from app.dependencies import get_current_user, get_session
-from app.services.page_permissions import _DEFAULT_BYPASS_LABELS, get_admin_bypass_roles, require_page_permission
+from app.services.page_permissions import (
+    _DEFAULT_BYPASS_LABELS,
+    get_admin_bypass_roles,
+    require_page_permission,
+)
 from app.services.rank_mappings import get_effective_roles
 
 from ._helpers import (
@@ -74,7 +78,9 @@ async def set_rank_mappings(
     body: RankMappingsBody, session: AsyncSession = Depends(get_session)
 ) -> dict:
     mappings = [
-        m.model_dump() for m in body.mappings if m.clan_rank.strip() and m.discord_role_id.strip()
+        m.model_dump()
+        for m in body.mappings
+        if m.clan_rank.strip() and m.discord_role_id.strip()
     ]
     await set_config_value(_RANK_MAPPINGS_KEY, {"mappings": mappings}, session)
     return {"mappings": mappings}
@@ -122,7 +128,9 @@ async def set_admin_bypass_roles(
     bypass_roles = await get_admin_bypass_roles(session)
     if not any(r in bypass_roles for r in caller_roles):
         cfg_result = await session.execute(
-            select(Config.value).where(Config.guild_id == 0, Config.key == "clan_rank_mappings")
+            select(Config.value).where(
+                Config.guild_id == 0, Config.key == "clan_rank_mappings"
+            )
         )
         cfg = cfg_result.scalar_one_or_none() or {}
         role_labels = {
@@ -153,6 +161,10 @@ async def get_notification_categories(
 async def set_notification_categories(
     body: NotificationCategoriesBody, session: AsyncSession = Depends(get_session)
 ) -> dict:
-    categories = [c.model_dump() for c in body.categories if c.id.strip() and c.label.strip()]
-    await set_config_value(_NOTIFICATION_CATEGORIES_KEY, {"categories": categories}, session)
+    categories = [
+        c.model_dump() for c in body.categories if c.id.strip() and c.label.strip()
+    ]
+    await set_config_value(
+        _NOTIFICATION_CATEGORIES_KEY, {"categories": categories}, session
+    )
     return {"categories": categories}

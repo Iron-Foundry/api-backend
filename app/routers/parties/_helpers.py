@@ -17,7 +17,12 @@ from app.services.page_permissions import get_admin_bypass_roles
 from app.services.rank_mappings import get_effective_roles
 
 _NOTIFY_CHANNEL = "foundry:party_notify"
-_SITE_URL = os.getenv("FRONTEND_URL", "https://ironfoundry.cc").split(",")[0].strip().rstrip("/")
+_SITE_URL = (
+    os.getenv("FRONTEND_URL", "https://ironfoundry.cc")
+    .split(",")[0]
+    .strip()
+    .rstrip("/")
+)
 _VIBE_COLOR = {"learning": 0x5865F2, "chill": 0x57F287, "sweat": 0xED4245}
 _VIBE_LABEL = {"learning": "Learning", "chill": "Chill", "sweat": "Sweat"}
 
@@ -88,7 +93,9 @@ async def is_staff(uid: int, session: AsyncSession) -> bool:
     return bool(bypass and any(r in bypass for r in roles))
 
 
-async def get_rsn(uid: int, session: AsyncSession, rsn_override: str | None = None) -> str | None:
+async def get_rsn(
+    uid: int, session: AsyncSession, rsn_override: str | None = None
+) -> str | None:
     if rsn_override:
         result = await session.execute(
             select(UserAccount.rsn).where(
@@ -108,7 +115,9 @@ def resolve_scheduled_at(dt: datetime) -> datetime:
     if dt > now:
         return dt
     today = now.date()
-    candidate = datetime(today.year, today.month, today.day, dt.hour, dt.minute, tzinfo=timezone.utc)
+    candidate = datetime(
+        today.year, today.month, today.day, dt.hour, dt.minute, tzinfo=timezone.utc
+    )
     if candidate > now:
         return candidate
     return now + timedelta(hours=1)
@@ -117,10 +126,14 @@ def resolve_scheduled_at(dt: datetime) -> datetime:
 async def notify(valkey: Valkey, user_ids: list[str], message: str) -> None:
     if not user_ids or not message:
         return
-    await valkey.publish(_NOTIFY_CHANNEL, json.dumps({"user_ids": user_ids, "message": message}))
+    await valkey.publish(
+        _NOTIFY_CHANNEL, json.dumps({"user_ids": user_ids, "message": message})
+    )
 
 
-async def dispatch_party_notifications(session: AsyncSession, valkey: Valkey, party: PartyDB) -> None:
+async def dispatch_party_notifications(
+    session: AsyncSession, valkey: Valkey, party: PartyDB
+) -> None:
     """DM opted-in users when a party is created, excluding the leader."""
     if not party.notification_category_ids:
         return
@@ -141,8 +154,16 @@ async def dispatch_party_notifications(session: AsyncSession, valkey: Valkey, pa
     leader_name = party.leader_rsn or party.leader_username
     fields = [
         {"name": "Leader", "value": leader_name, "inline": True},
-        {"name": "Vibe", "value": _VIBE_LABEL.get(party.vibe, party.vibe.capitalize()), "inline": True},
-        {"name": "Size", "value": f"{len(party.members)}/{party.max_size}", "inline": True},
+        {
+            "name": "Vibe",
+            "value": _VIBE_LABEL.get(party.vibe, party.vibe.capitalize()),
+            "inline": True,
+        },
+        {
+            "name": "Size",
+            "value": f"{len(party.members)}/{party.max_size}",
+            "inline": True,
+        },
     ]
     if party.scheduled_at:
         ts = int(party.scheduled_at.timestamp())
@@ -160,4 +181,6 @@ async def dispatch_party_notifications(session: AsyncSession, valkey: Valkey, pa
     if party.description:
         embed["description"] = party.description
 
-    await valkey.publish(_NOTIFY_CHANNEL, json.dumps({"user_ids": user_ids, "embed": embed}))
+    await valkey.publish(
+        _NOTIFY_CHANNEL, json.dumps({"user_ids": user_ids, "embed": embed})
+    )
