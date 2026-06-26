@@ -10,7 +10,8 @@ from app.db.models import FrenzyEvent, FrenzyTemplate, FrenzyTemplateVersion, Us
 from app.dependencies import get_current_user, get_session
 from app.services.page_permissions import require_page_permission
 
-from .schemas import TemplateBody
+from ._scoring import _recalculate_tier_points
+from .schemas import CalculatePointsBody, TemplateBody
 
 router = APIRouter()
 
@@ -59,6 +60,7 @@ async def create_template(
         activities=body.activities,
         milestones=body.milestones,
         multipliers=body.multipliers,
+        total_point_cap=body.total_point_cap,
         version_number=1,
         created_by=uid,
         created_at=now,
@@ -101,6 +103,7 @@ async def get_template(
         "activities": tmpl.activities,
         "milestones": tmpl.milestones,
         "multipliers": tmpl.multipliers,
+        "total_point_cap": tmpl.total_point_cap,
         "version_number": tmpl.version_number,
         "created_at": tmpl.created_at.isoformat(),
         "updated_at": tmpl.updated_at.isoformat(),
@@ -152,6 +155,7 @@ async def update_template(
     tmpl.activities = body.activities
     tmpl.milestones = body.milestones
     tmpl.multipliers = body.multipliers
+    tmpl.total_point_cap = body.total_point_cap
     tmpl.version_number = next_ver
     tmpl.updated_at = now
 
@@ -325,3 +329,11 @@ async def revert_template_to_version(
         "version_number": tmpl.version_number,
         "updated_at": now.isoformat(),
     }
+
+
+@router.post("/calculate-points")
+async def calculate_points(
+    body: CalculatePointsBody,
+    _perm: None = _PERM,
+) -> dict:
+    return {"tiers": _recalculate_tier_points(body.tiers, body.total_point_cap)}

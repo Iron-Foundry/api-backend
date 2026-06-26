@@ -9,23 +9,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import FrenzySubmission, FrenzyTeam, FrenzyTemplate
 
 
-def _calc_item_points(item: dict, obtained: int) -> float:
-    pts = 0.0
-    base_pts: float = item.get("points", 0)
-    dup_pts: float = base_pts / 2
+def _calc_item_points(item: dict, obtained: int) -> int:
+    pts = 0
+    base_pts: int = round(item.get("points", 0))
+    dup_pts: int = round(base_pts / 2)
     required: int = item.get("required", 1)
     dup_required: int = item.get("duplicate_required", 1)
 
     if obtained >= required:
         pts += base_pts
     elif required == 2 and obtained == 1:
-        pts += base_pts / 2
+        pts += round(base_pts / 2)
 
     beyond = obtained - required
     if beyond >= dup_required:
         pts += dup_pts
     elif dup_required == 2 and beyond == 1:
-        pts += dup_pts / 2
+        pts += round(dup_pts / 2)
 
     return pts
 
@@ -33,7 +33,7 @@ def _calc_item_points(item: dict, obtained: int) -> float:
 _calc_item_pts = _calc_item_points
 
 
-def _calc_tier_entry_points(entry: dict, current_value: float) -> float:
+def _calc_tier_entry_points(entry: dict, current_value: float) -> int:
     tiers_done = sum(
         1
         for t in ["tier1", "tier2", "tier3", "tier4"]
@@ -41,8 +41,8 @@ def _calc_tier_entry_points(entry: dict, current_value: float) -> float:
     )
     base = entry.get("point_step", 0) * tiers_done
     if current_value >= entry.get("tier4", 0) and tiers_done == 4:
-        return base * entry.get("multiplier", 1)
-    return float(base)
+        return round(base * entry.get("multiplier", 1))
+    return base
 
 
 def _is_multiplier_unlocked(mult: dict, item_progress: dict) -> bool:
@@ -196,3 +196,24 @@ async def _recompute_team_progress(session: AsyncSession, team: FrenzyTeam) -> N
         n: sum(v.values()) for n, v in milestone_by_player.items()
     }
     team.updated_at = datetime.now(timezone.utc)
+
+
+def _recalculate_tier_points(tiers: dict, total_point_cap: int) -> dict:
+    import copy
+
+    result = copy.deepcopy(tiers)
+    for tier_data in result.values():
+        budget_pct = tier_data.get("budget_pct", 0)
+        tier_budget = round((budget_pct / 100) * total_point_cap)
+        eligible: list[tuple[dict, float]] = []
+        for source in tier_data.get("sources", []):
+            for item in source.get("items", []):
+                d = item.get("drop_denom")
+                k = item.get("kph")
+                if d and k and not item.get("points_locked", False):
+                    eligible.append((item, d / k))
+        tier_hd_sum = sum(hd for _, hd in eligible)
+        if tier_hd_sum > 0:
+            for item, hd in eligible:
+                item["points"] = round((hd / tier_hd_sum) * tier_budget)
+    return result

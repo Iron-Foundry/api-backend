@@ -42,8 +42,8 @@ _DEFAULT_CONFIG: dict[str, Any] = {
     "skills": [
         "attack",
         "strength",
-        "defense",
-        "range",
+        "defence",
+        "ranged",
         "magic",
         "prayer",
         "hitpoints",

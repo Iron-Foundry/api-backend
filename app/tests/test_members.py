@@ -87,6 +87,46 @@ async def test_rankings_requires_auth(anon_client: AsyncClient) -> None:
     assert resp.status_code == 401
 
 
+async def test_snapshot_requires_auth(anon_client: AsyncClient) -> None:
+    resp = await anon_client.get("/members/me/snapshot")
+    assert resp.status_code == 401
+
+
+async def test_snapshot(auth_client: AsyncClient) -> None:
+    resp = await auth_client.get("/members/me/snapshot")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "skills" in data
+    assert "bosses" in data
+    assert "activities" in data
+    assert "fetched_at" in data
+
+
+async def test_goals_public_invalid_token(anon_client: AsyncClient) -> None:
+    resp = await anon_client.get("/members/goals/not-a-uuid")
+    assert resp.status_code == 422
+
+
+async def test_goals_public_unknown_token(anon_client: AsyncClient) -> None:
+    resp = await anon_client.get("/members/goals/00000000-0000-0000-0000-000000000000")
+    assert resp.status_code == 404
+
+
+async def test_goals_me_requires_auth(anon_client: AsyncClient) -> None:
+    resp = await anon_client.get("/members/me/goals/SomePlayer")
+    assert resp.status_code == 401
+
+
+async def test_goals_save_requires_auth(anon_client: AsyncClient) -> None:
+    resp = await anon_client.put("/members/me/goals/SomePlayer", json={"goals": []})
+    assert resp.status_code == 401
+
+
+async def test_goals_save_unlinked_rsn(auth_client: AsyncClient) -> None:
+    resp = await auth_client.put("/members/me/goals/NotMyRsn", json={"goals": []})
+    assert resp.status_code == 403
+
+
 async def test_feed_requires_auth(anon_client: AsyncClient) -> None:
     resp = await anon_client.get("/members/me/feed")
     assert resp.status_code == 401

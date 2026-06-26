@@ -162,9 +162,13 @@ class RankingService:
                 n: int(info.get("kills", 0) if isinstance(info, dict) else info)
                 for n, info in data.get("bosses", {}).items()
             }
+            activities = {
+                n: int(info.get("score", 0) if isinstance(info, dict) else info)
+                for n, info in data.get("activities", {}).items()
+            }
             cleaned.append({"rsn": rsn, "skills": skills, "bosses": bosses})
             snapshot_rows.append(
-                {"rsn": rsn, "skills": skills, "bosses": bosses, "fetched_at": now}
+                {"rsn": rsn, "skills": skills, "bosses": bosses, "activities": activities, "fetched_at": now}
             )
 
         ranked = rank_from_snapshots(cleaned, config)
@@ -185,6 +189,7 @@ class RankingService:
                         set_={
                             "skills": snap_stmt.excluded.skills,
                             "bosses": snap_stmt.excluded.bosses,
+                            "activities": snap_stmt.excluded.activities,
                             "fetched_at": snap_stmt.excluded.fetched_at,
                         },
                     )

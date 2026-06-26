@@ -12,6 +12,12 @@ class TemplateBody(BaseModel):
     activities: list = []
     milestones: dict = {}
     multipliers: list = []
+    total_point_cap: int = 0
+
+
+class CalculatePointsBody(BaseModel):
+    tiers: dict
+    total_point_cap: int
 
 
 class EventBody(BaseModel):

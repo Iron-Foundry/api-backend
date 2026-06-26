@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import (
     FrenzySubmission,
     Leaderboard,
+    MemberGoals,
     PartyChatMessageDB,
     PartyDB,
     PartyMemberDB,
@@ -64,8 +65,8 @@ async def _cascade_rsn_single(
 
     await session.execute(
         text(
-            "INSERT INTO player_snapshots (rsn, skills, bosses, fetched_at)"
-            " SELECT :new_rsn, skills, bosses, fetched_at"
+            "INSERT INTO player_snapshots (rsn, skills, bosses, activities, fetched_at)"
+            " SELECT :new_rsn, skills, bosses, activities, fetched_at"
             " FROM player_snapshots WHERE lower(rsn) = lower(:old_rsn)"
             " ON CONFLICT (rsn) DO NOTHING"
         ),
@@ -73,6 +74,19 @@ async def _cascade_rsn_single(
     )
     await session.execute(
         delete(PlayerSnapshot).where(func.lower(PlayerSnapshot.rsn) == old_rsn.lower())
+    )
+
+    await session.execute(
+        text(
+            "INSERT INTO member_goals (discord_user_id, rsn, goals, share_token, updated_at)"
+            " SELECT discord_user_id, :new_rsn, goals, share_token, updated_at"
+            " FROM member_goals WHERE lower(rsn) = lower(:old_rsn)"
+            " ON CONFLICT (discord_user_id, rsn) DO NOTHING"
+        ),
+        {"old_rsn": old_rsn, "new_rsn": new_rsn},
+    )
+    await session.execute(
+        delete(MemberGoals).where(func.lower(MemberGoals.rsn) == old_rsn.lower())
     )
 
     await session.execute(

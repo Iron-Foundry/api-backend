@@ -9,6 +9,7 @@ from .competition_schedule import CompetitionSchedule, ScheduledCompetitionRun
 from .badges import Badge, UserBadge
 from .base import Base
 from .clan import ClanStats
+from .goals import MemberGoals
 from .config import Config
 from .content import (
     ContentCategory,
@@ -64,6 +65,7 @@ __all__ = [
     "FrenzyTemplate",
     "FrenzyTemplateVersion",
     "Leaderboard",
+    "MemberGoals",
     "MembershipEvent",
     "Metric",
     "MetricRecord",

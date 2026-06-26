@@ -30,6 +30,9 @@ class FrenzyTemplate(Base):
     multipliers: Mapped[list] = mapped_column(
         JSONB, nullable=False, server_default="[]"
     )
+    total_point_cap: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="0"
+    )
     version_number: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default="1"
     )

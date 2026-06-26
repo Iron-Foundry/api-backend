@@ -37,6 +37,7 @@ class PlayerSnapshot(Base):
     rsn: Mapped[str] = mapped_column(Text, nullable=False)
     skills: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     bosses: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    activities: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     fetched_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False
     )
