@@ -75,7 +75,7 @@ async def upload_attachment(
     }
 
 
-@router.get("")
+@router.get("/")
 async def list_feedback(
     type: str | None = None,
     session: AsyncSession = Depends(get_session),
@@ -92,7 +92,7 @@ async def list_feedback(
     return [await build_item(item, session, current_user_id) for item in items]
 
 
-@router.post("", status_code=201)
+@router.post("/", status_code=201)
 async def submit_feedback(
     body: SubmitFeedbackBody,
     session: AsyncSession = Depends(get_session),

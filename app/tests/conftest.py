@@ -173,6 +173,23 @@ async def auth_client(
 
 
 @pytest.fixture
+async def no_redirect_auth_client(
+    mock_session: MagicMock, mock_valkey: AsyncMock
+) -> AsyncGenerator:
+    overrides = _base_overrides(mock_session, mock_valkey)
+    overrides[get_current_user] = lambda: TEST_USER
+    overrides[get_optional_user] = lambda: TEST_USER
+    _app.dependency_overrides = overrides
+    async with AsyncClient(
+        transport=ASGITransport(app=_app),
+        base_url="http://test",
+        follow_redirects=False,
+    ) as ac:
+        yield ac
+    _app.dependency_overrides.clear()
+
+
+@pytest.fixture
 async def staff_client(
     mock_session: MagicMock, mock_valkey: AsyncMock
 ) -> AsyncGenerator:

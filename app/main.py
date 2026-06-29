@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from valkey.asyncio import Valkey
 
 from app.db import create_engine, create_session_factory
@@ -179,6 +180,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="The Foundry API", lifespan=lifespan)
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 _collector = EndpointMetricsCollector()
 app.state.endpoint_metrics_collector = _collector

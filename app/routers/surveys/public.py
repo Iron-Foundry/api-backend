@@ -26,7 +26,7 @@ class SubmitResponseBody(BaseModel):
     answers: dict
 
 
-@router.get("")
+@router.get("/")
 async def list_surveys(
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),

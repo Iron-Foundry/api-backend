@@ -15,7 +15,7 @@ from ._helpers import BadgeBody, require_mentor, require_senior_mod, serialize_b
 router = APIRouter()
 
 
-@router.get("")
+@router.get("/")
 async def list_badges(
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
@@ -28,7 +28,7 @@ async def list_badges(
     return [serialize_badge(b) for b in result.scalars()]
 
 
-@router.post("")
+@router.post("/")
 async def create_badge(
     body: BadgeBody,
     current_user: dict = Depends(get_current_user),
