@@ -26,8 +26,9 @@ async def get_goals_by_token(
 ) -> dict:
     """Return stored goals for a share token (public)."""
     result = await session.execute(
-        select(MemberGoals.rsn, MemberGoals.goals, MemberGoals.updated_at)
-        .where(MemberGoals.share_token == token)
+        select(MemberGoals.rsn, MemberGoals.goals, MemberGoals.updated_at).where(
+            MemberGoals.share_token == token
+        )
     )
     row = result.one_or_none()
     if not row:
@@ -48,8 +49,9 @@ async def get_my_goals(
     """Return the authenticated user's goals and share token for a linked RSN."""
     discord_user_id = int(current_user["sub"])
     result = await session.execute(
-        select(MemberGoals.goals, MemberGoals.share_token, MemberGoals.updated_at)
-        .where(
+        select(
+            MemberGoals.goals, MemberGoals.share_token, MemberGoals.updated_at
+        ).where(
             MemberGoals.discord_user_id == discord_user_id,
             func.lower(MemberGoals.rsn) == rsn.lower(),
         )

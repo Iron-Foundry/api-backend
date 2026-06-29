@@ -8,7 +8,7 @@ from .assets import Asset
 from .competition_schedule import CompetitionSchedule, ScheduledCompetitionRun
 from .badges import Badge, UserBadge
 from .base import Base
-from .clan import ClanStats
+from .clan import ClanStats, WomClanRank
 from .goals import MemberGoals
 from .config import Config
 from .content import (
@@ -47,6 +47,7 @@ __all__ = [
     "Badge",
     "Base",
     "ClanStats",
+    "WomClanRank",
     "CofferEvent",
     "CompetitionSnapshot",
     "Config",

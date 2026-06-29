@@ -168,7 +168,13 @@ class RankingService:
             }
             cleaned.append({"rsn": rsn, "skills": skills, "bosses": bosses})
             snapshot_rows.append(
-                {"rsn": rsn, "skills": skills, "bosses": bosses, "activities": activities, "fetched_at": now}
+                {
+                    "rsn": rsn,
+                    "skills": skills,
+                    "bosses": bosses,
+                    "activities": activities,
+                    "fetched_at": now,
+                }
             )
 
         ranked = rank_from_snapshots(cleaned, config)

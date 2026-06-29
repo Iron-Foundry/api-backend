@@ -18,9 +18,16 @@ depends_on = None
 def upgrade() -> None:
     op.add_column(
         "member_goals",
-        sa.Column("share_token", UUID(), nullable=False, server_default=sa.text("gen_random_uuid()")),
+        sa.Column(
+            "share_token",
+            UUID(),
+            nullable=False,
+            server_default=sa.text("gen_random_uuid()"),
+        ),
     )
-    op.create_unique_constraint("uq_member_goals_share_token", "member_goals", ["share_token"])
+    op.create_unique_constraint(
+        "uq_member_goals_share_token", "member_goals", ["share_token"]
+    )
 
 
 def downgrade() -> None:

@@ -27,7 +27,9 @@ async def get_me_snapshot(
             )
         )
         if not owned.scalar_one_or_none():
-            raise HTTPException(status_code=403, detail="RSN not linked to your account")
+            raise HTTPException(
+                status_code=403, detail="RSN not linked to your account"
+            )
     else:
         rsn_result = await session.execute(
             select(UserAccount.rsn).where(
@@ -38,7 +40,13 @@ async def get_me_snapshot(
         rsn = rsn_result.scalar_one_or_none()
 
     if not rsn:
-        return {"rsn": None, "skills": {}, "bosses": {}, "activities": {}, "fetched_at": None}
+        return {
+            "rsn": None,
+            "skills": {},
+            "bosses": {},
+            "activities": {},
+            "fetched_at": None,
+        }
 
     snap_result = await session.execute(
         select(
@@ -50,7 +58,13 @@ async def get_me_snapshot(
     )
     row = snap_result.one_or_none()
     if not row:
-        return {"rsn": rsn, "skills": {}, "bosses": {}, "activities": {}, "fetched_at": None}
+        return {
+            "rsn": rsn,
+            "skills": {},
+            "bosses": {},
+            "activities": {},
+            "fetched_at": None,
+        }
 
     return {
         "rsn": rsn,

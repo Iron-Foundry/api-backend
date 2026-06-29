@@ -203,6 +203,19 @@ async def _sync_wom_ranks(
                 {"rsns": rsns, "roles": roles},
             ),
         )
+        await session.execute(
+            text("""
+                INSERT INTO wom_clan_ranks (rsn, clan_rank, updated_at)
+                SELECT wd.rsn, wd.role, now()
+                  FROM (SELECT unnest(:rsns) AS rsn,
+                               unnest(:roles) AS role) AS wd
+                ON CONFLICT (rsn) DO UPDATE
+                       SET clan_rank  = EXCLUDED.clan_rank,
+                           updated_at = EXCLUDED.updated_at
+                     WHERE wom_clan_ranks.clan_rank IS DISTINCT FROM EXCLUDED.clan_rank
+            """).bindparams(*_params),
+            {"rsns": rsns, "roles": roles},
+        )
         await session.commit()
 
     logger.info(

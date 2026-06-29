@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Config, User, UserAccount
+from app.db.models import Config, User, UserAccount, WomClanRank
 
 from ._constants import (
     _COMP_METRIC_FINISHED_FRESH_TTL,
@@ -106,6 +106,16 @@ async def _enrich_with_ranks(
             rank_map[rsn] = (clan_rank, _highest_discord_rank(discord_roles or []))
         if rsn not in uid_map:
             uid_map[rsn] = discord_user_id
+
+    wom_missing = [name for name in entries_by_name if name not in rank_map]
+    if wom_missing:
+        wom_rows = await session.execute(
+            select(WomClanRank.rsn, WomClanRank.clan_rank).where(
+                WomClanRank.rsn.in_(wom_missing)
+            )
+        )
+        for rsn, clan_rank in wom_rows:
+            rank_map[rsn] = (clan_rank, None)
 
     for name, entry_list in entries_by_name.items():
         clan_rank, discord_rank = rank_map.get(name, (None, None))
