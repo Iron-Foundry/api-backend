@@ -37,7 +37,7 @@ from ._helpers import (
 router = APIRouter()
 
 
-@router.get("/")
+@router.get("")
 async def get_parties(
     current_user: dict | None = Depends(get_optional_user),
     session: AsyncSession = Depends(get_session),
