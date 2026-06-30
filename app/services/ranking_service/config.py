@@ -130,6 +130,7 @@ _DEFAULT_CONFIG: dict[str, Any] = {
         "nex",
         "yama",
         "nightmare",
+        "maggot_king",
         "the_leviathan",
         "the_whisperer",
         "vardorvis",

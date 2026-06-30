@@ -56,6 +56,7 @@ _KC_METRICS: dict[str, str] = {
     "kree_arra": "Kree'arra",
     "kril_tsutsaroth": "K'ril Tsutsaroth",
     "lunar_chests": "Lunar Chests",
+    "maggot_king": "Maggot King",
     "mimic": "Mimic",
     "nex": "Nex",
     "nightmare": "Nightmare",
