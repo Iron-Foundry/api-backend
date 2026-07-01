@@ -18,11 +18,9 @@ router = APIRouter()
 )
 async def get_ranking_config(session: AsyncSession = Depends(get_session)) -> dict:
     data = await get_config_value(_RANKING_CONFIG_KEY, session)
-    if not data:
-        return _DEFAULT_CONFIG
-    merged = dict(_DEFAULT_CONFIG)
-    merged.update(data)
-    return merged
+    if not data or data.get("version") != 2:
+        return _DEFAULT_CONFIG.to_dict()
+    return data
 
 
 @router.put(

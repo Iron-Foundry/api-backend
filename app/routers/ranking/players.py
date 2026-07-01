@@ -6,10 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import PlayerRanking, User, UserAccount
+from app.db.models import PlayerRanking, PlayerSnapshot, User, UserAccount
 from app.dependencies import get_session
+from app.services.ranking_service.scoring import rank_player_breakdown
 
-from ._helpers import PlayerPublicSchema, get_all_deduplicated
+from ._helpers import PlayerPublicSchema, get_all_deduplicated, load_ranking_config
 
 router = APIRouter()
 
@@ -120,3 +121,19 @@ async def get_ranking_results(
     ]
 
     return {"players": players, "total": total}
+
+
+@router.get("/player/{rsn}/breakdown")
+async def get_player_breakdown(
+    rsn: str, session: AsyncSession = Depends(get_session)
+) -> dict:
+    """Per-metric score breakdown from cached snapshot using current config. Public."""
+    snap_result = await session.execute(
+        select(PlayerSnapshot).where(PlayerSnapshot.rsn.ilike(rsn))
+    )
+    snap = snap_result.scalar_one_or_none()
+    if snap is None:
+        raise HTTPException(404, "Player snapshot not found")
+    config = await load_ranking_config(session)
+    snapshot = {"rsn": snap.rsn, "skills": snap.skills, "bosses": snap.bosses}
+    return rank_player_breakdown(snapshot, config)

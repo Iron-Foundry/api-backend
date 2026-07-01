@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import PlayerRanking
 from app.dependencies import get_session
 from app.services.page_permissions import require_page_permission
-from app.services.ranking_service import _DEFAULT_CONFIG
 
 from ._helpers import RANK_ORDER, compute_breakdown
 
@@ -48,10 +47,7 @@ async def preview_ranking(
             503, "Ranking service not running (WOM_GROUP_ID not configured)"
         )
 
-    config = dict(_DEFAULT_CONFIG)
-    config.update(body)
-
-    preview_ranked = await svc.rank_from_config(config)
+    preview_ranked = await svc.rank_from_config(body)
 
     current_result = await session.execute(
         select(PlayerRanking.rsn, PlayerRanking.rank, PlayerRanking.points)

@@ -2,11 +2,18 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from loguru import logger
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import PlayerRanking
+from app.db.models import Config, PlayerRanking
+from app.services.ranking_service.config import (
+    _DEFAULT_CONFIG,
+    _GLOBAL_GUILD_ID,
+    _RANKING_CONFIG_KEY,
+)
+from app.services.ranking_service.scoring import RankingConfig
 
 
 class PlayerPublicSchema(BaseModel):
@@ -20,15 +27,7 @@ class PlayerPublicSchema(BaseModel):
     stats_opt_out: bool
 
 
-RANK_ORDER = {
-    "No Rank": 0,
-    "Rank 1": 1,
-    "Rank 2": 2,
-    "Rank 3": 3,
-    "Rank 4": 4,
-    "Rank 5": 5,
-    "Rank 6": 6,
-}
+RANK_ORDER: dict[str, int] = {"No Rank": 0, **{f"Rank {i}": i for i in range(1, 11)}}
 
 INGAME_TO_DISPLAY: dict[str, str] = {
     "guest": "Guest",
@@ -57,6 +56,23 @@ async def get_all_deduplicated(session: AsyncSession) -> list[PlayerRanking]:
     result = list(best_per_user.values()) + unlinked
     result.sort(key=lambda r: (-RANK_ORDER.get(r.rank, 0), -r.points))
     return result
+
+
+async def load_ranking_config(session: AsyncSession) -> RankingConfig:
+    result = await session.execute(
+        select(Config.value).where(
+            Config.guild_id == _GLOBAL_GUILD_ID,
+            Config.key == _RANKING_CONFIG_KEY,
+        )
+    )
+    stored = result.scalar_one_or_none()
+    if not stored or stored.get("version") != 2:
+        return _DEFAULT_CONFIG
+    try:
+        return RankingConfig.from_dict(stored)
+    except (KeyError, ValueError, TypeError) as exc:
+        logger.warning("load_ranking_config parse error: {} - using defaults", exc)
+        return _DEFAULT_CONFIG
 
 
 def compute_breakdown(players: list[dict]) -> dict:

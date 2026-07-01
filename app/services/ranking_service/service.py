@@ -20,7 +20,7 @@ from .config import (
     _RANKING_CONFIG_KEY,
     _WOM_DISCORD_CONTACT,
 )
-from .scoring import rank_from_snapshots
+from .scoring import RankingConfig, rank_from_snapshots
 
 
 class RankingService:
@@ -90,7 +90,7 @@ class RankingService:
             except TimeoutError:
                 pass
 
-    async def _get_config(self) -> dict:
+    async def _get_config(self) -> RankingConfig:
         if self._session_factory is None:
             return _DEFAULT_CONFIG
         async with self._session_factory() as session:
@@ -101,11 +101,14 @@ class RankingService:
                 )
             )
             stored = result.scalar_one_or_none()
-        if not stored:
+        if not stored or stored.get("version") != 2:
+            logger.warning("ranking_config missing or pre-v2 - using defaults")
             return _DEFAULT_CONFIG
-        merged = dict(_DEFAULT_CONFIG)
-        merged.update(stored)
-        return merged
+        try:
+            return RankingConfig.from_dict(stored)
+        except (KeyError, ValueError, TypeError) as exc:
+            logger.warning("ranking_config parse error: {} - using defaults", exc)
+            return _DEFAULT_CONFIG
 
     async def _refresh(self) -> None:
         if self._session_factory is None:
@@ -145,7 +148,7 @@ class RankingService:
         now = datetime.now(timezone.utc)
         cleaned: list[dict] = []
         snapshot_rows = []
-        skill_names = set(config["skills"])
+        skill_names = {m.name for m in config.skills}
 
         for username, details in snapshots_raw:
             rsn = username.lower()
@@ -236,9 +239,17 @@ class RankingService:
         logger.info("RankingService: ranked {} players", len(ranked))
 
     async def rank_from_config(self, config_override: dict) -> list[dict]:
-        """Re-rank using stored snapshots and a given config. No DB writes."""
+        """Re-rank using stored snapshots and a given config dict. No DB writes."""
         if self._session_factory is None:
             return []
+        if config_override.get("version") == 2:
+            try:
+                config = RankingConfig.from_dict(config_override)
+            except (KeyError, ValueError, TypeError) as exc:
+                logger.warning("rank_from_config parse error: {} - using defaults", exc)
+                config = _DEFAULT_CONFIG
+        else:
+            config = _DEFAULT_CONFIG
         async with self._session_factory() as session:
             result = await session.execute(
                 select(PlayerSnapshot.rsn, PlayerSnapshot.skills, PlayerSnapshot.bosses)
@@ -247,4 +258,4 @@ class RankingService:
                 {"rsn": row.rsn, "skills": row.skills, "bosses": row.bosses}
                 for row in result
             ]
-        return rank_from_snapshots(snapshots, config_override)
+        return rank_from_snapshots(snapshots, config)
