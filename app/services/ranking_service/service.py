@@ -123,26 +123,13 @@ class RankingService:
             discord_contact=_WOM_DISCORD_CONTACT,
             priority=WomPriority.LOW,
         ) as wom:
-            group_data = await wom.get_group(self._group_id)
-            memberships = group_data.get("memberships", [])
-            usernames = [m["player"]["username"] for m in memberships]
-
-            logger.info("RankingService: fetching {} player snapshots", len(usernames))
-            snapshots_raw: list[tuple[str, dict]] = []
-            for username in usernames:
-                try:
-                    details = await wom.get_player_details(username)
-                    if details:
-                        snapshots_raw.append((username, details))
-                except Exception as exc:
-                    logger.warning(
-                        "RankingService: failed to fetch {}: {}", username, exc
-                    )
+            logger.info(
+                "RankingService: fetching bulk hiscores for group {}", self._group_id
+            )
+            bulk = await wom.get_group_bulk_hiscores(self._group_id)
 
         logger.info(
-            "RankingService: fetched {}/{} snapshots",
-            len(snapshots_raw),
-            len(usernames),
+            "RankingService: received {} player entries from bulk hiscores", len(bulk)
         )
 
         now = datetime.now(timezone.utc)
@@ -150,12 +137,15 @@ class RankingService:
         snapshot_rows = []
         skill_names = {m.name for m in config.skills}
 
-        for username, details in snapshots_raw:
-            rsn = username.lower()
-            snapshot = details.get("latestSnapshot", {})
-            if not snapshot:
+        for entry in bulk:
+            player = entry.get("player", {})
+            rsn = player.get("username", "").lower()
+            if not rsn:
                 continue
-            data = snapshot.get("data", {})
+            snapshot_data = entry.get("data")
+            if not snapshot_data:
+                continue
+            data = snapshot_data.get("data", {})
             skills = {
                 n: float(info.get("experience", 0) if isinstance(info, dict) else info)
                 for n, info in data.get("skills", {}).items()

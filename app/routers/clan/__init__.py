@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from .bulk_gains import router as bulk_gains_router
 from .competition_management import router as comp_mgmt_router
 from .competition_schedule import router as comp_schedule_router
 from .competitions import router as competitions_router
@@ -13,6 +14,7 @@ router.include_router(stats_router)
 router.include_router(name_changes_router)
 router.include_router(leaderboards_router)
 router.include_router(personal_bests_router)
+router.include_router(bulk_gains_router)
 # specific competition paths must come before /{competition_id}
 router.include_router(competitions_router)
 router.include_router(comp_mgmt_router)

@@ -108,6 +108,44 @@ class WomGroupMixin(WomHandlerBase):
             return None
         return results or None
 
+    async def get_group_bulk_hiscores(self, group_id: str | int) -> list[dict]:
+        resp = await self._get_with_rate_limit(f"/groups/{group_id}/bulk-hiscores")
+        if not resp.is_success:
+            logger.warning(
+                "wom: GET /groups/{}/bulk-hiscores returned HTTP {}",
+                group_id,
+                resp.status_code,
+            )
+            return []
+        return resp.json()
+
+    async def get_group_bulk_gains(
+        self,
+        group_id: str | int,
+        *,
+        period: str | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> list[dict]:
+        params: dict = {}
+        if period:
+            params["period"] = period
+        if start_date:
+            params["startDate"] = start_date.isoformat()
+        if end_date:
+            params["endDate"] = end_date.isoformat()
+        resp = await self._get_with_rate_limit(
+            f"/groups/{group_id}/bulk-gained", params=params
+        )
+        if not resp.is_success:
+            logger.warning(
+                "wom: GET /groups/{}/bulk-gained returned HTTP {}",
+                group_id,
+                resp.status_code,
+            )
+            return []
+        return resp.json()
+
     async def get_all_group_competitions(
         self, group_id: str | int, *, max_finished: int = 30
     ) -> list[dict]:

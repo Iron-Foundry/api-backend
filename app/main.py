@@ -21,6 +21,7 @@ from app.routers import (
     events,
     feedback,
     frenzy,
+    ironclad,
     members,
     metrics,
     parties,
@@ -29,6 +30,7 @@ from app.routers import (
     staff,
     surveys,
     ticket_config,
+    tilerace,
 )
 from app.services.connection_manager import connection_manager
 from app.services.clan_stats import ClanStatsService
@@ -47,6 +49,7 @@ from app.services.http.wom_queue import init_wom_queue
 from app.services.wom_metrics import WomMetricsService
 from app.services.name_change import WomNameChangeService
 from app.services.ranking_service import RankingService
+from app.services.bulk_gains import BulkGainsService
 from app.routers.config import get_service_toggles, _ALL_SERVICE_KEYS
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
@@ -136,6 +139,11 @@ async def lifespan(app: FastAPI):
         comp_schedule_service = None
 
     app.state.ranking_service = ranking_service
+    app.state.bulk_gains_service = (
+        BulkGainsService(app.state.session_factory)
+        if app.state.session_factory
+        else None
+    )
     app.state.service_registry = {
         "discord_chat": discord_chat_svc,
         "party_expiry": party_expiry_svc,
@@ -227,6 +235,8 @@ app.include_router(feedback.router)
 app.include_router(badges.router)
 app.include_router(content.router)
 app.include_router(frenzy.router)
+app.include_router(ironclad.router)
+app.include_router(tilerace.router)
 app.include_router(ticket_config.router)
 
 

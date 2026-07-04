@@ -28,12 +28,19 @@ from .frenzy import (
     FrenzyTemplate,
     FrenzyTemplateVersion,
 )
+from .tilerace import (
+    TileRepositoryTile,
+    TileRaceEvent,
+    TileRaceTeam,
+    TileRaceSignup,
+)
 from .parties import (
     PartyChatMessageDB,
     PartyDB,
     PartyMemberDB,
     PartyNotificationPreferences,
 )
+from .gains import BulkGainsBatch, PlayerBulkGains
 from .ranking import CompetitionSnapshot, PlayerRanking, PlayerSnapshot
 from .service_metrics import MetricRecord, MetricRecordCompact, ServiceStatus
 from .surveys import SurveyActive, SurveyResponse, SurveyTemplate, WebSurveySubmission
@@ -42,6 +49,8 @@ from .users import User, UserAccount
 
 __all__ = [
     "Asset",
+    "BulkGainsBatch",
+    "PlayerBulkGains",
     "CompetitionSchedule",
     "ScheduledCompetitionRun",
     "Badge",
@@ -65,6 +74,10 @@ __all__ = [
     "FrenzyTeam",
     "FrenzyTemplate",
     "FrenzyTemplateVersion",
+    "TileRepositoryTile",
+    "TileRaceEvent",
+    "TileRaceTeam",
+    "TileRaceSignup",
     "Leaderboard",
     "MemberGoals",
     "MembershipEvent",

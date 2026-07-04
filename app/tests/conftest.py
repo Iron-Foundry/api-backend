@@ -28,6 +28,7 @@ from app.routers import (
     events,
     feedback,
     frenzy,
+    ironclad,
     members,
     metrics,
     parties,
@@ -36,6 +37,7 @@ from app.routers import (
     staff,
     surveys,
     ticket_config,
+    tilerace,
 )
 from app.tests._staff_patches import staff_permission_patches
 from app.tests._wom import mock_wom_instance as mock_wom_instance  # noqa: F401
@@ -59,6 +61,7 @@ _ROUTERS = [
     events.router,
     feedback.router,
     frenzy.router,
+    ironclad.router,
     members.router,
     metrics.router,
     parties.router,
@@ -67,6 +70,7 @@ _ROUTERS = [
     staff.router,
     surveys.router,
     ticket_config.router,
+    tilerace.router,
 ]
 
 
@@ -83,6 +87,13 @@ def _build_app() -> FastAPI:
     ranking_svc.run = AsyncMock()
     ranking_svc.preview = AsyncMock(return_value=[])
     app.state.ranking_service = ranking_svc
+    bulk_gains_svc = MagicMock()
+    bulk_gains_svc.fetch_and_store = AsyncMock(return_value=0)
+    bulk_gains_svc.list_batches = AsyncMock(return_value=[])
+    bulk_gains_svc.get_batch_players = AsyncMock(return_value=[])
+    bulk_gains_svc.get_player_gains = AsyncMock(return_value=None)
+    bulk_gains_svc.find_batch_for_range = AsyncMock(return_value=None)
+    app.state.bulk_gains_service = bulk_gains_svc
     app.state.session_factory = MagicMock()
     app.state.valkey = AsyncMock()
 
