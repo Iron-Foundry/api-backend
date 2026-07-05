@@ -126,6 +126,14 @@ ironclad_wom_cache = _WomMemberCache()
 _IRONCLAD_WEBHOOK_URL = os.getenv("IRONCLAD_WEBHOOK_URL", "REPLACE_WITH_WEBHOOK_URL")
 
 
+_IMAGE_EXTENSIONS: dict[str, str] = {"image/png": "png", "image/jpeg": "jpg"}
+
+
+def _image_filename(content_type: str | None) -> str:
+    ext = _IMAGE_EXTENSIONS.get(content_type or "", "png")
+    return f"deathImage.{ext}"
+
+
 async def forward_to_webhook(
     notification: DinkDeathNotification,
     image_data: bytes | None,
@@ -141,7 +149,11 @@ async def forward_to_webhook(
                 _IRONCLAD_WEBHOOK_URL,
                 data={"payload_json": sanitized.model_dump_json()},
                 files={
-                    "file": ("image", image_data, image_content_type or "image/png")
+                    "file": (
+                        _image_filename(image_content_type),
+                        image_data,
+                        image_content_type or "image/png",
+                    )
                 },
             )
         else:
