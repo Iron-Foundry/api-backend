@@ -79,24 +79,32 @@ class ClanStatsService:
             discord_contact=_WOM_DISCORD_CONTACT,
             priority=WomPriority.LOW,
         ) as wom:
-            group_data, *raid_totals = await asyncio.gather(
+            group_result, bulk_result = await asyncio.gather(
                 wom.get_group(_WOM_GROUP_ID),
-                *[wom.fetch_metric_total(_WOM_GROUP_ID, m) for m in _RAID_METRICS],
+                wom.get_group_bulk_hiscores(_WOM_GROUP_ID),
                 return_exceptions=True,
             )
 
-        if isinstance(group_data, BaseException):
-            logger.warning("ClanStatsService: WOM fetch failed: {}", group_data)
+        if isinstance(group_result, BaseException):
+            logger.warning("ClanStatsService: WOM fetch failed: {}", group_result)
             return
 
-        assert isinstance(group_data, dict)
-        raw: dict = group_data
+        assert isinstance(group_result, dict)
+        raw: dict = group_result
         memberships = raw.get("memberships") or []
+        bulk_entries: list[dict] = bulk_result if isinstance(bulk_result, list) else []
 
         def _safe_int(v: object) -> int:
             return v if isinstance(v, int) else 0
 
-        metric_totals = {m: _safe_int(t) for m, t in zip(_RAID_METRICS, raid_totals)}
+        metric_totals: dict[str, int] = {m: 0 for m in _RAID_METRICS}
+        for entry in bulk_entries:
+            data: dict = (entry.get("data") or {}).get("data") or {}
+            bosses: dict = data.get("bosses") or {}
+            for metric in _RAID_METRICS:
+                boss_info = bosses.get(metric)
+                if isinstance(boss_info, dict):
+                    metric_totals[metric] += _safe_int(boss_info.get("kills"))
 
         member_count = raw.get("memberCount", 0)
         total_xp = sum(m.get("player", {}).get("exp", 0) for m in memberships)
