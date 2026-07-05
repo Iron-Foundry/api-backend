@@ -40,8 +40,17 @@ class DinkDeathExtra(BaseModel):
     location: DinkLocation | None = None
 
 
+def _coerce_bool(v: Any) -> Any:
+    if isinstance(v, str):
+        return v.lower() in ("true", "1", "yes")
+    return v
+
+
+_CoercedBool = Annotated[bool, BeforeValidator(_coerce_bool)]
+
+
 class DinkDeathNotification(BaseModel):
-    content: str
+    content: str = ""
     extra: DinkDeathExtra
     type: Literal["DEATH"]
     playerName: str
@@ -55,14 +64,6 @@ class DinkDeathNotification(BaseModel):
     world: int | None = None
     regionId: int | None = None
 
-
-def _coerce_bool(v: Any) -> Any:
-    if isinstance(v, str):
-        return v.lower() in ("true", "1", "yes")
-    return v
-
-
-_CoercedBool = Annotated[bool, BeforeValidator(_coerce_bool)]
 
 _MENTION_RE = re.compile(r"@(?:everyone|here)|<@[!&]?\d+>")
 _URL_RE = re.compile(r"https?://[^\s<>\"]+")
