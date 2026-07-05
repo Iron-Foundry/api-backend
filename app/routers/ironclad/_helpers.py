@@ -4,11 +4,11 @@ import asyncio
 import os
 import re
 import time
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 import httpx
 from loguru import logger
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, BeforeValidator, Field
 
 
 class DiscordUser(BaseModel):
@@ -46,7 +46,7 @@ class DinkDeathNotification(BaseModel):
     type: Literal["DEATH"]
     playerName: str
     accountType: str
-    seasonalWorld: bool
+    seasonalWorld: _CoercedBool
     dinkAccountHash: str
     embeds: list[dict[str, Any]] = Field(default_factory=list)
     clanName: str | None = None
@@ -55,6 +55,14 @@ class DinkDeathNotification(BaseModel):
     world: int | None = None
     regionId: int | None = None
 
+
+def _coerce_bool(v: Any) -> Any:
+    if isinstance(v, str):
+        return v.lower() in ("true", "1", "yes")
+    return v
+
+
+_CoercedBool = Annotated[bool, BeforeValidator(_coerce_bool)]
 
 _MENTION_RE = re.compile(r"@(?:everyone|here)|<@[!&]?\d+>")
 _URL_RE = re.compile(r"https?://[^\s<>\"]+")
