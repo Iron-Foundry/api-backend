@@ -15,6 +15,9 @@ router = APIRouter()
 
 _SUM_KEYS = {
     "total_requests",
+    "total_calls",
+    "total_errors_4xx",
+    "total_errors_5xx",
     "errors_4xx",
     "errors_5xx",
     "total_req_bytes",
@@ -151,31 +154,50 @@ async def metrics_history(
         default_factory=lambda: datetime.now(timezone.utc) - timedelta(days=7),
     ),
     to: datetime = Query(default_factory=lambda: datetime.now(timezone.utc)),
-    limit: int = Query(default=2000, ge=1, le=2000),
+    max_points: int = Query(default=300, ge=10, le=500),
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Return merged raw + compact metric history for a service/module pair."""
+    """Return merged raw + compact metric history for a service/module pair.
+
+    Uses time-bucket sampling (DISTINCT ON) to return at most max_points evenly
+    distributed records across the requested range, fixing the display issue where
+    long ranges appeared identical to short ones due to a tail-only LIMIT.
+    """
     await require_staff(current_user, session)
 
+    interval_secs = max(1, int((to - from_).total_seconds() / max_points))
+
     raw_rows = await session.execute(
-        select(MetricRecord)
-        .where(
-            MetricRecord.service_name == service,
-            MetricRecord.module_name == module,
-            MetricRecord.recorded_at >= from_,
-            MetricRecord.recorded_at <= to,
-        )
-        .order_by(MetricRecord.recorded_at.desc())
-        .limit(limit)
+        text("""
+            SELECT DISTINCT ON (
+                FLOOR(EXTRACT(epoch FROM (recorded_at - :from_ts)) / :interval_secs)
+            )
+            id, service_name, module_name, recorded_at, metrics
+            FROM metric_records
+            WHERE service_name  = :svc
+              AND module_name   = :mod
+              AND recorded_at  >= :from_ts
+              AND recorded_at  <= :to_ts
+            ORDER BY
+                FLOOR(EXTRACT(epoch FROM (recorded_at - :from_ts)) / :interval_secs),
+                recorded_at ASC
+        """),
+        {
+            "svc": service,
+            "mod": module,
+            "from_ts": from_,
+            "to_ts": to,
+            "interval_secs": interval_secs,
+        },
     )
     raw = [
         {
-            "recorded_at": r.recorded_at.isoformat(),
-            "metrics": r.metrics,
+            "recorded_at": r["recorded_at"].isoformat(),
+            "metrics": r["metrics"],
             "is_compact": False,
         }
-        for r in raw_rows.scalars()
+        for r in raw_rows.mappings()
     ]
 
     compact_rows = await session.execute(
