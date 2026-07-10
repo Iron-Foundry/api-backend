@@ -13,6 +13,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 EXPOSE 8000
 
 CMD ["uv", "run", "gunicorn", "app.main:app", \
-     "--workers", "1", \
+     "--workers", "3", \
      "--worker-class", "uvicorn.workers.UvicornWorker", \
      "--bind", "0.0.0.0:8000"]
