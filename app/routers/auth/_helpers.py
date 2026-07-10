@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import os
+import time
 from datetime import datetime, timedelta, timezone
 
 import httpx
 from jose import jwt
 from loguru import logger
+
+from app.services.outbound_metrics import _collector as _outbound_collector
 
 DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "")
 DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", "")
@@ -49,8 +52,16 @@ async def fetch_discord_roles(discord_user_id: int) -> list[str]:
     bot_headers = {"Authorization": f"Bot {DISCORD_BOT_TOKEN}"}
     try:
         async with httpx.AsyncClient() as client:
+            t0 = time.monotonic()
             roles_resp = await client.get(
                 f"{_DISCORD_API}/guilds/{GUILD_ID}/roles", headers=bot_headers
+            )
+            _outbound_collector.record(
+                "discord.com",
+                "GET",
+                f"/guilds/{GUILD_ID}/roles",
+                roles_resp.status_code,
+                (time.monotonic() - t0) * 1000,
             )
             if roles_resp.status_code != 200:
                 logger.warning(
@@ -62,9 +73,17 @@ async def fetch_discord_roles(discord_user_id: int) -> list[str]:
                 return []
             role_map: dict[str, str] = {r["id"]: r["name"] for r in roles_resp.json()}
 
+            t0 = time.monotonic()
             member_resp = await client.get(
                 f"{_DISCORD_API}/guilds/{GUILD_ID}/members/{discord_user_id}",
                 headers=bot_headers,
+            )
+            _outbound_collector.record(
+                "discord.com",
+                "GET",
+                f"/guilds/{GUILD_ID}/members/<id>",
+                member_resp.status_code,
+                (time.monotonic() - t0) * 1000,
             )
             if member_resp.status_code != 200:
                 logger.warning(
@@ -85,8 +104,16 @@ async def fetch_discord_roles(discord_user_id: int) -> list[str]:
                 [role_map[rid] for rid in role_ids],
             )
 
+            t0 = time.monotonic()
             guild_resp = await client.get(
                 f"{_DISCORD_API}/guilds/{GUILD_ID}", headers=bot_headers
+            )
+            _outbound_collector.record(
+                "discord.com",
+                "GET",
+                f"/guilds/{GUILD_ID}",
+                guild_resp.status_code,
+                (time.monotonic() - t0) * 1000,
             )
             if guild_resp.status_code == 200 and guild_resp.json().get(
                 "owner_id"

@@ -3,11 +3,15 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
+import time
+
 import httpx
 from fastapi import APIRouter, Depends
 from fastapi.responses import RedirectResponse
 from jose import JWTError, jwt
 from loguru import logger
+
+from app.services.outbound_metrics import _collector as _outbound_collector
 from sqlalchemy import update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -62,6 +66,7 @@ async def callback(
         return RedirectResponse(f"{FRONTEND_URL}?error=invalid_state")
 
     async with httpx.AsyncClient() as client:
+        t0 = time.monotonic()
         token_resp = await client.post(
             f"{_DISCORD_API}/oauth2/token",
             data={
@@ -73,16 +78,39 @@ async def callback(
             },
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
+        _outbound_collector.record(
+            "discord.com",
+            "POST",
+            "/oauth2/token",
+            token_resp.status_code,
+            (time.monotonic() - t0) * 1000,
+        )
         if token_resp.status_code != 200:
             logger.warning("auth/callback: token exchange failed: {}", token_resp.text)
             return RedirectResponse(f"{FRONTEND_URL}?error=token_exchange_failed")
 
         access_token: str = token_resp.json()["access_token"]
         headers = {"Authorization": f"Bearer {access_token}"}
+        t0 = time.monotonic()
         me_resp = await client.get(f"{_DISCORD_API}/users/@me", headers=headers)
+        _outbound_collector.record(
+            "discord.com",
+            "GET",
+            "/users/@me",
+            me_resp.status_code,
+            (time.monotonic() - t0) * 1000,
+        )
         me = me_resp.json()
+        t0 = time.monotonic()
         guilds_resp = await client.get(
             f"{_DISCORD_API}/users/@me/guilds", headers=headers
+        )
+        _outbound_collector.record(
+            "discord.com",
+            "GET",
+            "/users/@me/guilds",
+            guilds_resp.status_code,
+            (time.monotonic() - t0) * 1000,
         )
         guild_ids = {g["id"] for g in guilds_resp.json()}
 
