@@ -22,11 +22,13 @@ from app.routers import (
     feedback,
     frenzy,
     ironclad,
+    map_tiles,
     members,
     metrics,
     parties,
     ranking,
     role_panels,
+    runelite_configs,
     staff,
     surveys,
     ticket_config,
@@ -42,8 +44,12 @@ from app.services.endpoint_metrics import (
     EndpointMetricsCollector,
     EndpointMetricsService,
 )
+from app.services.outbound_metrics import _collector as _outbound_collector
+from app.services.outbound_metrics.service import OutboundMetricsService
 from app.services.metric_compaction import MetricCompactionService
 from app.services.party_expiry import PartyExpiryService
+from app.services.tile_events import TileEventBus
+from app.services.tile_sync import TileSyncService
 from app.services.websocket_metrics import WebSocketMetricsService
 from app.services.http.wom_queue import init_wom_queue
 from app.services.wom_metrics import WomMetricsService
@@ -54,6 +60,10 @@ from app.routers.config import get_service_toggles, _ALL_SERVICE_KEYS
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 VALKEY_URI = os.getenv("VALKEY_URI", "redis://localhost:6379")
+TILE_SYNC_ON_STARTUP = os.getenv("TILE_SYNC_ON_STARTUP", "false").lower() == "true"
+TILE_SYNC_MAX_ZOOM = int(os.getenv("TILE_SYNC_MAX_ZOOM", "9"))
+TILE_SYNC_CONCURRENCY = int(os.getenv("TILE_SYNC_CONCURRENCY", "8"))
+TILE_SYNC_DELAY_MS = int(os.getenv("TILE_SYNC_DELAY_MS", "100"))
 WOM_GROUP_ID = os.getenv("WOM_GROUP_ID")
 WOM_GROUP_KEY = os.getenv("WOM_GROUP_KEY")
 WOM_API_KEY = os.getenv("WOM_API_KEY")
@@ -138,6 +148,20 @@ async def lifespan(app: FastAPI):
         snapshot_service = None
         comp_schedule_service = None
 
+    tile_event_bus = TileEventBus(VALKEY_URI, app.state.valkey)
+    app.state.tile_event_bus = tile_event_bus
+    tile_sync_svc = TileSyncService(
+        app.state.session_factory,
+        max_zoom=TILE_SYNC_MAX_ZOOM,
+        concurrency=TILE_SYNC_CONCURRENCY,
+        delay_ms=TILE_SYNC_DELAY_MS,
+        event_bus=tile_event_bus,
+        valkey=app.state.valkey,
+    )
+    app.state.tile_sync_service = tile_sync_svc
+    if TILE_SYNC_ON_STARTUP:
+        await tile_sync_svc.start()
+
     app.state.ranking_service = ranking_service
     app.state.bulk_gains_service = (
         BulkGainsService(app.state.session_factory)
@@ -172,10 +196,17 @@ async def lifespan(app: FastAPI):
     await ws_metrics_service.start()
     wom_metrics_service = WomMetricsService(app.state.session_factory)
     await wom_metrics_service.start()
+    outbound_metrics_service = OutboundMetricsService(
+        _outbound_collector, app.state.session_factory
+    )
+    await outbound_metrics_service.start()
     yield
+    await outbound_metrics_service.stop()
     await wom_metrics_service.stop()
     await ws_metrics_service.stop()
     await endpoint_metrics_service.stop()
+    if app.state.tile_sync_service.is_running:
+        await app.state.tile_sync_service.stop()
     for key, svc in app.state.service_registry.items():
         if svc is not None and svc.is_running:
             await svc.stop()
@@ -229,6 +260,7 @@ app.include_router(members.router)
 app.include_router(parties.router)
 app.include_router(ranking.router)
 app.include_router(role_panels.router)
+app.include_router(runelite_configs.router)
 app.include_router(staff.router)
 app.include_router(surveys.router)
 app.include_router(feedback.router)
@@ -238,6 +270,7 @@ app.include_router(frenzy.router)
 app.include_router(ironclad.router)
 app.include_router(tilerace.router)
 app.include_router(ticket_config.router)
+app.include_router(map_tiles.router)
 
 
 @app.get("/health")

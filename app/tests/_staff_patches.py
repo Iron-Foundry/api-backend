@@ -19,6 +19,7 @@ _EFFECTIVE_ROLES_TARGETS = [
     "app.routers.surveys._helpers.get_effective_roles",
     "app.routers.metrics._helpers.get_effective_roles",
     "app.routers.parties._helpers.get_effective_roles",
+    "app.routers.runelite_configs._helpers.get_effective_roles",
     "app.routers.config.general.get_effective_roles",
     "app.routers.auth.session.get_effective_roles",
 ]

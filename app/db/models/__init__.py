@@ -41,7 +41,9 @@ from .parties import (
     PartyNotificationPreferences,
 )
 from .gains import BulkGainsBatch, PlayerBulkGains
+from .map_tiles import MapTile
 from .ranking import CompetitionSnapshot, PlayerRanking, PlayerSnapshot
+from .runelite_configs import RuneLiteConfig
 from .service_metrics import MetricRecord, MetricRecordCompact, ServiceStatus
 from .surveys import SurveyActive, SurveyResponse, SurveyTemplate, WebSurveySubmission
 from .tickets import Ticket, Transcript
@@ -79,6 +81,7 @@ __all__ = [
     "TileRaceTeam",
     "TileRaceSignup",
     "Leaderboard",
+    "MapTile",
     "MemberGoals",
     "MembershipEvent",
     "Metric",
@@ -91,6 +94,7 @@ __all__ = [
     "PlayerRanking",
     "PlayerSnapshot",
     "RolePanel",
+    "RuneLiteConfig",
     "ServiceStatus",
     "SurveyActive",
     "SurveyResponse",
