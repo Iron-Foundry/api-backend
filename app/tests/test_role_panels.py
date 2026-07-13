@@ -10,8 +10,8 @@ async def test_list_panels_requires_auth(anon_client: AsyncClient) -> None:
     assert resp.status_code == 401
 
 
-async def test_list_panels_with_auth(auth_client: AsyncClient) -> None:
-    resp = await auth_client.get("/role-panels")
+async def test_list_panels_with_auth(staff_client: AsyncClient) -> None:
+    resp = await staff_client.get("/role-panels")
     assert resp.status_code == 200
 
 
@@ -20,8 +20,8 @@ async def test_get_panel_requires_auth(anon_client: AsyncClient) -> None:
     assert resp.status_code == 401
 
 
-async def test_get_panel_not_found(auth_client: AsyncClient) -> None:
-    resp = await auth_client.get(f"/role-panels/{_UUID}")
+async def test_get_panel_not_found(staff_client: AsyncClient) -> None:
+    resp = await staff_client.get(f"/role-panels/{_UUID}")
     assert resp.status_code in (200, 404)
 
 

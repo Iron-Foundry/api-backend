@@ -8,9 +8,14 @@ async def test_rank_mappings_requires_auth(anon_client: AsyncClient) -> None:
     assert resp.status_code == 401
 
 
-async def test_rank_mappings_read(auth_client: AsyncClient) -> None:
-    resp = await auth_client.get("/config/rank-mappings")
+async def test_rank_mappings_read(staff_client: AsyncClient) -> None:
+    resp = await staff_client.get("/config/rank-mappings")
     assert resp.status_code == 200
+
+
+async def test_rank_mappings_read_non_staff(auth_client: AsyncClient) -> None:
+    resp = await auth_client.get("/config/rank-mappings")
+    assert resp.status_code == 403
 
 
 async def test_rank_mappings_update_non_staff(auth_client: AsyncClient) -> None:
@@ -58,28 +63,28 @@ async def test_service_toggles_requires_auth(anon_client: AsyncClient) -> None:
     assert resp.status_code == 401
 
 
-async def test_service_toggles_read(auth_client: AsyncClient) -> None:
-    resp = await auth_client.get("/config/services/toggles")
+async def test_service_toggles_read(staff_client: AsyncClient) -> None:
+    resp = await staff_client.get("/config/services/toggles")
     assert resp.status_code == 200
 
 
-async def test_discord_roles_config_read(auth_client: AsyncClient) -> None:
-    resp = await auth_client.get("/config/discord-roles")
+async def test_discord_roles_config_read(staff_client: AsyncClient) -> None:
+    resp = await staff_client.get("/config/discord-roles")
     assert resp.status_code == 200
 
 
-async def test_ranking_config_read(auth_client: AsyncClient) -> None:
-    resp = await auth_client.get("/config/ranking")
+async def test_ranking_config_read(staff_client: AsyncClient) -> None:
+    resp = await staff_client.get("/config/ranking")
     assert resp.status_code == 200
 
 
-async def test_ticket_features_read(auth_client: AsyncClient) -> None:
-    resp = await auth_client.get("/config/ticket-features")
+async def test_ticket_features_read(staff_client: AsyncClient) -> None:
+    resp = await staff_client.get("/config/ticket-features")
     assert resp.status_code == 200
 
 
-async def test_panel_config_read(auth_client: AsyncClient) -> None:
-    resp = await auth_client.get("/config/panel")
+async def test_panel_config_read(staff_client: AsyncClient) -> None:
+    resp = await staff_client.get("/config/panel")
     assert resp.status_code == 200
 
 
@@ -88,6 +93,6 @@ async def test_notification_categories_read(auth_client: AsyncClient) -> None:
     assert resp.status_code == 200
 
 
-async def test_discord_feature_action_log_read(auth_client: AsyncClient) -> None:
-    resp = await auth_client.get("/config/discord-feature/action-log")
+async def test_discord_feature_action_log_read(staff_client: AsyncClient) -> None:
+    resp = await staff_client.get("/config/discord-feature/action-log")
     assert resp.status_code == 200

@@ -20,6 +20,7 @@ _DISCORD_ROLES_KEY = "discord_roles"
 _SERVICE_TOGGLES_KEY = "service_toggles"
 _TICKET_FEATURES_KEY = "ticket_features"
 _PANEL_CONFIG_KEY = "info_panel_config"
+_BALLOT_TOKEN_CONFIG_KEY = "ballot_token_config"
 
 _ALL_SERVICE_KEYS: list[str] = [
     "wom_name_change",

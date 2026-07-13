@@ -73,9 +73,8 @@ async def check_page_permission(
     """Return True if roles grant action on page_id.
 
     Rules (mirrors frontend checkPermission):
-    - "read" with empty allowed list → True (open to all authenticated users)
-    - non-read + role in bypass list → True
-    - non-read + empty allowed → False
+    - role in bypass list → True (bypass users can never be locked out)
+    - empty allowed list → False (unconfigured actions are denied, including read)
     - role in allowed list → True
 
     Hybrid matching: compares role IDs directly, then falls back to label-based
@@ -90,9 +89,6 @@ async def check_page_permission(
     pages = await _get_page_perms_config(session)
     config = pages.get(page_id, {})
     allowed: list[str] = config.get(action, [])
-
-    if action == "read" and not allowed:
-        return True
 
     if not allowed:
         return False

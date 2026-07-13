@@ -8,8 +8,8 @@ async def test_bandwidth(auth_client: AsyncClient) -> None:
     assert resp.status_code in (200, 403, 500)
 
 
-async def test_wom_rate_limit(auth_client: AsyncClient) -> None:
-    resp = await auth_client.get("/metrics/wom-rate-limit")
+async def test_wom_rate_limit(staff_client: AsyncClient) -> None:
+    resp = await staff_client.get("/metrics/wom-rate-limit")
     assert resp.status_code in (200, 500)
 
 

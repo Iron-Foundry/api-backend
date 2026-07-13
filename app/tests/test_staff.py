@@ -10,9 +10,14 @@ async def test_overview_requires_auth(anon_client: AsyncClient) -> None:
     assert resp.status_code == 401
 
 
-async def test_overview_with_auth(auth_client: AsyncClient) -> None:
-    resp = await auth_client.get("/staff/overview")
+async def test_overview_with_auth(staff_client: AsyncClient) -> None:
+    resp = await staff_client.get("/staff/overview")
     assert resp.status_code == 200
+
+
+async def test_overview_non_staff_forbidden(auth_client: AsyncClient) -> None:
+    resp = await auth_client.get("/staff/overview")
+    assert resp.status_code == 403
 
 
 async def test_referral_stats_requires_auth(anon_client: AsyncClient) -> None:
@@ -20,8 +25,8 @@ async def test_referral_stats_requires_auth(anon_client: AsyncClient) -> None:
     assert resp.status_code == 401
 
 
-async def test_referral_stats_with_auth(auth_client: AsyncClient) -> None:
-    resp = await auth_client.get("/staff/referral-stats")
+async def test_referral_stats_with_auth(staff_client: AsyncClient) -> None:
+    resp = await staff_client.get("/staff/referral-stats")
     assert resp.status_code == 200
 
 
@@ -30,13 +35,18 @@ async def test_staff_members_requires_auth(anon_client: AsyncClient) -> None:
     assert resp.status_code == 401
 
 
-async def test_staff_members_list(auth_client: AsyncClient) -> None:
-    resp = await auth_client.get("/staff/members")
+async def test_staff_members_list(staff_client: AsyncClient) -> None:
+    resp = await staff_client.get("/staff/members")
     assert resp.status_code == 200
 
 
-async def test_staff_member_detail(auth_client: AsyncClient) -> None:
-    resp = await auth_client.get("/staff/members/999999999999999999")
+async def test_staff_members_list_non_staff_forbidden(auth_client: AsyncClient) -> None:
+    resp = await auth_client.get("/staff/members")
+    assert resp.status_code == 403
+
+
+async def test_staff_member_detail(staff_client: AsyncClient) -> None:
+    resp = await staff_client.get("/staff/members/999999999999999999")
     assert resp.status_code in (200, 404)
 
 
@@ -60,9 +70,14 @@ async def test_staff_tickets_requires_auth(anon_client: AsyncClient) -> None:
     assert resp.status_code == 401
 
 
-async def test_staff_tickets_list(auth_client: AsyncClient) -> None:
-    resp = await auth_client.get("/staff/tickets")
+async def test_staff_tickets_list(staff_client: AsyncClient) -> None:
+    resp = await staff_client.get("/staff/tickets")
     assert resp.status_code == 200
+
+
+async def test_staff_tickets_list_non_staff_forbidden(auth_client: AsyncClient) -> None:
+    resp = await auth_client.get("/staff/tickets")
+    assert resp.status_code == 403
 
 
 async def test_staff_ticket_transcript_requires_auth(anon_client: AsyncClient) -> None:
