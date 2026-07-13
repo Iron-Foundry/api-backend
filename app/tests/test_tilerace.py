@@ -118,6 +118,34 @@ async def test_cancel_signup_not_found(auth_client: AsyncClient) -> None:
     assert resp.status_code == 404
 
 
+async def test_signup_captain_body_accepted(auth_client: AsyncClient) -> None:
+    resp = await auth_client.post(
+        "/tilerace/events/9999/signup", json={"wants_captain": True}
+    )
+    assert resp.status_code == 404
+
+
+async def test_signup_rejects_bad_captain_type(auth_client: AsyncClient) -> None:
+    resp = await auth_client.post(
+        "/tilerace/events/9999/signup", json={"wants_captain": "nope"}
+    )
+    assert resp.status_code == 422
+
+
+async def test_change_signup_requires_auth(anon_client: AsyncClient) -> None:
+    resp = await anon_client.patch(
+        "/tilerace/events/9999/signup", json={"account_id": 1}
+    )
+    assert resp.status_code == 401
+
+
+async def test_change_signup_not_found(auth_client: AsyncClient) -> None:
+    resp = await auth_client.patch(
+        "/tilerace/events/9999/signup", json={"wants_captain": True}
+    )
+    assert resp.status_code == 404
+
+
 async def test_add_team_requires_auth(anon_client: AsyncClient) -> None:
     resp = await anon_client.post(
         "/tilerace/events/9999/teams",

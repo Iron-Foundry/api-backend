@@ -7,13 +7,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
-    PlayerRanking,
     TileRaceEvent,
     TileRaceSignup,
     TileRaceTeam,
-    User,
 )
-from app.dependencies import get_current_user, get_session
+from app.dependencies import get_session
 from app.services.page_permissions import require_page_permission
 
 from ._helpers import _serialize_team
@@ -35,73 +33,6 @@ def _snake_draft(signups: list, team_ids: list[int]) -> dict[int, list]:
         idx = pos if chunk % 2 == 0 else n - 1 - pos
         result[team_ids[idx]].append(sup)
     return result
-
-
-@router.post("/events/{event_id}/signup", status_code=201)
-async def sign_up(
-    event_id: int,
-    session: AsyncSession = Depends(get_session),
-    current_user: dict = Depends(get_current_user),
-) -> dict:
-    event = (
-        await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
-    ).scalar_one_or_none()
-    if event is None:
-        raise HTTPException(404, "Event not found.")
-    user_id = int(current_user["sub"])
-    existing = (
-        await session.execute(
-            select(TileRaceSignup).where(
-                TileRaceSignup.event_id == event_id,
-                TileRaceSignup.discord_user_id == user_id,
-            )
-        )
-    ).scalar_one_or_none()
-    if existing is not None:
-        raise HTTPException(409, "Already signed up.")
-    user = (
-        await session.execute(select(User).where(User.discord_user_id == user_id))
-    ).scalar_one_or_none()
-    rsn = (user.rsn or "") if user else ""
-    ranking = (
-        await session.execute(
-            select(PlayerRanking).where(PlayerRanking.discord_user_id == user_id)
-        )
-    ).scalar_one_or_none()
-    score = ranking.points if ranking else 0
-    session.add(
-        TileRaceSignup(
-            event_id=event_id,
-            discord_user_id=user_id,
-            rsn=rsn,
-            ranking_score=score,
-            signed_up_at=datetime.now(timezone.utc),
-        )
-    )
-    await session.commit()
-    return {"ok": True}
-
-
-@router.delete("/events/{event_id}/signup")
-async def cancel_signup(
-    event_id: int,
-    session: AsyncSession = Depends(get_session),
-    current_user: dict = Depends(get_current_user),
-) -> dict:
-    user_id = int(current_user["sub"])
-    signup = (
-        await session.execute(
-            select(TileRaceSignup).where(
-                TileRaceSignup.event_id == event_id,
-                TileRaceSignup.discord_user_id == user_id,
-            )
-        )
-    ).scalar_one_or_none()
-    if signup is None:
-        raise HTTPException(404, "Signup not found.")
-    await session.delete(signup)
-    await session.commit()
-    return {"ok": True}
 
 
 @router.post("/events/{event_id}/teams", status_code=201)
@@ -227,12 +158,16 @@ async def scramble_teams(
     now = datetime.now(timezone.utc)
     for team in teams:
         assigned = assignments.get(team.id, [])
+        captain_idx = next(
+            (i for i, s in enumerate(assigned) if s.wants_captain),
+            0 if assigned else None,
+        )
         team.members = [
             {
                 "discord_user_id": str(s.discord_user_id),
                 "rsn": s.rsn,
                 "ranking_score": s.ranking_score,
-                "is_captain": i == 0,
+                "is_captain": i == captain_idx,
             }
             for i, s in enumerate(assigned)
         ]

@@ -47,6 +47,9 @@ class TileRaceEvent(Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="false"
     )
+    signups_open: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
     fog_of_war: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="false"
     )
@@ -137,9 +140,15 @@ class TileRaceSignup(Base):
         nullable=False,
     )
     discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    account_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("user_accounts.id", ondelete="SET NULL")
+    )
     rsn: Mapped[str] = mapped_column(Text, nullable=False)
     ranking_score: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default="0"
+    )
+    wants_captain: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
     )
     signed_up_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False

@@ -87,6 +87,7 @@ class EventPatch(BaseModel):
     background_url: str | None = None
     fog_of_war: bool | None = None
     is_finished: bool | None = None
+    signups_open: bool | None = None
     cells: list | None = None
     start_pad: Pad | None = None
     end_pad: Pad | None = None
@@ -112,6 +113,16 @@ class EventPatch(BaseModel):
     @classmethod
     def _dice_sides(cls, v: int | None) -> int | None:
         return None if v is None else _clamp(v, 1, 20)
+
+
+class SignupBody(BaseModel):
+    account_id: int | None = None
+    wants_captain: bool = False
+
+
+class SignupPatch(BaseModel):
+    account_id: int | None = None
+    wants_captain: bool | None = None
 
 
 class TeamBody(BaseModel):

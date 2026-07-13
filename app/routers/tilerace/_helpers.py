@@ -62,6 +62,7 @@ def _serialize_summary(e: TileRaceEvent) -> dict:
         "id": str(e.id),
         "name": e.name,
         "is_active": e.is_active,
+        "signups_open": e.signups_open,
         "fog_of_war": e.fog_of_war,
         "grid_cols": e.grid_cols,
         "grid_rows": e.grid_rows,
@@ -95,8 +96,10 @@ def _serialize_team(t: TileRaceTeam) -> dict:
 def _serialize_signup(s: TileRaceSignup) -> dict:
     return {
         "discord_user_id": str(s.discord_user_id),
+        "account_id": s.account_id,
         "rsn": s.rsn,
         "ranking_score": s.ranking_score,
+        "wants_captain": s.wants_captain,
         "signed_up_at": s.signed_up_at.isoformat(),
     }
 

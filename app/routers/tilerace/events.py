@@ -154,6 +154,8 @@ async def patch_event(
         event.end_pad = body.end_pad.model_dump() if body.end_pad else None
     if "background_url" in fields:
         event.background_url = body.background_url
+    if body.signups_open is not None:
+        event.signups_open = body.signups_open
     if body.fog_of_war is not None:
         event.fog_of_war = body.fog_of_war
     if body.is_finished is not None:
