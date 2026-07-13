@@ -17,6 +17,9 @@ from app.db.models.competition_schedule import (
 )
 from app.services.competitions import CreateCompetitionInput, create_competition
 from app.services.http import WiseOldManHandler, WomPriority
+from app.services.wiki_icons import metric_icon_url
+from .awards import process_run_awards
+from .ballot_tokens import refund_run, resolve_token_config
 from .repository import (
     create_run,
     get_active_run_for_schedule,
@@ -148,16 +151,28 @@ class CompetitionScheduleService:
             await session.commit()
 
     async def _build_poll_payload(
-        self, run: ScheduledCompetitionRun, sched: CompetitionSchedule
+        self,
+        session: AsyncSession,
+        run: ScheduledCompetitionRun,
+        sched: CompetitionSchedule,
+        poll_ends_at: datetime,
     ) -> str:
-        effective_options = run.poll_options_override or sched.poll_options or []
+        raw_options = run.poll_options_override or sched.poll_options or []
+        options = [
+            {**opt, "icon_url": metric_icon_url(opt.get("metric", ""))}
+            for opt in raw_options
+        ]
+        config = await resolve_token_config(session, sched)
         return json.dumps(
             {
                 "run_id": run.id,
                 "channel_id": sched.poll_channel_id,
-                "options": effective_options,
+                "options": options,
                 "poll_duration_hours": sched.poll_duration_hours,
                 "title": sched.name,
+                "poll_version": sched.poll_version,
+                "vote_cost": config["vote_cost"],
+                "poll_ends_at_unix": int(poll_ends_at.timestamp()),
             }
         )
 
@@ -165,10 +180,10 @@ class CompetitionScheduleService:
         self, session: AsyncSession, sched: CompetitionSchedule, now: datetime
     ) -> None:
         run = await create_run(session, sched.id)
-        payload = await self._build_poll_payload(run, sched)
+        poll_ends_at = now + timedelta(hours=sched.poll_duration_hours)
+        payload = await self._build_poll_payload(session, run, sched, poll_ends_at)
         await self._valkey.publish(_CH_CREATE_POLL, payload)
 
-        poll_ends_at = now + timedelta(hours=sched.poll_duration_hours)
         await update_run(
             session,
             run,
@@ -193,9 +208,9 @@ class CompetitionScheduleService:
         now: datetime,
     ) -> None:
         """Fire a pending_poll run that was created but never published (crash recovery)."""
-        payload = await self._build_poll_payload(run, sched)
-        await self._valkey.publish(_CH_CREATE_POLL, payload)
         poll_ends_at = now + timedelta(hours=sched.poll_duration_hours)
+        payload = await self._build_poll_payload(session, run, sched, poll_ends_at)
+        await self._valkey.publish(_CH_CREATE_POLL, payload)
         await update_run(
             session,
             run,
@@ -223,7 +238,8 @@ class CompetitionScheduleService:
         ).scalar_one_or_none()
         if not sched:
             return
-        payload = await self._build_poll_payload(run, sched)
+        poll_ends_at = run.poll_ends_at or _now()
+        payload = await self._build_poll_payload(session, run, sched, poll_ends_at)
         await self._valkey.publish(_CH_CREATE_POLL, payload)
         logger.info(
             "CompetitionScheduleService: republished create_poll for unacknowledged run {}",
@@ -251,6 +267,8 @@ class CompetitionScheduleService:
                 "channel_id": run.discord_poll_channel_id,
                 "message_id": run.discord_poll_message_id,
                 "options": effective_options,
+                "poll_version": sched.poll_version,
+                "title": sched.name,
             }
         )
         await self._valkey.publish(_CH_CLOSE_POLL, payload)
@@ -345,6 +363,7 @@ class CompetitionScheduleService:
         ).scalar_one_or_none()
 
         top_results: list[dict] = []
+        participations: list[dict] = []
         if run.wom_competition_id:
             try:
                 async with WiseOldManHandler(
@@ -373,6 +392,14 @@ class CompetitionScheduleService:
                     exc,
                 )
 
+        awards_summary: dict = {"recipients": 0, "total": 0}
+        if participations and run.tokens_awarded_at is None:
+            config = await resolve_token_config(session, sched)
+            awards_summary = await process_run_awards(
+                session, run.id, participations, config
+            )
+            await update_run(session, run, tokens_awarded_at=_now())
+
         payload = json.dumps(
             {
                 "run_id": run.id,
@@ -381,11 +408,32 @@ class CompetitionScheduleService:
                 "metric": run.winning_metric or "overall",
                 "wom_competition_id": run.wom_competition_id,
                 "top_results": top_results,
+                "token_awards": awards_summary,
             }
         )
         await self._valkey.publish(_CH_ANNOUNCE, payload)
         await update_run(session, run, status="results_announced")
         logger.info("CompetitionScheduleService: announced results for run {}", run.id)
+
+    async def _refund_run(
+        self, session: AsyncSession, run: ScheduledCompetitionRun
+    ) -> None:
+        from sqlalchemy import select as sa_select
+
+        sched = (
+            await session.execute(
+                sa_select(CompetitionSchedule).where(
+                    CompetitionSchedule.id == run.schedule_id
+                )
+            )
+        ).scalar_one_or_none()
+        refunded = await refund_run(session, run, sched)
+        if refunded:
+            logger.info(
+                "CompetitionScheduleService: refunded {} voters for run {}",
+                refunded,
+                run.id,
+            )
 
     # ── Subscriber loop ───────────────────────────────────────────────────
 
@@ -455,6 +503,7 @@ class CompetitionScheduleService:
                 return
             if skipped:
                 await update_run(session, run, status="skipped")
+                await self._refund_run(session, run)
                 logger.info(
                     "CompetitionScheduleService: run {} skipped (no votes)", run_id
                 )

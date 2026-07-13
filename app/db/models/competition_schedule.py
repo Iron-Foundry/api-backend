@@ -38,6 +38,10 @@ class CompetitionSchedule(Base):
     title_template: Mapped[str] = mapped_column(
         Text, nullable=False, server_default="{metric} Competition"
     )
+    poll_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="1"
+    )
+    token_config_override: Mapped[dict | None] = mapped_column(JSONB)
     next_poll_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     created_by: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(
@@ -84,6 +88,8 @@ class ScheduledCompetitionRun(Base):
         TIMESTAMP(timezone=True)
     )
     error_detail: Mapped[str | None] = mapped_column(Text)
+    tokens_awarded_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    votes_refunded_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False
     )

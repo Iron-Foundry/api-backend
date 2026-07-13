@@ -2,18 +2,25 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import json
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
+from valkey.asyncio import Valkey
 
 from app.db.models.competition_schedule import (
     CompetitionSchedule,
     ScheduledCompetitionRun,
 )
-from app.dependencies import get_session
+from app.dependencies import get_session, get_valkey
+from app.services.competition_schedule.ballot_tokens import (
+    refund_run,
+    resolve_token_config,
+)
+from app.services.wiki_icons import metric_icon_url
 from app.services.competition_schedule.repository import (
     create_run,
     get_active_run_for_schedule,
@@ -30,6 +37,39 @@ router = APIRouter()
 
 _READ_DEP = Depends(require_page_permission("staff.comp-schedule", "read"))
 _WRITE_DEP = Depends(require_page_permission("staff.comp-schedule", "create"))
+
+_CH_UPDATE_POLL = "foundry:comp_schedule:update_poll"
+
+
+async def _notify_poll_updated(
+    session: AsyncSession,
+    valkey: Valkey,
+    sched: CompetitionSchedule,
+    run: ScheduledCompetitionRun,
+) -> None:
+    if sched.poll_version != 2 or run.discord_poll_message_id is None:
+        return
+    raw_options = run.poll_options_override or sched.poll_options or []
+    options = [
+        {**opt, "icon_url": metric_icon_url(opt.get("metric", ""))}
+        for opt in raw_options
+    ]
+    config = await resolve_token_config(session, sched)
+    ends_unix = int(run.poll_ends_at.timestamp()) if run.poll_ends_at else None
+    await valkey.publish(
+        _CH_UPDATE_POLL,
+        json.dumps(
+            {
+                "run_id": run.id,
+                "channel_id": run.discord_poll_channel_id,
+                "message_id": run.discord_poll_message_id,
+                "title": sched.name,
+                "options": options,
+                "vote_cost": config["vote_cost"],
+                "poll_ends_at_unix": ends_unix,
+            }
+        ),
+    )
 
 
 # ── Pydantic models ───────────────────────────────────────────────────────
@@ -48,8 +88,10 @@ class CreateScheduleBody(BaseModel):
     poll_duration_hours: float = Field(gt=0, le=72)
     competition_duration_hours: float = Field(gt=0, le=336)
     recurrence_days: float = Field(gt=0)
-    poll_options: list[PollOptionBody] = Field(min_length=2, max_length=10)
+    poll_options: list[PollOptionBody] = Field(min_length=2, max_length=5)
     title_template: str = Field(default="{metric} Competition")
+    poll_version: int = Field(default=1, ge=1, le=2)
+    token_config_override: dict | None = None
     next_poll_at: datetime
 
 
@@ -63,6 +105,8 @@ class PatchScheduleBody(BaseModel):
     recurrence_days: float | None = Field(default=None, gt=0)
     poll_options: list[PollOptionBody] | None = None
     title_template: str | None = None
+    poll_version: int | None = Field(default=None, ge=1, le=2)
+    token_config_override: dict | None = None
     next_poll_at: datetime | None = None
     is_active: bool | None = None
 
@@ -114,6 +158,8 @@ async def _schedule_to_dict(
         "recurrence_days": sched.recurrence_days,
         "poll_options": sched.poll_options,
         "title_template": sched.title_template,
+        "poll_version": sched.poll_version,
+        "token_config_override": sched.token_config_override,
         "next_poll_at": sched.next_poll_at.isoformat() if sched.next_poll_at else None,
         "created_by": sched.created_by,
         "created_at": sched.created_at.isoformat(),
@@ -148,6 +194,8 @@ async def create_schedule(
         recurrence_days=body.recurrence_days,
         poll_options=[o.model_dump() for o in body.poll_options],
         title_template=body.title_template,
+        poll_version=body.poll_version,
+        token_config_override=body.token_config_override,
         next_poll_at=body.next_poll_at,
         created_at=now,
         updated_at=now,
@@ -206,6 +254,9 @@ async def delete_schedule(
     sched = await get_schedule(session, schedule_id)
     if not sched:
         raise HTTPException(404, "Schedule not found")
+    active_run = await get_active_run_for_schedule(session, schedule_id)
+    if active_run:
+        await refund_run(session, active_run, sched)
     await session.delete(sched)
     await session.commit()
 
@@ -252,6 +303,7 @@ async def skip_next(
     active_run = await get_active_run_for_schedule(session, schedule_id)
     if active_run:
         await update_run(session, active_run, status="skipped")
+        await refund_run(session, active_run, sched)
 
     from datetime import timedelta
 
@@ -260,6 +312,36 @@ async def skip_next(
     await update_schedule(session, sched, next_poll_at=next_poll)
     await session.commit()
     return {"skipped": True, "next_poll_at": next_poll.isoformat()}
+
+
+class AdjustPollBody(BaseModel):
+    delta_hours: float = Field(ge=-336, le=336)
+
+
+@router.post(
+    "/competition-schedules/{schedule_id}/adjust-poll", dependencies=[_WRITE_DEP]
+)
+async def adjust_poll(
+    schedule_id: int,
+    body: AdjustPollBody,
+    session: AsyncSession = Depends(get_session),
+    valkey: Valkey = Depends(get_valkey),
+) -> dict:
+    sched = await get_schedule(session, schedule_id)
+    if not sched:
+        raise HTTPException(404, "Schedule not found")
+    run = await get_active_run_for_schedule(session, schedule_id)
+    if not run or run.status != "poll_active" or run.poll_ends_at is None:
+        raise HTTPException(409, "No active poll to adjust for this schedule.")
+
+    new_ends = run.poll_ends_at + timedelta(hours=body.delta_hours)
+    floor = _now() + timedelta(minutes=1)
+    if new_ends < floor:
+        new_ends = floor
+    await update_run(session, run, poll_ends_at=new_ends)
+    await _notify_poll_updated(session, valkey, sched, run)
+    await session.commit()
+    return {"poll_ends_at": new_ends.isoformat()}
 
 
 @router.post(
@@ -310,7 +392,7 @@ async def set_next_poll_at(
 
 
 class OverrideOptionsBody(BaseModel):
-    options: list[PollOptionBody] = Field(min_length=2, max_length=10)
+    options: list[PollOptionBody] = Field(min_length=2, max_length=5)
     run_id: int | None = None
 
 

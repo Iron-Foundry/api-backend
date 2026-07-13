@@ -8,8 +8,8 @@ async def test_list_schedules_requires_auth(anon_client: AsyncClient) -> None:
     assert resp.status_code == 401
 
 
-async def test_list_schedules_with_auth(auth_client: AsyncClient) -> None:
-    resp = await auth_client.get("/clan/competition-schedules")
+async def test_list_schedules_with_auth(staff_client: AsyncClient) -> None:
+    resp = await staff_client.get("/clan/competition-schedules")
     assert resp.status_code == 200
 
 
@@ -18,8 +18,8 @@ async def test_get_schedule_requires_auth(anon_client: AsyncClient) -> None:
     assert resp.status_code == 401
 
 
-async def test_get_schedule_not_found(auth_client: AsyncClient) -> None:
-    resp = await auth_client.get("/clan/competition-schedules/9999")
+async def test_get_schedule_not_found(staff_client: AsyncClient) -> None:
+    resp = await staff_client.get("/clan/competition-schedules/9999")
     assert resp.status_code in (200, 404)
 
 
@@ -70,11 +70,32 @@ async def test_resume_schedule_non_staff_forbidden(auth_client: AsyncClient) -> 
     assert resp.status_code == 403
 
 
+async def test_adjust_poll_requires_auth(anon_client: AsyncClient) -> None:
+    resp = await anon_client.post(
+        "/clan/competition-schedules/1/adjust-poll", json={"delta_hours": 6}
+    )
+    assert resp.status_code == 401
+
+
+async def test_adjust_poll_non_staff_forbidden(auth_client: AsyncClient) -> None:
+    resp = await auth_client.post(
+        "/clan/competition-schedules/1/adjust-poll", json={"delta_hours": 6}
+    )
+    assert resp.status_code == 403
+
+
+async def test_adjust_poll_staff(staff_client: AsyncClient) -> None:
+    resp = await staff_client.post(
+        "/clan/competition-schedules/9999/adjust-poll", json={"delta_hours": -6}
+    )
+    assert resp.status_code in (200, 404, 409)
+
+
 async def test_list_runs_requires_auth(anon_client: AsyncClient) -> None:
     resp = await anon_client.get("/clan/competition-schedules/1/runs")
     assert resp.status_code == 401
 
 
-async def test_list_runs_with_auth(auth_client: AsyncClient) -> None:
-    resp = await auth_client.get("/clan/competition-schedules/9999/runs")
+async def test_list_runs_with_auth(staff_client: AsyncClient) -> None:
+    resp = await staff_client.get("/clan/competition-schedules/9999/runs")
     assert resp.status_code in (200, 404)
