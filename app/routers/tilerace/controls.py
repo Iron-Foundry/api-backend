@@ -6,52 +6,108 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import TileRaceEvent, TileRaceTeam
+from app.db.models import TileRaceCompletion, TileRaceEvent, TileRaceTeam
 from app.dependencies import get_current_user, get_session
 from app.services.page_permissions import require_page_permission
 
-from .schemas import FogBody, RollBody
+from ._roll_effects import (
+    apply_landing_modifiers,
+    apply_pad_trigger,
+    cell_in_pad,
+    cell_is_gated,
+    find_cell,
+    roll_dice_values,
+)
+from .schemas import FogBody
 
 router = APIRouter()
 _FOG_PERM = Depends(require_page_permission("tilerace.admin", "edit"))
 
 
-@router.post("/events/{event_id}/teams/{team_id}/roll")
-async def roll_dice(
-    event_id: int,
-    team_id: int,
-    body: RollBody,
-    session: AsyncSession = Depends(get_session),
-    current_user: dict = Depends(get_current_user),
-) -> dict:
-    if body.roll < 1 or body.roll > 6:
-        raise HTTPException(400, "Roll must be between 1 and 6.")
-    team = (
-        await session.execute(
-            select(TileRaceTeam).where(
-                TileRaceTeam.id == team_id,
-                TileRaceTeam.event_id == event_id,
-            )
-        )
-    ).scalar_one_or_none()
-    if team is None:
-        raise HTTPException(404, "Team not found.")
-    user_id = str(current_user["sub"])
-    members = team.members or []
+def _require_captain(team: TileRaceTeam, user_id: str) -> None:
     captain = next(
         (
             m
-            for m in members
+            for m in (team.members or [])
             if m.get("is_captain") and str(m.get("discord_user_id")) == user_id
         ),
         None,
     )
     if captain is None:
         raise HTTPException(403, "Only team captains may roll.")
-    team.position = team.position + body.roll
+
+
+async def _completed(session: AsyncSession, team_id: int, position: int) -> bool:
+    row = (
+        await session.execute(
+            select(TileRaceCompletion).where(
+                TileRaceCompletion.team_id == team_id,
+                TileRaceCompletion.path_position == position,
+            )
+        )
+    ).scalar_one_or_none()
+    return row is not None
+
+
+@router.post("/events/{event_id}/teams/{team_id}/roll")
+async def roll_dice(
+    event_id: int,
+    team_id: int,
+    session: AsyncSession = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    team = (
+        await session.execute(
+            select(TileRaceTeam).where(
+                TileRaceTeam.id == team_id, TileRaceTeam.event_id == event_id
+            )
+        )
+    ).scalar_one_or_none()
+    if team is None:
+        raise HTTPException(404, "Team not found.")
+    event = (
+        await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
+    ).scalar_one_or_none()
+    if event is None:
+        raise HTTPException(404, "Event not found.")
+    if event.is_finished:
+        raise HTTPException(409, "Game over.")
+    _require_captain(team, str(current_user["sub"]))
+
+    effects = dict(team.pending_effects or {})
+    if effects.get("skip_next"):
+        effects["skip_next"] = False
+        team.pending_effects = effects
+        team.updated_at = datetime.now(timezone.utc)
+        await session.commit()
+        return {"skipped": True, "new_position": team.position, "dice": []}
+
+    cells = event.cells or []
+    current = find_cell(cells, team.position)
+    if cell_is_gated(current) and not await _completed(session, team_id, team.position):
+        raise HTTPException(409, "Current tile not completed.")
+
+    dice = roll_dice_values(event.dice_count, event.dice_sides)
+    roll = sum(dice)
+    team.position = team.position + roll
+    summary = apply_landing_modifiers(team, find_cell(cells, team.position))
+    _apply_pads(event, team, find_cell(cells, team.position), summary)
     team.updated_at = datetime.now(timezone.utc)
     await session.commit()
-    return {"roll": body.roll, "new_position": team.position}
+    return {"roll": roll, "dice": dice, "new_position": team.position, **summary}
+
+
+def _apply_pads(
+    event: TileRaceEvent, team: TileRaceTeam, cell: dict | None, summary: dict
+) -> None:
+    if cell_in_pad(cell, event.start_pad):
+        apply_pad_trigger(team, event.start_pad, summary)
+    if cell_in_pad(cell, event.end_pad):
+        apply_pad_trigger(team, event.end_pad, summary)
+        event.is_finished = True
+        event.winner_team_id = team.id
+        event.updated_at = datetime.now(timezone.utc)
+        summary["game_over"] = True
 
 
 @router.patch("/events/{event_id}/fog-of-war")

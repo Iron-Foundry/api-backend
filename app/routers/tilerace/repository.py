@@ -57,6 +57,7 @@ async def create_tile(
         icon_url=body.icon_url,
         icon_source=body.icon_source,
         items=body.items,
+        requirement=body.requirement.model_dump() if body.requirement else None,
         tags=body.tags,
         created_by=int(current_user["sub"]),
         created_at=now,
@@ -107,6 +108,8 @@ async def patch_tile(
         tile.icon_source = body.icon_source
     if body.items is not None:
         tile.items = body.items
+    if "requirement" in body.model_fields_set:
+        tile.requirement = body.requirement.model_dump() if body.requirement else None
     if body.tags is not None:
         tile.tags = body.tags
     tile.updated_at = datetime.now(timezone.utc)

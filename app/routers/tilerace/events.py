@@ -96,6 +96,8 @@ async def create_event(
         fog_of_war=False,
         grid_cols=body.grid_cols,
         grid_rows=body.grid_rows,
+        dice_count=body.dice_count,
+        dice_sides=body.dice_sides,
         background_url=body.background_url,
         cells=[],
         starts_at=body.starts_at,
@@ -135,16 +137,29 @@ async def patch_event(
     ).scalar_one_or_none()
     if event is None:
         raise HTTPException(404, "Event not found.")
+    fields = body.model_fields_set
     if body.name is not None:
         event.name = body.name
     if body.grid_cols is not None:
         event.grid_cols = body.grid_cols
     if body.grid_rows is not None:
         event.grid_rows = body.grid_rows
-    if body.background_url is not None:
+    if body.dice_count is not None:
+        event.dice_count = body.dice_count
+    if body.dice_sides is not None:
+        event.dice_sides = body.dice_sides
+    if "start_pad" in fields:
+        event.start_pad = body.start_pad.model_dump() if body.start_pad else None
+    if "end_pad" in fields:
+        event.end_pad = body.end_pad.model_dump() if body.end_pad else None
+    if "background_url" in fields:
         event.background_url = body.background_url
     if body.fog_of_war is not None:
         event.fog_of_war = body.fog_of_war
+    if body.is_finished is not None:
+        event.is_finished = body.is_finished
+        if not body.is_finished:
+            event.winner_team_id = None
     if body.cells is not None:
         event.cells = list(body.cells)
     if body.starts_at is not None:

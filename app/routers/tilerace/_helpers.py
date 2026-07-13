@@ -5,20 +5,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
     TileRepositoryTile,
+    TileRaceCompletion,
     TileRaceEvent,
     TileRaceSignup,
     TileRaceTeam,
 )
 
+from .requirement_schema import requirement_from_items
+
 
 def _serialize_tile(t: TileRepositoryTile) -> dict:
+    items = t.items or []
     return {
         "id": str(t.id),
         "title": t.title,
         "description": t.description,
         "icon_url": t.icon_url,
         "icon_source": t.icon_source,
-        "items": t.items or [],
+        "items": items,
+        "requirement": t.requirement or requirement_from_items(items),
         "tags": t.tags or [],
         "created_at": t.created_at.isoformat(),
         "updated_at": t.updated_at.isoformat(),
@@ -60,6 +65,12 @@ def _serialize_summary(e: TileRaceEvent) -> dict:
         "fog_of_war": e.fog_of_war,
         "grid_cols": e.grid_cols,
         "grid_rows": e.grid_rows,
+        "dice_count": e.dice_count,
+        "dice_sides": e.dice_sides,
+        "start_pad": e.start_pad,
+        "end_pad": e.end_pad,
+        "is_finished": e.is_finished,
+        "winner_team_id": str(e.winner_team_id) if e.winner_team_id else None,
         "background_url": e.background_url,
         "starts_at": e.starts_at.isoformat() if e.starts_at else None,
         "ends_at": e.ends_at.isoformat() if e.ends_at else None,
@@ -77,6 +88,7 @@ def _serialize_team(t: TileRaceTeam) -> dict:
         "color": t.color,
         "position": t.position,
         "members": t.members or [],
+        "pending_effects": t.pending_effects or {},
     }
 
 
@@ -86,4 +98,13 @@ def _serialize_signup(s: TileRaceSignup) -> dict:
         "rsn": s.rsn,
         "ranking_score": s.ranking_score,
         "signed_up_at": s.signed_up_at.isoformat(),
+    }
+
+
+def _serialize_completion(c: TileRaceCompletion) -> dict:
+    return {
+        "team_id": str(c.team_id),
+        "path_position": c.path_position,
+        "completed_by": str(c.completed_by) if c.completed_by else None,
+        "completed_at": c.completed_at.isoformat(),
     }

@@ -186,6 +186,51 @@ async def test_fog_not_found(staff_client: AsyncClient) -> None:
     assert resp.status_code == 404
 
 
+async def test_list_completions_requires_auth(anon_client: AsyncClient) -> None:
+    resp = await anon_client.get("/tilerace/events/9999/completions")
+    assert resp.status_code == 401
+
+
+async def test_list_completions_not_found(staff_client: AsyncClient) -> None:
+    resp = await staff_client.get("/tilerace/events/9999/completions")
+    assert resp.status_code == 404
+
+
+async def test_set_completion_requires_auth(anon_client: AsyncClient) -> None:
+    resp = await anon_client.put(
+        "/tilerace/events/9999/teams/1/completions/1", json={"completed": True}
+    )
+    assert resp.status_code == 401
+
+
+async def test_set_completion_not_found(staff_client: AsyncClient) -> None:
+    resp = await staff_client.put(
+        "/tilerace/events/9999/teams/1/completions/1", json={"completed": True}
+    )
+    assert resp.status_code == 404
+
+
+async def test_sabotage_requires_auth(anon_client: AsyncClient) -> None:
+    resp = await anon_client.post(
+        "/tilerace/events/9999/teams/1/sabotage",
+        json={"action": "block", "target_team_id": 2},
+    )
+    assert resp.status_code == 401
+
+
+async def test_sabotage_not_found(staff_client: AsyncClient) -> None:
+    resp = await staff_client.post(
+        "/tilerace/events/9999/teams/1/sabotage",
+        json={"action": "block", "target_team_id": 2},
+    )
+    assert resp.status_code == 404
+
+
+async def test_roll_no_body_team_not_found(auth_client: AsyncClient) -> None:
+    resp = await auth_client.post("/tilerace/events/9999/teams/1/roll")
+    assert resp.status_code == 404
+
+
 async def test_osrs_npcs_empty_query(auth_client: AsyncClient) -> None:
     resp = await auth_client.get("/tilerace/osrs/npcs")
     assert resp.status_code == 200
