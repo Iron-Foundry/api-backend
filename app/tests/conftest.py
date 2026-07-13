@@ -104,6 +104,7 @@ def _build_app() -> FastAPI:
     tile_sync_svc.stop = AsyncMock(return_value={"stopped": False})
     tile_sync_svc.status = AsyncMock(return_value={"running": False})
     tile_sync_svc.cached_count = AsyncMock(return_value=0)
+    tile_sync_svc.cached_bytes = AsyncMock(return_value=0)
     app.state.tile_sync_service = tile_sync_svc
     app.state.session_factory = MagicMock()
     app.state.valkey = AsyncMock()

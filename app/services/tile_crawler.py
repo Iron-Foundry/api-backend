@@ -11,7 +11,11 @@ import httpx
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.services.tile_fetcher import cache_tile, download_tile, tile_exists
+from app.services.tile_fetcher import (
+    cache_tile,
+    download_tile,
+    existing_tile_keys,
+)
 
 _MAP_WIDTH = 104448
 _MAP_HEIGHT = 364544
@@ -93,13 +97,19 @@ class TileCrawler:
         should_stop: Callable[[], Awaitable[bool]],
         on_progress: Callable[[], Awaitable[None]],
     ) -> bool:
+        if not self._sf:
+            return False
         self.current_zoom = z
         cols, rows = tile_cols(z), tile_rows(z)
         for plane in range(4):
+            cached: set[tuple[int, int]] = (
+                set() if self._force else await existing_tile_keys(self._sf, plane, z)
+            )
             for tx in range(cols):
                 for ty in range(rows):
-                    await self._tile(client, sem, plane, z, tx, ty)
-                    await asyncio.sleep(self._delay_ms / 1000)
+                    fetched = await self._tile(client, sem, plane, z, tx, ty, cached)
+                    if fetched:
+                        await asyncio.sleep(self._delay_ms / 1000)
                     if self.processed % _STOP_CHECK_INTERVAL == 0 and (
                         await should_stop()
                     ):
@@ -117,13 +127,16 @@ class TileCrawler:
         z: int,
         tx: int,
         ty: int,
-    ) -> None:
+        cached: set[tuple[int, int]],
+    ) -> bool:
+        """Fetch and store one tile. Returns True if an upstream download ran."""
         if not self._sf:
-            return
-        if not self._force and await tile_exists(self._sf, plane, z, tx, ty):
+            return False
+        if (tx, ty) in cached:
             self.processed += 1
-            return
+            return False
         raw = await download_tile(client, sem, plane, z, tx, ty)
         if raw is not None:
             await cache_tile(self._sf, plane, z, tx, ty, raw, force=self._force)
         self.processed += 1
+        return True

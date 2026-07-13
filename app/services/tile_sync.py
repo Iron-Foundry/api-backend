@@ -67,6 +67,15 @@ class TileSyncService:
             result = await session.execute(select(func.count()).select_from(MapTile))
             return result.scalar() or 0
 
+    async def cached_bytes(self) -> int:
+        if not self._session_factory:
+            return 0
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(func.coalesce(func.sum(MapTile.size_bytes), 0))
+            )
+            return result.scalar() or 0
+
     async def start(self, *, force: bool = False) -> dict:
         if self._valkey is not None:
             if not await sync_state.acquire_lock(self._valkey, self._owner):

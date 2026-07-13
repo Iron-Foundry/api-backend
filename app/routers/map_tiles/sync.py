@@ -48,10 +48,11 @@ async def sync_status(request: Request) -> dict:
     """
     svc = getattr(request.app.state, "tile_sync_service", None)
     if svc is None:
-        return {"running": False, "cached": 0}
+        return {"running": False, "cached": 0, "cached_bytes": 0}
     state = await svc.status()
     cached = await svc.cached_count()
-    return {**state, "cached": cached}
+    cached_bytes = await svc.cached_bytes()
+    return {**state, "cached": cached, "cached_bytes": cached_bytes}
 
 
 @router.get("/events")

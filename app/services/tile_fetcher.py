@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 import httpx
 from loguru import logger
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -25,6 +26,17 @@ async def tile_exists(
 ) -> bool:
     async with session_factory() as session:
         return await session.get(MapTile, (plane, z, tx, ty)) is not None
+
+
+async def existing_tile_keys(
+    session_factory: async_sessionmaker[AsyncSession],
+    plane: int,
+    z: int,
+) -> set[tuple[int, int]]:
+    stmt = select(MapTile.x, MapTile.y).where(MapTile.plane == plane, MapTile.z == z)
+    async with session_factory() as session:
+        rows = await session.execute(stmt)
+        return {(x, y) for x, y in rows.all()}
 
 
 async def download_tile(

@@ -85,6 +85,7 @@ async def test_sync_status_returns_state(auth_client: AsyncClient) -> None:
         data = resp.json()
         assert "running" in data
         assert "cached" in data
+        assert "cached_bytes" in data
 
 
 async def test_start_sync_requires_auth(anon_client: AsyncClient) -> None:
