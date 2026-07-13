@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from .ballot_tokens import router as ballot_tokens_router
 from .bulk_gains import router as bulk_gains_router
 from .competition_management import router as comp_mgmt_router
 from .competition_schedule import router as comp_schedule_router
@@ -19,3 +20,4 @@ router.include_router(bulk_gains_router)
 router.include_router(competitions_router)
 router.include_router(comp_mgmt_router)
 router.include_router(comp_schedule_router)
+router.include_router(ballot_tokens_router)

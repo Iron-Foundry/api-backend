@@ -5,6 +5,11 @@ the single source of truth for alembic autogenerate.
 """
 
 from .assets import Asset
+from .ballot_tokens import (
+    BallotPollVote,
+    BallotTokenAccount,
+    BallotTokenTransaction,
+)
 from .competition_schedule import CompetitionSchedule, ScheduledCompetitionRun
 from .badges import Badge, UserBadge
 from .base import Base
@@ -30,6 +35,7 @@ from .frenzy import (
 )
 from .tilerace import (
     TileRepositoryTile,
+    TileRaceCompletion,
     TileRaceEvent,
     TileRaceTeam,
     TileRaceSignup,
@@ -51,6 +57,9 @@ from .users import User, UserAccount
 
 __all__ = [
     "Asset",
+    "BallotPollVote",
+    "BallotTokenAccount",
+    "BallotTokenTransaction",
     "BulkGainsBatch",
     "PlayerBulkGains",
     "CompetitionSchedule",
@@ -77,6 +86,7 @@ __all__ = [
     "FrenzyTemplate",
     "FrenzyTemplateVersion",
     "TileRepositoryTile",
+    "TileRaceCompletion",
     "TileRaceEvent",
     "TileRaceTeam",
     "TileRaceSignup",
