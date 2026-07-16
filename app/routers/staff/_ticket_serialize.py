@@ -18,9 +18,7 @@ def _is_bogus(created_at) -> bool:
     )
 
 
-async def _load_user_map(
-    ids: set[int], session: AsyncSession
-) -> dict[int, Any]:
+async def _load_user_map(ids: set[int], session: AsyncSession) -> dict[int, Any]:
     if not ids:
         return {}
     rows = await session.execute(

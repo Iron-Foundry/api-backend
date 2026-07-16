@@ -31,6 +31,24 @@ async def test_serve_file_found(
     assert resp.status_code in (200, 404)
 
 
+async def test_serve_file_rejects_unsupported_thumbnail_width(
+    auth_client: AsyncClient,
+) -> None:
+    resp = await auth_client.get("/assets/file/test.png", params={"w": 999})
+    assert resp.status_code == 400
+
+
+async def test_serve_file_accepts_supported_thumbnail_width(
+    auth_client: AsyncClient, mock_session: MagicMock
+) -> None:
+    asset_mock = MagicMock()
+    asset_mock.content_type = "image/png"
+    asset_mock.filename = "test.png"
+    mock_session.execute.return_value.scalar_one_or_none.return_value = asset_mock
+    resp = await auth_client.get("/assets/file/test.png", params={"w": 256})
+    assert resp.status_code in (200, 404)
+
+
 async def test_upload_requires_auth(anon_client: AsyncClient) -> None:
     resp = await anon_client.post("/assets/upload")
     assert resp.status_code == 401
