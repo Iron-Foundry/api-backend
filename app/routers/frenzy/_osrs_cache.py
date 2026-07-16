@@ -68,13 +68,23 @@ async def _refresh_osrs_activities(valkey: Valkey) -> None:
 
 
 async def warm_osrs_caches(valkey: Valkey) -> None:
-    """Called from app lifespan to pre-populate OSRS reference data."""
-    if not await valkey.exists(_ITEMS_KEY):
-        await _refresh_osrs_items(valkey)
-    if not await valkey.exists(_BOSSES_KEY):
-        await _refresh_osrs_bosses(valkey)
-    if not await valkey.exists(_ACTIVITIES_KEY):
-        await _refresh_osrs_activities(valkey)
+    """Called from app lifespan to pre-populate OSRS reference data.
+
+    Best-effort: the request path refreshes each cache on miss, so a warm
+    failure (e.g. the osrs-cache service unreachable at boot) must log and
+    continue rather than abort application startup.
+    """
+    for key, refresh in (
+        (_ITEMS_KEY, _refresh_osrs_items),
+        (_BOSSES_KEY, _refresh_osrs_bosses),
+        (_ACTIVITIES_KEY, _refresh_osrs_activities),
+    ):
+        if await valkey.exists(key):
+            continue
+        try:
+            await refresh(valkey)
+        except Exception as exc:
+            logger.warning("osrs cache warm for {} skipped: {}", key, exc)
 
 
 async def _build_lb_cache(
