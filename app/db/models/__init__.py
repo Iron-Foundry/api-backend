@@ -37,6 +37,7 @@ from .tilerace import (
     TileRepositoryTile,
     TileRaceCompletion,
     TileRaceEvent,
+    TileRaceRoll,
     TileRaceTeam,
     TileRaceSignup,
 )
@@ -47,7 +48,6 @@ from .parties import (
     PartyNotificationPreferences,
 )
 from .gains import BulkGainsBatch, PlayerBulkGains
-from .map_tiles import MapTile
 from .ranking import CompetitionSnapshot, PlayerRanking, PlayerSnapshot
 from .runelite_configs import RuneLiteConfig
 from .service_metrics import MetricRecord, MetricRecordCompact, ServiceStatus
@@ -88,10 +88,10 @@ __all__ = [
     "TileRepositoryTile",
     "TileRaceCompletion",
     "TileRaceEvent",
+    "TileRaceRoll",
     "TileRaceTeam",
     "TileRaceSignup",
     "Leaderboard",
-    "MapTile",
     "MemberGoals",
     "MembershipEvent",
     "Metric",

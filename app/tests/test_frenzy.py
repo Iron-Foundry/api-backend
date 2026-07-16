@@ -1,6 +1,36 @@
 from __future__ import annotations
 
+import json
+from unittest.mock import AsyncMock, MagicMock, patch
+
 from httpx import AsyncClient
+
+from app.routers.frenzy import _osrs_cache
+
+
+async def test_refresh_osrs_items_uses_cache_service() -> None:
+    catalog = [{"item_id": 4151, "name": "Abyssal whip", "members": True}]
+    resp = MagicMock()
+    resp.raise_for_status = MagicMock()
+    resp.json = MagicMock(return_value=catalog)
+    client = MagicMock()
+    client.__aenter__ = AsyncMock(return_value=client)
+    client.__aexit__ = AsyncMock(return_value=False)
+    client.get = AsyncMock(return_value=resp)
+    fake_httpx = MagicMock()
+    fake_httpx.AsyncClient = MagicMock(return_value=client)
+
+    valkey = MagicMock()
+    valkey.setex = AsyncMock()
+    with patch.object(_osrs_cache, "httpx", fake_httpx):
+        await _osrs_cache._refresh_osrs_items(valkey)
+
+    assert client.get.call_args.args[0].endswith("/items/catalog")
+    stored = json.loads(valkey.setex.call_args.args[2])
+    assert stored[0]["id"] == 4151
+    assert stored[0]["name"] == "Abyssal whip"
+    assert stored[0]["icon_url"].endswith("/osrs-cache/item-icons/4151")
+    assert "runescape.wiki" not in stored[0]["icon_url"]
 
 
 async def test_active_event(auth_client: AsyncClient) -> None:

@@ -13,6 +13,7 @@ from ._constants import (
     _ACTIVITY_METRICS,
     _BOSS_METRICS,
     _BOSSES_KEY,
+    _ITEM_ICON_BASE,
     _ITEMS_KEY,
     _LB_FRESH_KEY,
     _LB_FRESH_TTL,
@@ -20,8 +21,8 @@ from ._constants import (
     _LB_LOCK_TTL,
     _LB_STALE_KEY,
     _LB_STALE_TTL,
+    _OSRS_CACHE_SERVICE_URL,
     _OSRS_REF_TTL,
-    _WIKI_IMAGE_BASE,
     _WOM_API_KEY,
     _WOM_DISCORD_CONTACT,
     _WOM_GROUP_ID,
@@ -30,22 +31,19 @@ from ._constants import (
 
 
 async def _refresh_osrs_items(valkey: Valkey) -> None:
-    async with httpx.AsyncClient(
-        headers={"User-Agent": "The Iron Foundry Project / contact@ironfoundry.cc"},
-        timeout=20.0,
-    ) as client:
-        resp = await client.get("https://prices.runescape.wiki/api/v1/osrs/mapping")
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        resp = await client.get(f"{_OSRS_CACHE_SERVICE_URL}/items/catalog")
         resp.raise_for_status()
         raw = resp.json()
     items = [
         {
-            "id": entry["id"],
+            "id": entry["item_id"],
             "name": entry["name"],
-            "icon_url": f"{_WIKI_IMAGE_BASE}/{entry['icon'].replace(' ', '_')}",
+            "icon_url": f"{_ITEM_ICON_BASE}/{entry['item_id']}",
             "members": entry.get("members", False),
         }
         for entry in raw
-        if entry.get("name") and entry.get("icon")
+        if entry.get("name")
     ]
     await valkey.setex(_ITEMS_KEY, _OSRS_REF_TTL, json.dumps(items))
     logger.info("osrs items cache: loaded {} items", len(items))

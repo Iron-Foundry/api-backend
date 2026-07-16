@@ -29,9 +29,9 @@ from app.routers import (
     feedback,
     frenzy,
     ironclad,
-    map_tiles,
     members,
     metrics,
+    osrs_cache,
     parties,
     ranking,
     role_panels,
@@ -64,9 +64,9 @@ _ROUTERS = [
     feedback.router,
     frenzy.router,
     ironclad.router,
-    map_tiles.router,
     members.router,
     metrics.router,
+    osrs_cache.router,
     parties.router,
     ranking.router,
     role_panels.router,
@@ -98,19 +98,8 @@ def _build_app() -> FastAPI:
     bulk_gains_svc.get_player_gains = AsyncMock(return_value=None)
     bulk_gains_svc.find_batch_for_range = AsyncMock(return_value=None)
     app.state.bulk_gains_service = bulk_gains_svc
-    tile_sync_svc = MagicMock()
-    tile_sync_svc.is_running = False
-    tile_sync_svc.start = AsyncMock(return_value={"started": True, "force": False})
-    tile_sync_svc.stop = AsyncMock(return_value={"stopped": False})
-    tile_sync_svc.status = AsyncMock(return_value={"running": False})
-    tile_sync_svc.cached_count = AsyncMock(return_value=0)
-    tile_sync_svc.cached_bytes = AsyncMock(return_value=0)
-    app.state.tile_sync_service = tile_sync_svc
     app.state.session_factory = MagicMock()
     app.state.valkey = AsyncMock()
-    from app.services.tile_events import TileEventBus
-
-    app.state.tile_event_bus = TileEventBus("redis://test", app.state.valkey)
 
     @app.get("/health")
     async def _health() -> dict:
