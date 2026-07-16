@@ -7,6 +7,7 @@ from app.db.models import (
     TileRepositoryTile,
     TileRaceCompletion,
     TileRaceEvent,
+    TileRaceRoll,
     TileRaceSignup,
     TileRaceTeam,
 )
@@ -101,6 +102,19 @@ def _serialize_signup(s: TileRaceSignup) -> dict:
         "ranking_score": s.ranking_score,
         "wants_captain": s.wants_captain,
         "signed_up_at": s.signed_up_at.isoformat(),
+    }
+
+
+def _serialize_roll(r: TileRaceRoll) -> dict:
+    return {
+        "id": str(r.id),
+        "team_id": str(r.team_id),
+        "dice": r.dice or [],
+        "roll": r.roll,
+        "skipped": r.skipped,
+        "new_position": r.new_position,
+        "rolled_by": str(r.rolled_by),
+        "rolled_at": r.rolled_at.isoformat(),
     }
 
 

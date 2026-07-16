@@ -4,9 +4,10 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import TileRaceCompletion, TileRaceEvent, TileRaceTeam
+from app.db.models import TileRaceCompletion, TileRaceEvent, TileRaceRoll, TileRaceTeam
 from app.dependencies import get_current_user, get_session
 from app.services.page_permissions import require_page_permission
 
@@ -24,17 +25,13 @@ router = APIRouter()
 _FOG_PERM = Depends(require_page_permission("tilerace.admin", "edit"))
 
 
-def _require_captain(team: TileRaceTeam, user_id: str) -> None:
-    captain = next(
-        (
-            m
-            for m in (team.members or [])
-            if m.get("is_captain") and str(m.get("discord_user_id")) == user_id
-        ),
+def _require_member(team: TileRaceTeam, user_id: str) -> None:
+    member = next(
+        (m for m in (team.members or []) if str(m.get("discord_user_id")) == user_id),
         None,
     )
-    if captain is None:
-        raise HTTPException(403, "Only team captains may roll.")
+    if member is None:
+        raise HTTPException(403, "Only team members may roll.")
 
 
 async def _completed(session: AsyncSession, team_id: int, position: int) -> bool:
@@ -56,13 +53,17 @@ async def roll_dice(
     session: AsyncSession = Depends(get_session),
     current_user: dict = Depends(get_current_user),
 ) -> dict:
-    team = (
-        await session.execute(
-            select(TileRaceTeam).where(
-                TileRaceTeam.id == team_id, TileRaceTeam.event_id == event_id
+    try:
+        team = (
+            await session.execute(
+                select(TileRaceTeam)
+                .where(TileRaceTeam.id == team_id, TileRaceTeam.event_id == event_id)
+                .with_for_update(nowait=True)
             )
-        )
-    ).scalar_one_or_none()
+        ).scalar_one_or_none()
+    except OperationalError:
+        await session.rollback()
+        raise HTTPException(409, "Someone else is already rolling for this team.")
     if team is None:
         raise HTTPException(404, "Team not found.")
     event = (
@@ -72,13 +73,27 @@ async def roll_dice(
         raise HTTPException(404, "Event not found.")
     if event.is_finished:
         raise HTTPException(409, "Game over.")
-    _require_captain(team, str(current_user["sub"]))
+    _require_member(team, str(current_user["sub"]))
+    rolled_by = int(current_user["sub"])
+    now = datetime.now(timezone.utc)
 
     effects = dict(team.pending_effects or {})
     if effects.get("skip_next"):
         effects["skip_next"] = False
         team.pending_effects = effects
-        team.updated_at = datetime.now(timezone.utc)
+        team.updated_at = now
+        session.add(
+            TileRaceRoll(
+                event_id=event_id,
+                team_id=team_id,
+                dice=[],
+                roll=0,
+                skipped=True,
+                new_position=team.position,
+                rolled_by=rolled_by,
+                rolled_at=now,
+            )
+        )
         await session.commit()
         return {"skipped": True, "new_position": team.position, "dice": []}
 
@@ -92,7 +107,19 @@ async def roll_dice(
     team.position = team.position + roll
     summary = apply_landing_modifiers(team, find_cell(cells, team.position))
     _apply_pads(event, team, find_cell(cells, team.position), summary)
-    team.updated_at = datetime.now(timezone.utc)
+    team.updated_at = now
+    session.add(
+        TileRaceRoll(
+            event_id=event_id,
+            team_id=team_id,
+            dice=dice,
+            roll=roll,
+            skipped=False,
+            new_position=team.position,
+            rolled_by=rolled_by,
+            rolled_at=now,
+        )
+    )
     await session.commit()
     return {"roll": roll, "dice": dice, "new_position": team.position, **summary}
 
@@ -104,10 +131,11 @@ def _apply_pads(
         apply_pad_trigger(team, event.start_pad, summary)
     if cell_in_pad(cell, event.end_pad):
         apply_pad_trigger(team, event.end_pad, summary)
-        event.is_finished = True
-        event.winner_team_id = team.id
-        event.updated_at = datetime.now(timezone.utc)
-        summary["game_over"] = True
+        if (event.end_pad or {}).get("ends_game", True):
+            event.is_finished = True
+            event.winner_team_id = team.id
+            event.updated_at = datetime.now(timezone.utc)
+            summary["game_over"] = True
 
 
 @router.patch("/events/{event_id}/fog-of-war")

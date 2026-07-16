@@ -18,6 +18,7 @@ class Pad(BaseModel):
     width: int = 1
     height: int = 1
     trigger: Modifier | None = None
+    ends_game: bool = True
 
     @field_validator("width", "height")
     @classmethod

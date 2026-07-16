@@ -103,6 +103,32 @@ class TileRaceTeam(Base):
     )
 
 
+class TileRaceRoll(Base):
+    __tablename__ = "tilerace_rolls"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    event_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("tilerace_events.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    team_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("tilerace_teams.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    dice: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    roll: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    skipped: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+    new_position: Mapped[int] = mapped_column(Integer, nullable=False)
+    rolled_by: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    rolled_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+
+
 class TileRaceCompletion(Base):
     __tablename__ = "tilerace_tile_completions"
     __table_args__ = (

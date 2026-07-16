@@ -62,6 +62,15 @@ async def get_active_event(session: AsyncSession = Depends(get_session)) -> dict
         )
     ).scalar_one_or_none()
     if event is None:
+        event = (
+            await session.execute(
+                select(TileRaceEvent)
+                .where(TileRaceEvent.is_finished.is_(True))
+                .order_by(TileRaceEvent.updated_at.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+    if event is None:
         raise HTTPException(404, "No active tile race event.")
     return await _full_event(event, session)
 

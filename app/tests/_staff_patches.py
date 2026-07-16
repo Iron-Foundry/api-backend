@@ -11,7 +11,7 @@ _BYPASS = ["bypass-role"]
 _EFFECTIVE_ROLES_TARGETS = [
     "app.services.page_permissions.get_effective_roles",
     "app.routers.badges._helpers.get_effective_roles",
-    "app.routers.assets.get_effective_roles",
+    "app.routers.assets.manage.get_effective_roles",
     "app.routers.feedback.items.get_effective_roles",
     "app.routers.feedback.replies_reactions.get_effective_roles",
     "app.routers.content._helpers.get_effective_roles",

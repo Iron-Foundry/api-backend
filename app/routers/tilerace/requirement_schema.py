@@ -13,6 +13,11 @@ class LeafRequirement(BaseModel):
     icon_url: str = ""
 
 
+class TextRequirement(BaseModel):
+    kind: Literal["text"]
+    text: str = ""
+
+
 class AndRequirement(BaseModel):
     kind: Literal["and"]
     children: list["RequirementNode"] = []
@@ -29,7 +34,9 @@ class NotRequirement(BaseModel):
 
 
 RequirementNode = Annotated[
-    Union[LeafRequirement, AndRequirement, OrRequirement, NotRequirement],
+    Union[
+        LeafRequirement, TextRequirement, AndRequirement, OrRequirement, NotRequirement
+    ],
     Field(discriminator="kind"),
 ]
 
