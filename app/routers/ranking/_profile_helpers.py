@@ -36,6 +36,9 @@ class PlayerProfileSchema(BaseModel):
     accounts: list[AccountRankingSchema]
     badges: list[dict]
     latest_achievement: LatestAchievementSchema | None
+    total_loot_value: int
+    collection_log_slots: int
+    collection_log_slots_max: int
 
 
 async def _load_linked_rsns(
@@ -130,4 +133,7 @@ async def get_player_profile(
         accounts=accounts,
         badges=badges,
         latest_achievement=latest_achievement,
+        total_loot_value=user.total_loot_value if user else 0,
+        collection_log_slots=user.collection_log_slots if user else 0,
+        collection_log_slots_max=user.collection_log_slots_max if user else 0,
     )
