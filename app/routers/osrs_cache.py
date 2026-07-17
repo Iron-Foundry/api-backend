@@ -172,17 +172,21 @@ async def get_sprite_image(
     sprite_id: Annotated[int, Path(ge=0)],
     frame_index: Annotated[int, Path(ge=0)],
     format: Annotated[str, Query(pattern="^(png|webp)$")] = "png",
+    scale: Annotated[int | None, Query(ge=1, le=32)] = None,
 ) -> Response:
+    params: dict[str, Any] = {"format": format}
+    if scale is not None:
+        params["scale"] = scale
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
             resp = await client.get(
                 f"{OSRS_CACHE_SERVICE_URL}/sprites/{sprite_id}/{frame_index}",
-                params={"format": format},
+                params=params,
             )
         except httpx.RequestError as exc:
             raise HTTPException(502, "OSRS cache service unavailable") from exc
     if resp.status_code != 200:
-        raise HTTPException(resp.status_code, "Sprite not found")
+        raise HTTPException(resp.status_code, resp.text or "Sprite not found")
     media_type = "image/png" if format == "png" else "image/webp"
     return Response(
         content=resp.content,
