@@ -17,15 +17,6 @@ class WomGroupMixin(WomHandlerBase):
         resp.raise_for_status()
         return resp.json()
 
-    async def get_group_hiscores(
-        self, group_id: str | int, metric: str, limit: int = 50, offset: int = 0
-    ) -> list[dict]:
-        resp = await self._get_with_rate_limit(
-            f"/groups/{group_id}/hiscores",
-            params={"metric": metric, "limit": limit, "offset": offset},
-        )
-        return resp.json() if resp.is_success else []
-
     async def get_group_name_changes(
         self, group_id: str | int, *, limit: int = 50
     ) -> list[dict]:
@@ -55,58 +46,6 @@ class WomGroupMixin(WomHandlerBase):
             )
             return []
         return resp.json()
-
-    async def fetch_metric_total(self, group_id: str | int, metric: str) -> int:
-        """Sum kills across all group members for a single WOM metric."""
-        total = 0
-        limit = 50
-        offset = 0
-        while True:
-            page = await self.get_group_hiscores(
-                group_id, metric, limit=limit, offset=offset
-            )
-            if not page:
-                break
-            for entry in page:
-                total += entry.get("data", {}).get("kills", 0) or 0
-            if len(page) < limit:
-                break
-            offset += limit
-        return total
-
-    async def fetch_kc_metric(
-        self, group_id: str | int, metric: str, top_n: int = 600
-    ) -> list[dict] | None:
-        """Fetch up to top_n players for one WOM metric, paginating as needed."""
-        page_size = 50
-        offset = 0
-        results: list[dict] = []
-        try:
-            while len(results) < top_n:
-                fetch = min(page_size, top_n - len(results))
-                resp = await self._get_with_rate_limit(
-                    f"/groups/{group_id}/hiscores",
-                    params={"metric": metric, "limit": fetch, "offset": offset},
-                )
-                if not resp.is_success:
-                    break
-                page = resp.json()
-                if not page:
-                    break
-                for e in page:
-                    if (e.get("data", {}).get("kills") or 0) > 0:
-                        results.append(
-                            {
-                                "player_name": e["player"]["displayName"],
-                                "kills": e["data"]["kills"],
-                            }
-                        )
-                if len(page) < fetch:
-                    break
-                offset += fetch
-        except Exception:
-            return None
-        return results or None
 
     async def get_group_bulk_hiscores(self, group_id: str | int) -> list[dict]:
         resp = await self._get_with_rate_limit(f"/groups/{group_id}/bulk-hiscores")

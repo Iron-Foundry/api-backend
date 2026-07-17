@@ -87,28 +87,58 @@ async def warm_osrs_caches(valkey: Valkey) -> None:
             logger.warning("osrs cache warm for {} skipped: {}", key, exc)
 
 
+def _lb_display_name(metric: str) -> str:
+    if metric in _BOSS_METRICS:
+        return _BOSS_METRICS[metric][0]
+    return _ACTIVITY_METRICS.get(metric, (metric, metric))[0]
+
+
 async def _build_lb_cache(
     valkey: Valkey, wom_comp_id: int | None, metrics: list[str]
 ) -> None:
+    """Fetch clan bulk hiscores once and bucket into per-metric event leaderboards."""
     acquired = await valkey.set(_LB_LOCK_KEY, "1", ex=_LB_LOCK_TTL, nx=True)
     if not acquired:
         return
     try:
+        try:
+            async with WiseOldManHandler(
+                api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT, timeout=15.0
+            ) as wom:
+                bulk = await wom.get_group_bulk_hiscores(_WOM_GROUP_ID)
+        except Exception as exc:
+            logger.warning(
+                "frenzy leaderboard cache: WOM bulk-hiscores fetch failed: {}", exc
+            )
+            return
+
         out: list[dict] = []
-        async with WiseOldManHandler(
-            api_key=_WOM_API_KEY, discord_contact=_WOM_DISCORD_CONTACT, timeout=15.0
-        ) as wom:
-            for metric in metrics:
-                entries = await wom.fetch_kc_metric(_WOM_GROUP_ID, metric)
-                if entries:
-                    boss_name, _ = _BOSS_METRICS.get(metric, (metric, metric))
-                    out.append(
-                        {
-                            "metric": metric,
-                            "display_name": boss_name,
-                            "entries": entries,
-                        }
-                    )
+        for metric in metrics:
+            category = "bosses" if metric in _BOSS_METRICS else "activities"
+            rows: list[tuple[str, int]] = []
+            for entry in bulk:
+                snapshot = (entry.get("data") or {}).get("data")
+                if not snapshot:
+                    continue
+                info = (snapshot.get(category) or {}).get(metric)
+                if not isinstance(info, dict):
+                    continue
+                value = info.get("kills") if category == "bosses" else info.get("score")
+                if value:
+                    rows.append((entry["player"]["displayName"], value))
+            if not rows:
+                continue
+            rows.sort(key=lambda r: r[1], reverse=True)
+            out.append(
+                {
+                    "metric": metric,
+                    "display_name": _lb_display_name(metric),
+                    "entries": [
+                        {"index": i + 1, "rsn": rsn, "value": value}
+                        for i, (rsn, value) in enumerate(rows)
+                    ],
+                }
+            )
 
         if out:
             payload = json.dumps(out)

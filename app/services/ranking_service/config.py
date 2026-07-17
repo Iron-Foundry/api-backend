@@ -8,7 +8,7 @@ from ._boss_defaults import DEFAULT_BOSS_METRICS
 from ._skill_defaults import DEFAULT_PRESTIGE_METRICS, DEFAULT_SKILL_METRICS
 from .scoring import RankingConfig
 
-POLL_INTERVAL = 86400
+POLL_INTERVAL = 3600  # 1 hour
 
 _WOM_DISCORD_CONTACT = os.getenv("WOM_DISCORD_CONTACT")
 _GLOBAL_GUILD_ID = 0

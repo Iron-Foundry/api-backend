@@ -96,12 +96,22 @@ _KC_FRESH_TTL = 15 * 60
 _KC_STALE_TTL = 48 * 60 * 60
 _KC_LOCK_TTL = 300
 
-_LEAGUES_FRESH_KEY = "clan:leagues_fresh"
-_LEAGUES_STALE_KEY = "clan:leagues_stale"
-_LEAGUES_LOCK_KEY = "clan:leagues_lock"
-_LEAGUES_FRESH_TTL = 15 * 60
-_LEAGUES_STALE_TTL = 48 * 60 * 60
-_LEAGUES_LOCK_TTL = 60
+_CLUESCROLLS_METRICS: dict[str, str] = {
+    "clue_scrolls_all": "All",
+    "clue_scrolls_beginner": "Beginner",
+    "clue_scrolls_easy": "Easy",
+    "clue_scrolls_medium": "Medium",
+    "clue_scrolls_hard": "Hard",
+    "clue_scrolls_elite": "Elite",
+    "clue_scrolls_master": "Master",
+}
+
+_CLUESCROLLS_FRESH_KEY = "clan:cluescrolls_fresh"
+_CLUESCROLLS_STALE_KEY = "clan:cluescrolls_stale"
+_CLUESCROLLS_LOCK_KEY = "clan:cluescrolls_lock"
+_CLUESCROLLS_FRESH_TTL = 15 * 60
+_CLUESCROLLS_STALE_TTL = 48 * 60 * 60
+_CLUESCROLLS_LOCK_TTL = 60
 
 _NC_FRESH_KEY = "clan:name_changes_fresh"
 _NC_STALE_KEY = "clan:name_changes_stale"

@@ -11,13 +11,13 @@ from app.db.models import Event, Leaderboard, User
 from app.dependencies import get_session, get_valkey
 
 from ._constants import (
+    _CLUESCROLLS_FRESH_KEY,
+    _CLUESCROLLS_STALE_KEY,
     _KC_FRESH_KEY,
     _KC_STALE_KEY,
-    _LEAGUES_FRESH_KEY,
-    _LEAGUES_STALE_KEY,
 )
 from ._helpers import _enrich_with_ranks
-from ._leaderboard_cache import _build_kc_cache, _build_leagues_cache
+from ._leaderboard_cache import _build_cluescrolls_cache, _build_kc_cache
 
 router = APIRouter()
 
@@ -102,23 +102,27 @@ async def killcount_leaderboard(
     return data
 
 
-@router.get("/leaderboards/leagues")
-async def leagues_leaderboard(
+@router.get("/leaderboards/cluescrolls")
+async def cluescrolls_leaderboard(
     background_tasks: BackgroundTasks,
     valkey: Valkey = Depends(get_valkey),
     session: AsyncSession = Depends(get_session),
 ) -> list[dict]:
-    """Clan members ranked by Clue Scrolls completed, served from cache. Fresh 15 min, stale 48 h."""
-    fresh = await valkey.get(_LEAGUES_FRESH_KEY)
+    """Clan members ranked by Clue Scrolls completed, per tier, served from cache. Fresh 15 min, stale 48 h."""
+    fresh = await valkey.get(_CLUESCROLLS_FRESH_KEY)
     data: list[dict] = json.loads(fresh) if fresh else []
     if not data:
-        background_tasks.add_task(_build_leagues_cache, valkey)
-        stale = await valkey.get(_LEAGUES_STALE_KEY)
+        background_tasks.add_task(_build_cluescrolls_cache, valkey)
+        stale = await valkey.get(_CLUESCROLLS_STALE_KEY)
         data = json.loads(stale) if stale else []
     if data:
-        entries_by_name = {e["player_name"].lower(): [e] for e in data}
+        entries_by_name: dict[str, list[dict]] = {}
+        for tier in data:
+            for e in tier.get("entries", []):
+                entries_by_name.setdefault(e["player_name"].lower(), []).append(e)
         await _enrich_with_ranks(entries_by_name, session)
-        data = _dedup_flat(data)
+        for tier in data:
+            tier["entries"] = _dedup_flat(tier.get("entries", []))
     return data
 
 

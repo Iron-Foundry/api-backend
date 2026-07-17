@@ -24,7 +24,7 @@ from .scoring import RankingConfig, rank_from_snapshots
 
 
 class RankingService:
-    """Fetches WOM player snapshots and ranks the clan once per day."""
+    """Fetches WOM player snapshots and ranks the clan once per hour."""
 
     def __init__(
         self,

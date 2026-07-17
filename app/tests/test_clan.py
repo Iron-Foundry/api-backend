@@ -43,9 +43,9 @@ async def test_leaderboards_killcounts(auth_client: AsyncClient) -> None:
     assert resp.status_code == 200
 
 
-async def test_leaderboards_leagues(auth_client: AsyncClient) -> None:
+async def test_leaderboards_cluescrolls(auth_client: AsyncClient) -> None:
     try:
-        resp = await auth_client.get("/clan/leaderboards/leagues")
+        resp = await auth_client.get("/clan/leaderboards/cluescrolls")
         assert resp.status_code in (200, 500, 503)
     except Exception:
         pass
