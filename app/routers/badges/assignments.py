@@ -90,9 +90,15 @@ async def my_badges(
 ) -> list[dict]:
     uid = int(current_user["sub"])
     result = await session.execute(
-        select(Badge)
+        select(Badge, UserBadge.assigned_at)
         .join(UserBadge, UserBadge.badge_id == Badge.id)
         .where(UserBadge.discord_user_id == uid)
         .order_by(UserBadge.assigned_at)
     )
-    return [serialize_badge(b) for b in result.scalars()]
+    return [
+        {
+            **serialize_badge(b),
+            "assigned_at": assigned_at.isoformat() if assigned_at else None,
+        }
+        for b, assigned_at in result
+    ]
