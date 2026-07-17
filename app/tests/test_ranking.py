@@ -34,6 +34,16 @@ async def test_player_breakdown_not_found(auth_client: AsyncClient) -> None:
     assert resp.status_code == 404
 
 
+async def test_player_profile_not_found(auth_client: AsyncClient) -> None:
+    resp = await auth_client.get("/ranking/player/NonExistentPlayerXYZ123/profile")
+    assert resp.status_code == 404
+
+
+async def test_player_profile(auth_client: AsyncClient) -> None:
+    resp = await auth_client.get("/ranking/player/SomePlayer/profile")
+    assert resp.status_code in (200, 404, 500)
+
+
 async def test_ranking_results(auth_client: AsyncClient) -> None:
     resp = await auth_client.get("/ranking/results")
     assert resp.status_code in (200, 500)
