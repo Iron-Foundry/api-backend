@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
@@ -34,6 +35,20 @@ _PLAYER_NAME_PARSERS: dict[BroadcastType, Callable[[str], Any]] = {
     BroadcastType.LEAGUE_RANK: parser.parse_league_rank,
     BroadcastType.LEAGUE_AREA: parser.parse_league_area,
 }
+
+
+_EXPECTED_CLAN = (
+    os.getenv("WOM_CLAN_NAME", "Iron Foundry").replace("\xa0", " ").strip().casefold()
+)
+
+
+def clan_matches(clan_name: str) -> bool:
+    """Return True when a payload's clan_name is the configured clan.
+
+    Normalises the OSRS non-breaking space, surrounding whitespace, and case so
+    a legitimate payload is never dropped over cosmetic differences.
+    """
+    return clan_name.replace("\xa0", " ").strip().casefold() == _EXPECTED_CLAN
 
 
 def now() -> datetime:

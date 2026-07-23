@@ -34,7 +34,7 @@ from ._broadcast_stats import (
     handle_personal_best,
     handle_xp_milestone,
 )
-from ._helpers import any_opted_out, broadcast_player_names, now
+from ._helpers import any_opted_out, broadcast_player_names, clan_matches, now
 
 router = APIRouter()
 
@@ -86,6 +86,11 @@ async def ingest_chat(
 ) -> dict:
     """Receive a batch of clan chat messages from the TrackScape Connector plugin."""
     for payload in payloads:
+        if not clan_matches(payload.clan_name):
+            logger.debug("Skipping payload from foreign clan {!r}", payload.clan_name)
+            ccingest_collector.record("wrong_clan")
+            continue
+
         is_broadcast = payload.sender == payload.clan_name
 
         if await is_duplicate(valkey, clan["key"], payload.sender, payload.message):
