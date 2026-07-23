@@ -4,6 +4,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from scalar_fastapi import get_scalar_api_reference
 from loguru import logger
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from valkey.asyncio import Valkey
@@ -196,7 +198,12 @@ async def lifespan(app: FastAPI):
     await app.state.valkey.aclose()
 
 
-app = FastAPI(title="The Foundry API", lifespan=lifespan)
+app = FastAPI(
+    title="The Foundry API",
+    lifespan=lifespan,
+    docs_url=None,
+    redoc_url=None,
+)
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 _collector = EndpointMetricsCollector()
@@ -249,6 +256,15 @@ app.include_router(ironclad.router)
 app.include_router(tilerace.router)
 app.include_router(ticket_config.router)
 app.include_router(osrs_cache.router)
+
+
+@app.get("/docs", include_in_schema=False)
+async def scalar_docs() -> HTMLResponse:
+    return get_scalar_api_reference(
+        openapi_url=app.openapi_url or "/openapi.json",
+        title=app.title,
+        telemetry=False,
+    )
 
 
 @app.get("/health")

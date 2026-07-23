@@ -7,6 +7,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
+from scalar_fastapi import get_scalar_api_reference
 from httpx import ASGITransport, AsyncClient
 
 from app.dependencies import (
@@ -79,7 +81,7 @@ _ROUTERS = [
 
 
 def _build_app() -> FastAPI:
-    app = FastAPI()
+    app = FastAPI(title="The Foundry API", docs_url=None, redoc_url=None)
     for router in _ROUTERS:
         app.include_router(router)
     ranking_svc = MagicMock()
@@ -100,6 +102,14 @@ def _build_app() -> FastAPI:
     app.state.bulk_gains_service = bulk_gains_svc
     app.state.session_factory = MagicMock()
     app.state.valkey = AsyncMock()
+
+    @app.get("/docs", include_in_schema=False)
+    async def _scalar_docs() -> HTMLResponse:
+        return get_scalar_api_reference(
+            openapi_url=app.openapi_url or "/openapi.json",
+            title=app.title,
+            telemetry=False,
+        )
 
     @app.get("/health")
     async def _health() -> dict:

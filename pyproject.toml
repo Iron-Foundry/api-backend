@@ -17,6 +17,7 @@ dependencies = [
     "pytest>=9.1.1",
     "python-jose[cryptography]>=3.5.0",
     "python-multipart>=0.0.27",
+    "scalar-fastapi>=1.8.2",
     "sqlalchemy[asyncio]>=2.0.51",
     "tqdm>=4.67.3",
     "valkey>=6.1.1",
@@ -26,15 +27,21 @@ dependencies = [
 pythonpath = ["."]
 testpaths = ["app/tests"]
 asyncio_mode = "auto"
+addopts = "-m 'not integration'"
+markers = [
+    "integration: real-infra tests needing Postgres + Valkey containers (deselected by default)",
+]
 
 [dependency-groups]
 dev = [
+    "asgi-lifespan>=2.1.0",
     "bandit>=1.9.4",
     "mypy>=2.1.0",
     "pre-commit>=4.6.0",
     "pytest>=9.0.3",
     "pytest-asyncio>=1.4.0",
     "ruff>=0.15",
+    "testcontainers>=4.14.2",
     "tqdm>=4.68.3",
 ]
 
