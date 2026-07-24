@@ -64,18 +64,20 @@ async def get_categories(
             ContentEntry.slug,
             ContentEntry.category_id,
             ContentEntry.sort_order,
+            ContentEntry.updated_at,
         )
         .where(ContentEntry.category_id.in_(cat_ids), ContentEntry.deprecated == False)  # noqa: E712
         .order_by(ContentEntry.sort_order, ContentEntry.title)
     )
     entries_by_cat: dict = defaultdict(list)
-    for entry_id, title, slug, cat_id, sort_order in entries_result:
+    for entry_id, title, slug, cat_id, sort_order, updated_at in entries_result:
         entries_by_cat[cat_id].append(
             {
                 "id": str(entry_id),
                 "title": title,
                 "slug": slug,
                 "sort_order": sort_order,
+                "updated_at": updated_at,
             }
         )
 

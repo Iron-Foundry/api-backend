@@ -31,10 +31,14 @@ async def test_content_category_and_entry_crud(staff_client: AsyncClient) -> Non
     assert fetched.status_code == 200
     assert fetched.json()["title"] == "Welcome"
 
-    # Category tree lists the new category.
+    # Category tree lists the new category and exposes the entry's updated_at
+    # (consumed by the web-app sitemap for <lastmod>).
     cats = await staff_client.get(f"/content/{_PAGE}/categories")
     assert cats.status_code == 200
-    assert any(c["id"] == cat_id for c in cats.json())
+    tree = cats.json()
+    assert any(c["id"] == cat_id for c in tree)
+    listed = next(e for c in tree for e in c["entries"] if e["id"] == entry_id)
+    assert "updated_at" in listed
 
     updated = await staff_client.put(
         f"/content/{_PAGE}/entries/{entry_id}",
