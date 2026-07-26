@@ -29,6 +29,7 @@ from app.routers import (
     osrs_cache,
     parties,
     ranking,
+    reference,
     role_panels,
     runelite_configs,
     staff,
@@ -56,6 +57,8 @@ from app.services.wom_metrics import WomMetricsService
 from app.services.name_change import WomNameChangeService
 from app.services.ranking_service import RankingService
 from app.services.bulk_gains import BulkGainsService
+from app.services.loot_tables import LootTablesService
+from app.services.efficiency_rates import EfficiencyRatesService
 from app.routers.config import get_service_toggles, _ALL_SERVICE_KEYS
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
@@ -124,6 +127,9 @@ async def lifespan(app: FastAPI):
         snapshot_service: CompetitionSnapshotService | None = (
             CompetitionSnapshotService(app.state.session_factory, app.state.valkey)
         )
+        efficiency_rates_service: EfficiencyRatesService | None = (
+            EfficiencyRatesService(app.state.session_factory)
+        )
         comp_schedule_service: CompetitionScheduleService | None = None
         if WOM_GROUP_KEY:
             comp_schedule_service = CompetitionScheduleService(
@@ -142,7 +148,14 @@ async def lifespan(app: FastAPI):
         clan_stats_service = None
         ranking_service = None
         snapshot_service = None
+        efficiency_rates_service = None
         comp_schedule_service = None
+
+    loot_tables_service = (
+        LootTablesService(app.state.session_factory)
+        if app.state.session_factory
+        else None
+    )
 
     app.state.ranking_service = ranking_service
     app.state.bulk_gains_service = (
@@ -159,6 +172,8 @@ async def lifespan(app: FastAPI):
         "ranking": ranking_service,
         "competition_snapshot": snapshot_service,
         "competition_schedule": comp_schedule_service,
+        "efficiency_rates": efficiency_rates_service,
+        "loot_tables": loot_tables_service,
     }
 
     # Start only enabled services
@@ -244,6 +259,7 @@ app.include_router(ccdispatch.router)
 app.include_router(members.router)
 app.include_router(parties.router)
 app.include_router(ranking.router)
+app.include_router(reference.router)
 app.include_router(role_panels.router)
 app.include_router(runelite_configs.router)
 app.include_router(staff.router)

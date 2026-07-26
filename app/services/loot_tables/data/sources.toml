@@ -1,0 +1,77 @@
+# Wiki-page overrides for boss slugs whose humanized name is wrong, plus
+# non-boss loot sources (activities, clues) that are not in the boss catalog.
+
+# Mode-variant sources whose loot equals the base chest table are skipped here;
+# they keep their EHB rates (sourced from WOM independently).
+loot_exclude = [
+    "chambers_of_xeric_challenge_mode",
+    "theatre_of_blood_hard_mode",
+    "tombs_of_amascut_expert",
+]
+
+# Sources whose rarities come from a reward chest (per completion / roll), not a
+# per-kill drop table. Point-scaling (raid points, Barrows reward potential) is
+# not modelled - the viewer labels these rather than converting per-kill.
+chest_sources = [
+    "chambers_of_xeric",
+    "theatre_of_blood",
+    "tombs_of_amascut",
+    "barrows_chests",
+    "sol_heredit",
+    "wintertodt",
+]
+
+[overrides]
+kril_tsutsaroth = "K'ril Tsutsaroth"
+kreearra = "Kree'arra"
+vetion = "Vet'ion"
+calvarion = "Calvar'ion"
+tztok_jad = "TzTok-Jad"
+tzkal_zuk = "TzKal-Zuk"
+phosanis_nightmare = "Phosani's Nightmare"
+chambers_of_xeric = "Ancient chest"
+theatre_of_blood = "Monumental chest"
+tombs_of_amascut = "Chest (Tombs of Amascut)"
+barrows_chests = "Chest (Barrows)"
+sol_heredit = "Rewards Chest (Fortis Colosseum)"
+lunar_chests = "Lunar Chest"
+the_gauntlet = "The Gauntlet"
+the_corrupted_gauntlet = "The Gauntlet"
+the_royal_titans = "Branda the Fire Queen"
+mimic = "The Mimic"
+
+[[extra]]
+slug = "guardians_of_the_rift"
+category = "activity"
+wiki_page = "Rewards Guardian"
+display_name = "Guardians of the Rift"
+
+[[extra]]
+slug = "tempoross"
+category = "activity"
+wiki_page = "Tempoross"
+display_name = "Tempoross"
+
+[[extra]]
+slug = "wintertodt"
+category = "activity"
+wiki_page = "Supply crate (Wintertodt)"
+display_name = "Wintertodt"
+
+[[extra]]
+slug = "hallowed_sepulchre"
+category = "activity"
+wiki_page = "Grand Hallowed Coffin"
+display_name = "Hallowed Sepulchre"
+
+[[extra]]
+slug = "reward_casket_master"
+category = "clue"
+wiki_page = "Reward casket (master)"
+display_name = "Master clue casket"
+
+[[extra]]
+slug = "reward_casket_elite"
+category = "clue"
+wiki_page = "Reward casket (elite)"
+display_name = "Elite clue casket"

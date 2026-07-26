@@ -49,6 +49,7 @@ from .parties import (
 )
 from .gains import BulkGainsBatch, PlayerBulkGains
 from .ranking import CompetitionSnapshot, PlayerRanking, PlayerSnapshot
+from .reference_data import EfficiencyRate, LootDrop, LootSource
 from .runelite_configs import RuneLiteConfig
 from .service_metrics import MetricRecord, MetricRecordCompact, ServiceStatus
 from .surveys import SurveyActive, SurveyResponse, SurveyTemplate, WebSurveySubmission
@@ -76,6 +77,7 @@ __all__ = [
     "ContentEntry",
     "ContentEntryReaction",
     "ContentEntryVersion",
+    "EfficiencyRate",
     "Event",
     "Feedback",
     "FeedbackReaction",
@@ -92,6 +94,8 @@ __all__ = [
     "TileRaceTeam",
     "TileRaceSignup",
     "Leaderboard",
+    "LootDrop",
+    "LootSource",
     "MemberGoals",
     "MembershipEvent",
     "Metric",

@@ -10,12 +10,17 @@ from loguru import logger
 from app.services.http.base import BaseRequestHandler
 from app.services.http.wom_queue import WomPriority, get_wom_queue
 from .wom_competition import WomCompetitionMixin
+from .wom_efficiency import WomEfficiencyMixin
 from .wom_group import WomGroupMixin
 from .wom_player import WomPlayerMixin
 
 
 class WiseOldManHandler(
-    WomCompetitionMixin, WomGroupMixin, WomPlayerMixin, BaseRequestHandler
+    WomCompetitionMixin,
+    WomEfficiencyMixin,
+    WomGroupMixin,
+    WomPlayerMixin,
+    BaseRequestHandler,
 ):
     base_url = "https://api.wiseoldman.net/v2"
     default_timeout = 30.0

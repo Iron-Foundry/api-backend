@@ -873,6 +873,103 @@
         "title": "DiscordRolesConfig",
         "type": "object"
       },
+      "DropOut": {
+        "properties": {
+          "drop_group": {
+            "title": "Drop Group",
+            "type": "string"
+          },
+          "ge_price": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ge Price"
+          },
+          "item_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item Id"
+          },
+          "item_name": {
+            "title": "Item Name",
+            "type": "string"
+          },
+          "noted": {
+            "title": "Noted",
+            "type": "boolean"
+          },
+          "quantity_high": {
+            "title": "Quantity High",
+            "type": "integer"
+          },
+          "quantity_low": {
+            "title": "Quantity Low",
+            "type": "integer"
+          },
+          "rarity_denom": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rarity Denom"
+          },
+          "rarity_num": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rarity Num"
+          },
+          "rarity_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rarity Text"
+          },
+          "rolls": {
+            "title": "Rolls",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "item_id",
+          "item_name",
+          "quantity_low",
+          "quantity_high",
+          "noted",
+          "rarity_num",
+          "rarity_denom",
+          "rarity_text",
+          "rolls",
+          "drop_group"
+        ],
+        "title": "DropOut",
+        "type": "object"
+      },
       "EditCompetitionInput": {
         "properties": {
           "ends_at": {
@@ -1178,6 +1275,22 @@
           }
         },
         "title": "InfoPanelConfig",
+        "type": "object"
+      },
+      "ItemSourceOut": {
+        "properties": {
+          "drop": {
+            "$ref": "#/components/schemas/DropOut"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceOut"
+          }
+        },
+        "required": [
+          "source",
+          "drop"
+        ],
+        "title": "ItemSourceOut",
         "type": "object"
       },
       "JoinPartyRequest": {
@@ -2301,6 +2414,41 @@
         "title": "RankMappingsBody",
         "type": "object"
       },
+      "RateOut": {
+        "properties": {
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "rate": {
+            "title": "Rate",
+            "type": "number"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "metric",
+          "kind",
+          "rate",
+          "payload",
+          "updated_at"
+        ],
+        "title": "RateOut",
+        "type": "object"
+      },
       "ReferralUpdate": {
         "properties": {
           "detail": {
@@ -2596,6 +2744,157 @@
           "target_position"
         ],
         "title": "SnakesLaddersModifier",
+        "type": "object"
+      },
+      "SourceDetailOut": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "drops": {
+            "items": {
+              "$ref": "#/components/schemas/DropOut"
+            },
+            "title": "Drops",
+            "type": "array"
+          },
+          "reward_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reward Kind"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "wiki_page": {
+            "title": "Wiki Page",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "display_name",
+          "category",
+          "wiki_page",
+          "reward_kind",
+          "updated_at",
+          "drops"
+        ],
+        "title": "SourceDetailOut",
+        "type": "object"
+      },
+      "SourceListOut": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "drop_count": {
+            "title": "Drop Count",
+            "type": "integer"
+          },
+          "reward_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reward Kind"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "wiki_page": {
+            "title": "Wiki Page",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "display_name",
+          "category",
+          "wiki_page",
+          "reward_kind",
+          "updated_at",
+          "drop_count"
+        ],
+        "title": "SourceListOut",
+        "type": "object"
+      },
+      "SourceOut": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "reward_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reward Kind"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "wiki_page": {
+            "title": "Wiki Page",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "display_name",
+          "category",
+          "wiki_page",
+          "reward_kind",
+          "updated_at"
+        ],
+        "title": "SourceOut",
         "type": "object"
       },
       "StaffCascadeBody": {
@@ -15424,6 +15723,206 @@
         "summary": "Get Ranking Status",
         "tags": [
           "ranking"
+        ]
+      }
+    },
+    "/reference/loot/items/{item_id}": {
+      "get": {
+        "operationId": "sources_for_item_reference_loot_items__item_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "minimum": 0,
+              "title": "Item Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ItemSourceOut"
+                  },
+                  "title": "Response Sources For Item Reference Loot Items  Item Id  Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sources For Item",
+        "tags": [
+          "reference",
+          "reference"
+        ]
+      }
+    },
+    "/reference/loot/sources": {
+      "get": {
+        "operationId": "list_sources_reference_loot_sources_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SourceListOut"
+                  },
+                  "title": "Response List Sources Reference Loot Sources Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Sources",
+        "tags": [
+          "reference",
+          "reference"
+        ]
+      }
+    },
+    "/reference/loot/sources/{slug}": {
+      "get": {
+        "operationId": "get_source_reference_loot_sources__slug__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Source",
+        "tags": [
+          "reference",
+          "reference"
+        ]
+      }
+    },
+    "/reference/rates": {
+      "get": {
+        "operationId": "list_rates_reference_rates_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(ehp|ehb)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RateOut"
+                  },
+                  "title": "Response List Rates Reference Rates Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Rates",
+        "tags": [
+          "reference",
+          "reference"
         ]
       }
     },
