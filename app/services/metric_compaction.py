@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import date, datetime, timedelta, timezone
+import contextlib
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, cast
 
 from loguru import logger
 from sqlalchemy import delete, func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.db.models import MetricRecord, MetricRecordCompact
 
@@ -19,7 +20,7 @@ _POLL_INTERVAL = 86400  # run once per day
 _BATCH_SIZE = 10000
 
 
-def _aggregate_metrics(rows: list[dict]) -> dict[str, Any]:
+def _aggregate_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """Compute min/max/avg/sum/count for each numeric key across a list of metric dicts."""
     agg: dict[str, dict[str, Any]] = {}
     for metrics in rows:
@@ -59,17 +60,15 @@ class MetricCompactionService:
     async def stop(self) -> None:
         if self._task:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
         logger.info("MetricCompactionService stopped")
 
     async def run_now(self) -> int:
         """Compact eligible records immediately. Returns number of raw records deleted."""
         if not self._session_factory:
             return 0
-        cutoff = datetime.now(timezone.utc) - timedelta(days=_RETENTION_DAYS)
+        cutoff = datetime.now(UTC) - timedelta(days=_RETENTION_DAYS)
         deleted = 0
         try:
             async with self._session_factory() as session:
@@ -90,7 +89,7 @@ class MetricCompactionService:
 
             for service_name, module_name, day_dt in groups:
                 day: date = day_dt.date() if hasattr(day_dt, "date") else day_dt
-                day_start = datetime(day.year, day.month, day.day, tzinfo=timezone.utc)
+                day_start = datetime(day.year, day.month, day.day, tzinfo=UTC)
                 day_end = day_start + timedelta(days=1)
 
                 async with self._session_factory() as session:
@@ -129,7 +128,7 @@ class MetricCompactionService:
                     )
 
                     del_result = cast(
-                        CursorResult,
+                        CursorResult[Any],
                         await session.execute(
                             delete(MetricRecord).where(
                                 MetricRecord.service_name == service_name,

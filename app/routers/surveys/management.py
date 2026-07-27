@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -42,7 +43,9 @@ class TemplateBody(BaseModel):
     fields: list[TemplateFieldBody] = []
 
 
-async def _require_survey_edit(current_user: dict, session: AsyncSession) -> None:
+async def _require_survey_edit(
+    current_user: dict[str, Any], session: AsyncSession
+) -> None:
     roles = await get_roles(current_user, session)
     if not await check_page_permission("staff.surveys", "edit", roles, session):
         raise HTTPException(403, "Requires Senior Moderator or higher.")
@@ -52,9 +55,9 @@ async def _require_survey_edit(current_user: dict, session: AsyncSession) -> Non
 async def set_open(
     template_id: str,
     body: OpenUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Publish or close a survey. Requires Senior Moderator or higher."""
     await _require_survey_edit(current_user, session)
 
@@ -67,7 +70,7 @@ async def set_open(
         raise HTTPException(404, "Template not found.")
 
     raw = row.questions or {}
-    updated: dict = (
+    updated: dict[str, Any] = (
         {"fields": raw, "is_open": body.is_open}
         if isinstance(raw, list)
         else {**raw, "is_open": body.is_open}
@@ -85,9 +88,9 @@ async def set_open(
 async def set_visibility(
     template_id: str,
     body: VisibilityUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Set which roles can read responses. Requires Senior Moderator or higher."""
     await _require_survey_edit(current_user, session)
 
@@ -120,23 +123,23 @@ async def set_visibility(
 @router.post("/", status_code=201)
 async def create_template(
     body: TemplateBody,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Create a new survey/application template. Requires Senior Moderator or higher."""
     roles = await get_roles(current_user, session)
     if not await check_page_permission("staff.surveys", "create", roles, session):
         raise HTTPException(403, "Requires Senior Moderator or higher.")
 
     template_id = uuid.uuid4().hex[:16]
-    questions: dict = {
+    questions: dict[str, Any] = {
         "category": body.category,
         "description": body.description,
         "fields": [f.model_dump() for f in body.fields],
         "is_open": False,
         "visibility": None,
     }
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     session.add(
         SurveyTemplate(
             template_id=template_id,
@@ -166,9 +169,9 @@ async def create_template(
 async def update_template(
     template_id: str,
     body: TemplateBody,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Update a template's title, category, description, and fields. Requires Senior Moderator or higher."""
     await _require_survey_edit(current_user, session)
 
@@ -184,7 +187,7 @@ async def update_template(
     is_open = extract_is_open(raw)
     visibility = None if isinstance(raw, list) else raw.get("visibility")
 
-    updated: dict = {
+    updated: dict[str, Any] = {
         "category": body.category,
         "description": body.description,
         "fields": [f.model_dump() for f in body.fields],

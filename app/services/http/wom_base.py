@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import httpx
 
 from app.services.http.base import BaseRequestHandler
@@ -19,11 +21,11 @@ class WomHandlerBase(BaseRequestHandler):
     _priority: WomPriority
 
     async def _get_with_rate_limit(
-        self, path: str, *, params: dict | None = None
+        self, path: str, *, params: dict[str, Any] | None = None
     ) -> httpx.Response:
         raise NotImplementedError
 
     async def _write_with_rate_limit(
-        self, method: str, path: str, *, json: dict | None = None
+        self, method: str, path: str, *, json: dict[str, Any] | None = None
     ) -> httpx.Response:
         raise NotImplementedError

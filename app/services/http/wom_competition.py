@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import ClassVar
+from datetime import UTC, datetime
+from typing import Any, ClassVar
 
 from app.services.http.wom_queue import get_wom_queue
+
 from .wom_base import WomHandlerBase
 from .wom_cache import _CachedComp, _comp_status, _ttl_for, parse_dt
 
@@ -13,19 +14,21 @@ from .wom_cache import _CachedComp, _comp_status, _ttl_for, parse_dt
 class WomCompetitionMixin(WomHandlerBase):
     _comp_cache: ClassVar[dict[int, _CachedComp]] = {}
 
-    async def create_competition(self, payload: dict) -> dict:
+    async def create_competition(self, payload: dict[str, Any]) -> dict[str, Any]:
         resp = await self._write_with_rate_limit("post", "/competitions", json=payload)
         resp.raise_for_status()
         return resp.json()
 
-    async def edit_competition(self, comp_id: int, payload: dict) -> dict:
+    async def edit_competition(
+        self, comp_id: int, payload: dict[str, Any]
+    ) -> dict[str, Any]:
         resp = await self._write_with_rate_limit(
             "put", f"/competitions/{comp_id}", json=payload
         )
         resp.raise_for_status()
         return resp.json()
 
-    async def delete_competition(self, comp_id: int, payload: dict) -> None:
+    async def delete_competition(self, comp_id: int, payload: dict[str, Any]) -> None:
         resp = await self._write_with_rate_limit(
             "delete", f"/competitions/{comp_id}", json=payload
         )
@@ -33,7 +36,7 @@ class WomCompetitionMixin(WomHandlerBase):
 
     async def get_competition_top5_progress(
         self, comp_id: int, metric: str
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         resp = await self._get_with_rate_limit(
             f"/competitions/{comp_id}/top5-progress", params={"metric": metric}
         )
@@ -41,8 +44,8 @@ class WomCompetitionMixin(WomHandlerBase):
 
     async def get_competition_details(
         self, comp_id: int, *, metric: str | None = None
-    ) -> dict:
-        params: dict | None = {"metric": metric} if metric else None
+    ) -> dict[str, Any]:
+        params: dict[str, Any] | None = {"metric": metric} if metric else None
         queue = get_wom_queue()
         resp = await queue.submit(
             lambda cid=comp_id, p=params: self.get(f"/competitions/{cid}", params=p),
@@ -53,7 +56,7 @@ class WomCompetitionMixin(WomHandlerBase):
 
     async def get_competition_details_at(
         self, comp_id: int, *, metric: str, date: datetime
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Fetch competition standings as of a specific UTC datetime."""
         params = {"metric": metric, "date": date.strftime("%Y-%m-%dT%H:%M:%S.000Z")}
         queue = get_wom_queue()
@@ -71,10 +74,10 @@ class WomCompetitionMixin(WomHandlerBase):
         ends_at: datetime | None = None,
         *,
         metric: str | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Return competition details from cache, fetching/refreshing as needed."""
         entry = self._comp_cache.get(comp_id)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         stale = (
             entry is None

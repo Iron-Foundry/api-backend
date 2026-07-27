@@ -19,7 +19,7 @@ router = APIRouter()
     "/run",
     dependencies=[Depends(require_page_permission("staff.ranking", "create"))],
 )
-async def trigger_ranking_run(request: Request) -> dict:
+async def trigger_ranking_run(request: Request) -> dict[str, Any]:
     """Trigger an immediate ranking run. Staff only."""
     svc = getattr(request.app.state, "ranking_service", None)
     if svc is None:
@@ -39,7 +39,7 @@ async def preview_ranking(
     body: dict[str, Any],
     request: Request,
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Re-rank from cached snapshots using a trial config. No DB writes."""
     svc = getattr(request.app.state, "ranking_service", None)
     if svc is None:
@@ -52,7 +52,7 @@ async def preview_ranking(
     current_result = await session.execute(
         select(PlayerRanking.rsn, PlayerRanking.rank, PlayerRanking.points)
     )
-    current_map: dict[str, dict] = {
+    current_map: dict[str, dict[str, Any]] = {
         row.rsn: {"rank": row.rank, "points": row.points} for row in current_result
     }
 

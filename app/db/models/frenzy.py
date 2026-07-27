@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import (
+    TIMESTAMP,
     BigInteger,
     Boolean,
     ForeignKey,
     Index,
     Integer,
     Text,
-    TIMESTAMP,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -24,10 +25,16 @@ class FrenzyTemplate(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
-    tiers: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
-    activities: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
-    milestones: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
-    multipliers: Mapped[list] = mapped_column(
+    tiers: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
+    activities: Mapped[list[Any]] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )
+    milestones: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
+    multipliers: Mapped[list[Any]] = mapped_column(
         JSONB, nullable=False, server_default="[]"
     )
     total_point_cap: Mapped[int] = mapped_column(
@@ -58,10 +65,10 @@ class FrenzyTemplateVersion(Base):
         nullable=False,
     )
     version_number: Mapped[int] = mapped_column(Integer, nullable=False)
-    tiers: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    activities: Mapped[list] = mapped_column(JSONB, nullable=False)
-    milestones: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    multipliers: Mapped[list] = mapped_column(JSONB, nullable=False)
+    tiers: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    activities: Mapped[list[Any]] = mapped_column(JSONB, nullable=False)
+    milestones: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    multipliers: Mapped[list[Any]] = mapped_column(JSONB, nullable=False)
     edited_by: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False
@@ -77,10 +84,10 @@ class FrenzyEvent(Base):
         BigInteger, ForeignKey("frenzy_templates.id"), nullable=False
     )
     wom_comp_id: Mapped[int | None] = mapped_column(Integer)
-    leaderboard_metrics: Mapped[list] = mapped_column(
+    leaderboard_metrics: Mapped[list[str]] = mapped_column(
         JSONB, nullable=False, server_default="[]"
     )
-    trusted_sources: Mapped[list] = mapped_column(
+    trusted_sources: Mapped[list[str]] = mapped_column(
         JSONB, nullable=False, server_default="[]"
     )
     starts_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
@@ -111,16 +118,16 @@ class FrenzyTeam(Base):
     slug: Mapped[str] = mapped_column(Text, nullable=False)
     icon_url: Mapped[str | None] = mapped_column(Text)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
-    participants: Mapped[list] = mapped_column(
+    participants: Mapped[list[str]] = mapped_column(
         JSONB, nullable=False, server_default="[]"
     )
-    item_progress: Mapped[dict] = mapped_column(
+    item_progress: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default="{}"
     )
-    activity_progress: Mapped[dict] = mapped_column(
+    activity_progress: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default="{}"
     )
-    milestone_progress: Mapped[dict] = mapped_column(
+    milestone_progress: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default="{}"
     )
     updated_at: Mapped[datetime] = mapped_column(
@@ -152,7 +159,9 @@ class FrenzySubmission(Base):
     player_rsn: Mapped[str] = mapped_column(Text, nullable=False)
     source: Mapped[str] = mapped_column(Text, nullable=False)
     submission_type: Mapped[str] = mapped_column(Text, nullable=False)
-    payload: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    payload: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="pending")
     auto_approved: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="false"

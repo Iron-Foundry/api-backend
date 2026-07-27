@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 import httpx
 from loguru import logger
 
 from app.services.http.base import BaseRequestHandler
 from app.services.http.wom_queue import WomPriority, get_wom_queue
+
 from .wom_competition import WomCompetitionMixin
 from .wom_efficiency import WomEfficiencyMixin
 from .wom_group import WomGroupMixin
@@ -49,10 +51,10 @@ class WiseOldManHandler(
         if group_key:
             headers["x-wom-group-token"] = group_key
 
-        self.default_headers = headers
+        self.headers = headers
 
     async def _get_with_rate_limit(
-        self, path: str, *, params: dict | None = None
+        self, path: str, *, params: dict[str, Any] | None = None
     ) -> httpx.Response:
         """GET via priority queue with proactive sleep and 429 retry."""
         queue = get_wom_queue()
@@ -76,7 +78,7 @@ class WiseOldManHandler(
         return resp
 
     async def _write_with_rate_limit(
-        self, method: str, path: str, *, json: dict | None = None
+        self, method: str, path: str, *, json: dict[str, Any] | None = None
     ) -> httpx.Response:
         """POST/PUT/DELETE via priority queue with proactive sleep and 429 retry."""
         queue = get_wom_queue()

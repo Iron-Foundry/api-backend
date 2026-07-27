@@ -39,7 +39,7 @@ class SkillMetric:
         }
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "SkillMetric":
+    def from_dict(cls, d: dict[str, Any]) -> SkillMetric:
         return cls(
             name=d["name"],
             points_per_million_xp=float(d.get("points_per_million_xp", 2.0)),
@@ -59,19 +59,19 @@ class SkillMetricBuilder:
         self._milestone_200m_bonus: float = 0.0
         self._log_scale: bool = False
 
-    def points_per_million_xp(self, value: float) -> "SkillMetricBuilder":
+    def points_per_million_xp(self, value: float) -> SkillMetricBuilder:
         self._points_per_million_xp = value
         return self
 
-    def milestone_99_bonus(self, value: float) -> "SkillMetricBuilder":
+    def milestone_99_bonus(self, value: float) -> SkillMetricBuilder:
         self._milestone_99_bonus = value
         return self
 
-    def milestone_200m_bonus(self, value: float) -> "SkillMetricBuilder":
+    def milestone_200m_bonus(self, value: float) -> SkillMetricBuilder:
         self._milestone_200m_bonus = value
         return self
 
-    def with_log_scale(self) -> "SkillMetricBuilder":
+    def with_log_scale(self) -> SkillMetricBuilder:
         self._log_scale = True
         return self
 

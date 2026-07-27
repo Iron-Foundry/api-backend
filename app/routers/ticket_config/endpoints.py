@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,15 +10,16 @@ from valkey.asyncio import Valkey
 
 from app.dependencies import get_current_user, get_session, get_valkey
 from app.services.page_permissions import require_page_permission
+
 from ._helpers import (
-    PanelConfigOut,
-    TicketTypeConfigOut,
-    TicketTypeConfigPatch,
     _IMAGE_ALLOWED_TYPES,
     _KNOWN_TYPES,
     _MAX_IMAGE_BYTES,
     _VALKEY_CHANNEL,
     ImageInfo,
+    PanelConfigOut,
+    TicketTypeConfigOut,
+    TicketTypeConfigPatch,
     build_response,
     get_images,
     get_ticket_row,
@@ -67,7 +69,7 @@ async def patch_ticket_config(
     if type_id not in _KNOWN_TYPES:
         raise HTTPException(404, f"Unknown ticket type: {type_id}")
     row = await get_ticket_row(session)
-    type_configs: dict = dict(row.get("type_configs", {}))
+    type_configs: dict[str, Any] = dict(row.get("type_configs", {}))
     type_configs[type_id] = {
         **merge_config(type_id, row),
         **body.model_dump(exclude_none=True),

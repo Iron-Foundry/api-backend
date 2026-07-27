@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -44,7 +45,7 @@ class PatchCategoryBody(BaseModel):
 async def get_categories(
     page_type: str,
     session: AsyncSession = Depends(get_session),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     _validate_page_type(page_type)
 
     cats_result = await session.execute(
@@ -69,7 +70,7 @@ async def get_categories(
         .where(ContentEntry.category_id.in_(cat_ids), ContentEntry.deprecated == False)  # noqa: E712
         .order_by(ContentEntry.sort_order, ContentEntry.title)
     )
-    entries_by_cat: dict = defaultdict(list)
+    entries_by_cat: dict[UUID, list[dict[str, Any]]] = defaultdict(list)
     for entry_id, title, slug, cat_id, sort_order, updated_at in entries_result:
         entries_by_cat[cat_id].append(
             {
@@ -94,7 +95,7 @@ async def get_categories(
         for c in all_cats
     }
 
-    roots: list[dict] = []
+    roots: list[dict[str, Any]] = []
     for c in all_cats:
         node = cat_map[c.id]
         if c.parent_id is None or c.parent_id not in cat_map:
@@ -108,9 +109,9 @@ async def get_categories(
 async def create_category(
     page_type: str,
     body: CreateCategoryBody,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     _validate_page_type(page_type)
     await _require_mentor(current_user, session)
 
@@ -141,7 +142,7 @@ async def create_category(
     if existing is not None:
         raise HTTPException(409, f"Category with slug '{slug}' already exists here.")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     cat = ContentCategory(
         page_type=page_type,
         parent_id=body.parent_id,
@@ -169,9 +170,9 @@ async def patch_category(
     page_type: str,
     category_id: UUID,
     body: PatchCategoryBody,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     _validate_page_type(page_type)
     await _require_mentor(current_user, session)
 
@@ -226,9 +227,9 @@ async def patch_category(
 async def delete_category(
     page_type: str,
     category_id: UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     _validate_page_type(page_type)
     await _require_senior_mod(current_user, session)
 

@@ -17,8 +17,9 @@ from collections.abc import AsyncGenerator, Iterator
 
 import pytest
 import sqlalchemy as sa
+from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from app.tests.conftest import TEST_USER
 
@@ -69,8 +70,9 @@ def _infra() -> Iterator[dict[str, str]]:
         os.environ["DATABASE_URL"] = database_url
         os.environ["VALKEY_URI"] = valkey_uri
 
-        from alembic import command
         from alembic.config import Config
+
+        from alembic import command
 
         command.upgrade(Config("alembic.ini"), "head")
 
@@ -112,7 +114,7 @@ async def _truncate(db_url: str) -> AsyncGenerator[None]:
 
 
 @pytest.fixture
-async def app(_infra: dict[str, str]):
+async def app(_infra: dict[str, str]) -> AsyncGenerator[FastAPI]:
     from app.main import app as real_app
 
     async with _lifespan.LifespanManager(real_app):
@@ -120,7 +122,7 @@ async def app(_infra: dict[str, str]):
 
 
 @pytest.fixture
-async def client(app, _truncate: None) -> AsyncGenerator[AsyncClient]:
+async def client(app: FastAPI, _truncate: None) -> AsyncGenerator[AsyncClient]:
     from app.dependencies import get_current_user, get_optional_user
 
     app.dependency_overrides[get_current_user] = lambda: TEST_USER
@@ -135,7 +137,7 @@ async def client(app, _truncate: None) -> AsyncGenerator[AsyncClient]:
 
 
 @pytest.fixture
-async def staff_client(app, _truncate: None) -> AsyncGenerator[AsyncClient]:
+async def staff_client(app: FastAPI, _truncate: None) -> AsyncGenerator[AsyncClient]:
     """Authed client whose permission checks all pass (staff-gated endpoints)."""
     from app.dependencies import get_current_user, get_optional_user
     from app.tests._staff_patches import staff_permission_patches
@@ -153,7 +155,7 @@ async def staff_client(app, _truncate: None) -> AsyncGenerator[AsyncClient]:
 
 
 @pytest.fixture
-async def seed_engine(db_url: str) -> AsyncGenerator:
+async def seed_engine(db_url: str) -> AsyncGenerator[AsyncEngine]:
     """A short-lived engine bound to this test's event loop for seeding/asserting."""
     engine = create_async_engine(db_url)
     try:

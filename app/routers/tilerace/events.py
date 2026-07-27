@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, update
@@ -22,7 +23,7 @@ router = APIRouter()
 _PERM = Depends(require_page_permission("tilerace.admin", "edit"))
 
 
-async def _full_event(event: TileRaceEvent, session: AsyncSession) -> dict:
+async def _full_event(event: TileRaceEvent, session: AsyncSession) -> dict[str, Any]:
     teams = (
         (
             await session.execute(
@@ -55,7 +56,9 @@ async def _full_event(event: TileRaceEvent, session: AsyncSession) -> dict:
 
 
 @router.get("/active")
-async def get_active_event(session: AsyncSession = Depends(get_session)) -> dict:
+async def get_active_event(
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
     event = (
         await session.execute(
             select(TileRaceEvent).where(TileRaceEvent.is_active.is_(True))
@@ -78,7 +81,7 @@ async def get_active_event(session: AsyncSession = Depends(get_session)) -> dict
 @router.get("/events")
 async def list_events(
     session: AsyncSession = Depends(get_session), _perm: None = _PERM
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     rows = (
         (
             await session.execute(
@@ -96,9 +99,9 @@ async def create_event(
     body: EventBody,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-    current_user: dict = Depends(get_current_user),
-) -> dict:
-    now = datetime.now(timezone.utc)
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    now = datetime.now(UTC)
     event = TileRaceEvent(
         name=body.name,
         is_active=False,
@@ -125,7 +128,7 @@ async def get_event(
     event_id: int,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-) -> dict:
+) -> dict[str, Any]:
     event = (
         await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
     ).scalar_one_or_none()
@@ -140,7 +143,7 @@ async def patch_event(
     body: EventPatch,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-) -> dict:
+) -> dict[str, Any]:
     event = (
         await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
     ).scalar_one_or_none()
@@ -177,7 +180,7 @@ async def patch_event(
         event.starts_at = body.starts_at
     if body.ends_at is not None:
         event.ends_at = body.ends_at
-    event.updated_at = datetime.now(timezone.utc)
+    event.updated_at = datetime.now(UTC)
     await session.commit()
     return {"ok": True}
 
@@ -187,7 +190,7 @@ async def delete_event(
     event_id: int,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-) -> dict:
+) -> dict[str, Any]:
     event = (
         await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
     ).scalar_one_or_none()
@@ -203,7 +206,7 @@ async def activate_event(
     event_id: int,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-) -> dict:
+) -> dict[str, Any]:
     event = (
         await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
     ).scalar_one_or_none()
@@ -224,7 +227,7 @@ async def deactivate_event(
     event_id: int,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-) -> dict:
+) -> dict[str, Any]:
     event = (
         await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
     ).scalar_one_or_none()

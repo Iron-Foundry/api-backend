@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import Literal
 
 
-class BroadcastType(str, Enum):
+class BroadcastType(StrEnum):
     LOOT = "loot"
     LEVEL_UP = "level_up"
     XP_MILESTONE = "xp_milestone"

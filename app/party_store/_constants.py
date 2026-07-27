@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import random
+import secrets
 from typing import Literal
 
 Vibe = Literal["learning", "chill", "sweat"]
@@ -151,4 +151,4 @@ _WORDLIST = [
 
 
 def _generate_hub_code() -> str:
-    return "-".join(random.choices(_WORDLIST, k=3))
+    return "-".join(secrets.choice(_WORDLIST) for _ in range(3))

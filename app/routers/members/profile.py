@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
@@ -18,11 +19,11 @@ router = APIRouter()
 @router.patch("/me/privacy")
 async def update_privacy(
     body: PrivacyUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     discord_user_id = int(current_user["sub"])
-    values: dict = {"updated_at": datetime.now(timezone.utc)}
+    values: dict[str, Any] = {"updated_at": datetime.now(UTC)}
     if body.stats_opt_out is not None:
         values["stats_opt_out"] = body.stats_opt_out
     if body.hide_presence_notifications is not None:
@@ -39,9 +40,9 @@ async def update_privacy(
 
 @router.get("/me/stats")
 async def get_me_stats(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     discord_user_id = int(current_user["sub"])
     user_result = await session.execute(
         select(
@@ -71,9 +72,9 @@ async def get_me_stats(
 @router.patch("/me/referral")
 async def update_referral(
     body: ReferralUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     if body.source not in _REFERRAL_SOURCES:
         raise HTTPException(status_code=422, detail="Invalid referral source.")
     detail = body.detail.strip() if body.detail else None
@@ -82,7 +83,7 @@ async def update_referral(
     if body.source == "other" and not detail:
         raise HTTPException(status_code=422, detail="Please describe how you found us.")
     discord_user_id = int(current_user["sub"])
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     await session.execute(
         update(User)
         .where(User.discord_user_id == discord_user_id, User.referral_source.is_(None))
@@ -96,9 +97,9 @@ async def update_referral(
 @router.get("/{user_id}/avatar")
 async def user_avatar(
     user_id: int,
-    _current_user: dict | None = Depends(get_optional_user),
+    _current_user: dict[str, Any] | None = Depends(get_optional_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Return the stored Discord avatar URL for the given user ID."""
     result = await session.execute(
         select(User.discord_avatar_url).where(User.discord_user_id == user_id)

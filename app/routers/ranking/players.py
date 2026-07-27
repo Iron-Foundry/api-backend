@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -61,7 +62,7 @@ async def get_ranking_results(
     limit: int = 100,
     rank_filter: str | None = None,
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Paginated ranked player list. Public. Use /ranking/stats for distribution data."""
     all_deduplicated = await get_all_deduplicated(session)
 
@@ -126,7 +127,7 @@ async def get_ranking_results(
 @router.get("/player/{rsn}/breakdown")
 async def get_player_breakdown(
     rsn: str, session: AsyncSession = Depends(get_session)
-) -> dict:
+) -> dict[str, Any]:
     """Per-metric score breakdown from cached snapshot using current config. Public."""
     snap_result = await session.execute(
         select(PlayerSnapshot).where(PlayerSnapshot.rsn.ilike(rsn))

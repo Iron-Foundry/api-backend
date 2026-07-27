@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -55,9 +56,9 @@ async def backfill_user_from_rsn(
     clan_rank: str | None = None,
     total_loot_value: int = 0,
     collection_log_slots: int = 0,
-) -> dict:
+) -> dict[str, Any]:
     """Fill missing stats from historical events and update User. Does NOT commit."""
-    backfill: dict = {}
+    backfill: dict[str, Any] = {}
 
     if not clan_rank:
         rank_result = await session.execute(
@@ -114,7 +115,7 @@ async def backfill_user_from_rsn(
         backfill["ticket_ids"] = ticket_ids
 
     if backfill:
-        backfill["updated_at"] = datetime.now(timezone.utc)
+        backfill["updated_at"] = datetime.now(UTC)
         await session.execute(
             update(User)
             .where(User.discord_user_id == discord_user_id)

@@ -1,4 +1,5 @@
 import json
+from typing import Any
 from uuid import UUID
 
 from fastapi import (
@@ -132,8 +133,8 @@ async def clan_chat_dispatch(websocket: WebSocket) -> None:
 async def dispatch_to_clan(
     payload: DiscordMessage,
     conn_id: UUID | None = Query(default=None),
-    clan: dict = Depends(verify_clan),
-) -> dict:
+    clan: dict[str, Any] = Depends(verify_clan),
+) -> dict[str, Any]:
     guild_id: int = clan["guild_id"]
     for part in split_message(payload.message):
         msg = _wrap(payload.sender, part, payload.rank)

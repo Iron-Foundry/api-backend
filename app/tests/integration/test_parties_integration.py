@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from fastapi import FastAPI
 from httpx import AsyncClient
 
 pytestmark = pytest.mark.integration
@@ -44,7 +45,7 @@ async def test_party_lifecycle(client: AsyncClient) -> None:
     assert not any(p["id"] == pid for p in after.json())
 
 
-async def test_update_party_requires_leader(client: AsyncClient, app) -> None:
+async def test_update_party_requires_leader(client: AsyncClient, app: FastAPI) -> None:
     created = await client.post("/parties/", json={"activity": "Nex", "max_size": 8})
     pid = created.json()["id"]
 

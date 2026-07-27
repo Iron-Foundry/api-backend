@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 from httpx import AsyncClient
@@ -55,7 +55,7 @@ def _rate() -> EfficiencyRate:
         kind="ehb",
         rate=45.0,
         payload={},
-        updated_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(UTC),
     )
 
 

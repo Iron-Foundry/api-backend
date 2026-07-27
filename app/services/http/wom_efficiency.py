@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from app.services.http.wom_base import WomHandlerBase
 
 
 class WomEfficiencyMixin(WomHandlerBase):
     async def get_efficiency_rates(
         self, metric: str, account_type: str = "ironman"
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Fetch EHP or EHB rate configs for an account type. Returns [] on failure."""
         resp = await self._get_with_rate_limit(
             "/efficiency/rates", params={"metric": metric, "type": account_type}

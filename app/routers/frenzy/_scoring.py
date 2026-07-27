@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import FrenzySubmission, FrenzyTeam, FrenzyTemplate
 
 
-def _calc_item_points(item: dict, obtained: int) -> int:
+def _calc_item_points(item: dict[str, Any], obtained: int) -> int:
     pts = 0
     base_pts: int = round(item.get("points", 0))
     dup_pts: int = round(base_pts / 2)
@@ -33,7 +34,7 @@ def _calc_item_points(item: dict, obtained: int) -> int:
 _calc_item_pts = _calc_item_points
 
 
-def _calc_tier_entry_points(entry: dict, current_value: float) -> int:
+def _calc_tier_entry_points(entry: dict[str, Any], current_value: float) -> int:
     tiers_done = sum(
         1
         for t in ["tier1", "tier2", "tier3", "tier4"]
@@ -45,17 +46,19 @@ def _calc_tier_entry_points(entry: dict, current_value: float) -> int:
     return base
 
 
-def _is_multiplier_unlocked(mult: dict, item_progress: dict) -> bool:
+def _is_multiplier_unlocked(
+    mult: dict[str, Any], item_progress: dict[str, Any]
+) -> bool:
     return all(item_progress.get(r, 0) > 0 for r in mult.get("requirement", []))
 
 
 def _compute_scores_from_progress(
     template: FrenzyTemplate,
-    item_progress: dict,
-    activity_progress: dict,
-    milestone_progress: dict,
-) -> dict:
-    multipliers: list = template.multipliers or []
+    item_progress: dict[str, Any],
+    activity_progress: dict[str, Any],
+    milestone_progress: dict[str, Any],
+) -> dict[str, Any]:
+    multipliers: list[Any] = template.multipliers or []
     unlocked_mults = [
         m for m in multipliers if _is_multiplier_unlocked(m, item_progress)
     ]
@@ -85,7 +88,7 @@ def _compute_scores_from_progress(
     )
 
     milestone_pts = 0.0
-    for _cat, entries in (template.milestones or {}).items():
+    for entries in (template.milestones or {}).values():
         for entry in entries:
             milestone_pts += _calc_tier_entry_points(
                 entry, milestone_progress.get(entry.get("name", ""), 0)
@@ -99,7 +102,7 @@ def _compute_scores_from_progress(
     }
 
 
-def _compute_team_scores(template: FrenzyTemplate, team: FrenzyTeam) -> dict:
+def _compute_team_scores(template: FrenzyTemplate, team: FrenzyTeam) -> dict[str, Any]:
     return _compute_scores_from_progress(
         template,
         team.item_progress or {},
@@ -109,11 +112,11 @@ def _compute_team_scores(template: FrenzyTemplate, team: FrenzyTeam) -> dict:
 
 
 def _apply_pending_submissions(
-    base_item: dict,
-    base_activity: dict,
-    base_milestone: dict,
+    base_item: dict[str, Any],
+    base_activity: dict[str, Any],
+    base_milestone: dict[str, Any],
     pending: Sequence[FrenzySubmission],
-) -> tuple[dict, dict, dict]:
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     item_p = dict(base_item)
     act_by_player: dict[str, dict[int, int]] = {}
     mil_by_player: dict[str, dict[int, int]] = {}
@@ -195,17 +198,19 @@ async def _recompute_team_progress(session: AsyncSession, team: FrenzyTeam) -> N
     team.milestone_progress = {
         n: sum(v.values()) for n, v in milestone_by_player.items()
     }
-    team.updated_at = datetime.now(timezone.utc)
+    team.updated_at = datetime.now(UTC)
 
 
-def _recalculate_tier_points(tiers: dict, total_point_cap: int) -> dict:
+def _recalculate_tier_points(
+    tiers: dict[str, Any], total_point_cap: int
+) -> dict[str, Any]:
     import copy
 
     result = copy.deepcopy(tiers)
     for tier_data in result.values():
         budget_pct = tier_data.get("budget_pct", 0)
         tier_budget = round((budget_pct / 100) * total_point_cap)
-        eligible: list[tuple[dict, float]] = []
+        eligible: list[tuple[dict[str, Any], float]] = []
         for source in tier_data.get("sources", []):
             for item in source.get("items", []):
                 d = item.get("drop_denom")

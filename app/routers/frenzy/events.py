@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, update
@@ -27,7 +28,7 @@ def _slugify(name: str) -> str:
 @router.get("/events")
 async def list_events(
     session: AsyncSession = Depends(get_session), _perm: None = _PERM
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     rows = (
         (
             await session.execute(
@@ -57,8 +58,8 @@ async def create_event(
     body: EventBody,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-    current_user: dict = Depends(get_current_user),
-) -> dict:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     tmpl = (
         await session.execute(
             select(FrenzyTemplate).where(FrenzyTemplate.id == body.template_id)
@@ -67,7 +68,7 @@ async def create_event(
     if tmpl is None:
         raise HTTPException(404, "Template not found.")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     event = FrenzyEvent(
         name=body.name,
         template_id=body.template_id,
@@ -89,7 +90,7 @@ async def create_event(
 @router.get("/events/{event_id}")
 async def get_event(
     event_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM
-) -> dict:
+) -> dict[str, Any]:
     event = (
         await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))
     ).scalar_one_or_none()
@@ -139,7 +140,7 @@ async def patch_event(
     body: EventPatch,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-) -> dict:
+) -> dict[str, Any]:
     event = (
         await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))
     ).scalar_one_or_none()
@@ -158,7 +159,7 @@ async def patch_event(
         event.starts_at = body.starts_at
     if body.ends_at is not None:
         event.ends_at = body.ends_at
-    event.updated_at = datetime.now(timezone.utc)
+    event.updated_at = datetime.now(UTC)
     await session.commit()
     return {"ok": True}
 
@@ -166,7 +167,7 @@ async def patch_event(
 @router.delete("/events/{event_id}")
 async def delete_event(
     event_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM
-) -> dict:
+) -> dict[str, Any]:
     event = (
         await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))
     ).scalar_one_or_none()
@@ -180,7 +181,7 @@ async def delete_event(
 @router.post("/events/{event_id}/activate")
 async def activate_event(
     event_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM
-) -> dict:
+) -> dict[str, Any]:
     event = (
         await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))
     ).scalar_one_or_none()
@@ -197,7 +198,7 @@ async def activate_event(
 @router.post("/events/{event_id}/deactivate")
 async def deactivate_event(
     event_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM
-) -> dict:
+) -> dict[str, Any]:
     event = (
         await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))
     ).scalar_one_or_none()
@@ -211,7 +212,7 @@ async def deactivate_event(
 @router.post("/events/{event_id}/sync-wom")
 async def sync_event_from_wom(
     event_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM
-) -> dict:
+) -> dict[str, Any]:
     """Pull teams, participants, and dates from the linked WOM competition."""
     event = (
         await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))
@@ -226,7 +227,7 @@ async def sync_event_from_wom(
     ) as wom:
         comp = await wom.get_competition_details(event.wom_comp_id)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if comp.get("startsAt"):
         event.starts_at = datetime.fromisoformat(
             comp["startsAt"].replace("Z", "+00:00")
@@ -235,7 +236,7 @@ async def sync_event_from_wom(
         event.ends_at = datetime.fromisoformat(comp["endsAt"].replace("Z", "+00:00"))
     event.updated_at = now
 
-    synced_teams: list[dict] = []
+    synced_teams: list[dict[str, Any]] = []
     if comp.get("type") == "team":
         teams_map: dict[str, list[str]] = {}
         for p in comp.get("participations", []):

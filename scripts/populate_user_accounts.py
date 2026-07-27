@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -86,7 +86,7 @@ async def run(dry_run: bool) -> None:
         await engine.dispose()
         return
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     inserted = 0
     for row in rows:
         async with engine.begin() as conn:

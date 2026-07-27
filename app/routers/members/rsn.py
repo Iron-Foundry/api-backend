@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
 from sqlalchemy import func, select
@@ -24,9 +26,9 @@ router = APIRouter()
 @router.patch("/me/rsn")
 async def update_rsn(
     body: RsnUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     rsn = body.rsn.strip()
     if not rsn:
         raise HTTPException(status_code=422, detail="RSN cannot be empty.")

@@ -28,7 +28,7 @@ class RankingConfig:
         }
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "RankingConfig":
+    def from_dict(cls, d: dict[str, Any]) -> RankingConfig:
         return cls(
             bosses=tuple(BossMetric.from_dict(b) for b in d["bosses"]),
             skills=tuple(SkillMetric.from_dict(s) for s in d["skills"]),
@@ -60,7 +60,9 @@ def _apply_prestige(
     return base * multiplier
 
 
-def rank_from_snapshots(snapshots: list[dict], config: RankingConfig) -> list[dict]:
+def rank_from_snapshots(
+    snapshots: list[dict[str, Any]], config: RankingConfig
+) -> list[dict[str, Any]]:
     """Compute rankings from player snapshots and a RankingConfig.
 
     Returns list of {rsn, rank, points, boss_points, skill_points}.
@@ -93,12 +95,14 @@ def rank_from_snapshots(snapshots: list[dict], config: RankingConfig) -> list[di
     return results
 
 
-def rank_player_breakdown(snapshot: dict, config: RankingConfig) -> dict:
+def rank_player_breakdown(
+    snapshot: dict[str, Any], config: RankingConfig
+) -> dict[str, Any]:
     """Per-metric score breakdown for a single player snapshot. No DB or network access."""
     bosses: dict[str, int] = snapshot.get("bosses", {})
     skills: dict[str, float] = snapshot.get("skills", {})
 
-    boss_entries: list[dict] = []
+    boss_entries: list[dict[str, Any]] = []
     for m in config.bosses:
         kc = bosses.get(m.name, 0)
         pts = m.score(kc)
@@ -123,7 +127,7 @@ def rank_player_breakdown(snapshot: dict, config: RankingConfig) -> dict:
         )
     boss_entries.sort(key=lambda e: -e["points"])
 
-    skill_entries: list[dict] = []
+    skill_entries: list[dict[str, Any]] = []
     for m in config.skills:
         xp = skills.get(m.name, 0.0)
         pts = m.score(xp)
@@ -149,7 +153,7 @@ def rank_player_breakdown(snapshot: dict, config: RankingConfig) -> dict:
         )
     skill_entries.sort(key=lambda e: -e["points"])
 
-    prestige_entries: list[dict] = []
+    prestige_entries: list[dict[str, Any]] = []
     multiplier = 1.0
     for p in config.prestige:
         active = bosses.get(p.boss_name, 0) >= 1

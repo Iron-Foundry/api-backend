@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
-from datetime import datetime, timezone
-
-from typing import cast
+from datetime import UTC, datetime
+from typing import Any, cast
 
 from loguru import logger
 from sqlalchemy import ARRAY, Text, bindparam, text
@@ -53,10 +53,8 @@ class ClanStatsService:
     async def stop(self) -> None:
         if self._task:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
         logger.info("ClanStatsService stopped")
 
     async def _poll_loop(self) -> None:
@@ -89,18 +87,19 @@ class ClanStatsService:
             logger.warning("ClanStatsService: WOM fetch failed: {}", group_result)
             return
 
-        assert isinstance(group_result, dict)
-        raw: dict = group_result
+        raw: dict[str, Any] = group_result
         memberships = raw.get("memberships") or []
-        bulk_entries: list[dict] = bulk_result if isinstance(bulk_result, list) else []
+        bulk_entries: list[dict[str, Any]] = (
+            bulk_result if isinstance(bulk_result, list) else []
+        )
 
         def _safe_int(v: object) -> int:
             return v if isinstance(v, int) else 0
 
-        metric_totals: dict[str, int] = {m: 0 for m in _RAID_METRICS}
+        metric_totals: dict[str, int] = dict.fromkeys(_RAID_METRICS, 0)
         for entry in bulk_entries:
-            data: dict = (entry.get("data") or {}).get("data") or {}
-            bosses: dict = data.get("bosses") or {}
+            data: dict[str, Any] = (entry.get("data") or {}).get("data") or {}
+            bosses: dict[str, Any] = data.get("bosses") or {}
             for metric in _RAID_METRICS:
                 boss_info = bosses.get(metric)
                 if isinstance(boss_info, dict):
@@ -130,7 +129,7 @@ class ClanStatsService:
             cox_kc=cox_kc,
             tob_kc=tob_kc,
             toa_kc=toa_kc,
-            updated_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(UTC),
         )
         stmt = stmt.on_conflict_do_update(
             index_elements=["id"],
@@ -162,7 +161,7 @@ class ClanStatsService:
 
 
 async def _sync_wom_ranks(
-    session_factory: async_sessionmaker[AsyncSession], memberships: list[dict]
+    session_factory: async_sessionmaker[AsyncSession], memberships: list[dict[str, Any]]
 ) -> None:
     """Bulk-write WOM in-game ranks to users.clan_rank for all matched members."""
     wom_ranks: dict[str, str] = {
@@ -181,7 +180,7 @@ async def _sync_wom_ranks(
 
     async with session_factory() as session:
         r1 = cast(
-            CursorResult,
+            CursorResult[Any],
             await session.execute(
                 text("""
                 UPDATE users u
@@ -197,7 +196,7 @@ async def _sync_wom_ranks(
             ),
         )
         r2 = cast(
-            CursorResult,
+            CursorResult[Any],
             await session.execute(
                 text("""
                 UPDATE users u

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +16,7 @@ async def store_rates(session: AsyncSession, rows: list[RateRow]) -> None:
     """Upsert rate rows keyed by (metric, kind)."""
     if not rows:
         return
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     for row in rows:
         stmt = pg_insert(EfficiencyRate).values(
             metric=row.metric,

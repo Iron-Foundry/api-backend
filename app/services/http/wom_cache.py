@@ -3,19 +3,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 
 @dataclass
 class _CachedComp:
-    data: dict
+    data: dict[str, Any]
     starts_at: datetime
     ends_at: datetime
     expires_at: datetime | None  # None = infinite TTL (finished or upcoming)
 
 
 def _comp_status(entry: _CachedComp) -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if now < entry.starts_at:
         return "upcoming"
     if now <= entry.ends_at:

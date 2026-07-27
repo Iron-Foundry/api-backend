@@ -22,7 +22,9 @@ import asyncio
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
 import httpx
 from tqdm import tqdm
@@ -152,8 +154,8 @@ async def _get(
     path: str,
     *,
     params: dict[str, str] | None = None,
-    bar: "tqdm[str] | None" = None,
-) -> dict:
+    bar: tqdm[str] | None = None,
+) -> dict[str, Any]:
     url = WOM_BASE + path
     for attempt in range(3):
         resp = await client.get(url, params=params)
@@ -196,7 +198,7 @@ async def _get(
 
 async def fetch_competition(
     comp_id: int, api_key: str | None, discord: str | None
-) -> dict:
+) -> dict[str, Any]:
     headers: dict[str, str] = {
         "User-Agent": f"IronFoundry/1.0 (discord: @{discord})"
         if discord
@@ -228,7 +230,7 @@ async def fetch_competition(
                         client,
                         f"/competitions/{comp_id}",
                         params={"metric": metric},
-                        bar=bar,  # type: ignore[arg-type]
+                        bar=bar,
                     )
                 except httpx.HTTPStatusError as exc:
                     if exc.response.status_code == 400:
@@ -251,7 +253,7 @@ async def fetch_competition(
 
     return {
         "competition_id": comp_id,
-        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "fetched_at": datetime.now(UTC).isoformat(),
         "teams": teams,
     }
 
@@ -278,8 +280,8 @@ def main() -> None:
     if args.stdout:
         print(payload)
     else:
-        out_path = args.out or f"comp_{args.comp_id}.json"
-        with open(out_path, "w", encoding="utf-8") as f:
+        out_path = Path(args.out or f"comp_{args.comp_id}.json")
+        with out_path.open("w", encoding="utf-8") as f:
             f.write(payload)
         total_players = sum(len(players) for players in result["teams"].values())
         print(

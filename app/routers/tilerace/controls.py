@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -51,8 +52,8 @@ async def roll_dice(
     event_id: int,
     team_id: int,
     session: AsyncSession = Depends(get_session),
-    current_user: dict = Depends(get_current_user),
-) -> dict:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     try:
         team = (
             await session.execute(
@@ -61,9 +62,11 @@ async def roll_dice(
                 .with_for_update(nowait=True)
             )
         ).scalar_one_or_none()
-    except OperationalError:
+    except OperationalError as exc:
         await session.rollback()
-        raise HTTPException(409, "Someone else is already rolling for this team.")
+        raise HTTPException(
+            409, "Someone else is already rolling for this team."
+        ) from exc
     if team is None:
         raise HTTPException(404, "Team not found.")
     event = (
@@ -75,7 +78,7 @@ async def roll_dice(
         raise HTTPException(409, "Game over.")
     _require_member(team, str(current_user["sub"]))
     rolled_by = int(current_user["sub"])
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     effects = dict(team.pending_effects or {})
     if effects.get("skip_next"):
@@ -125,7 +128,10 @@ async def roll_dice(
 
 
 def _apply_pads(
-    event: TileRaceEvent, team: TileRaceTeam, cell: dict | None, summary: dict
+    event: TileRaceEvent,
+    team: TileRaceTeam,
+    cell: dict[str, Any] | None,
+    summary: dict[str, Any],
 ) -> None:
     if cell_in_pad(cell, event.start_pad):
         apply_pad_trigger(team, event.start_pad, summary)
@@ -134,7 +140,7 @@ def _apply_pads(
         if (event.end_pad or {}).get("ends_game", True):
             event.is_finished = True
             event.winner_team_id = team.id
-            event.updated_at = datetime.now(timezone.utc)
+            event.updated_at = datetime.now(UTC)
             summary["game_over"] = True
 
 
@@ -144,13 +150,13 @@ async def set_fog_of_war(
     body: FogBody,
     session: AsyncSession = Depends(get_session),
     _perm: None = _FOG_PERM,
-) -> dict:
+) -> dict[str, Any]:
     event = (
         await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
     ).scalar_one_or_none()
     if event is None:
         raise HTTPException(404, "Event not found.")
     event.fog_of_war = body.enabled
-    event.updated_at = datetime.now(timezone.utc)
+    event.updated_at = datetime.now(UTC)
     await session.commit()
     return {"ok": True, "fog_of_war": body.enabled}

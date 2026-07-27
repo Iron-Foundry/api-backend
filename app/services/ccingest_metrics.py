@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from loguru import logger
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -30,7 +32,7 @@ class CcIngestMetricsCollector:
     def record(self, event_type: str) -> None:
         self._buf.append(event_type)
 
-    def drain(self) -> dict:
+    def drain(self) -> dict[str, Any]:
         buf, self._buf = self._buf, []
         if not buf:
             return {}
@@ -65,10 +67,8 @@ class CcIngestMetricsService:
     async def stop(self) -> None:
         if self._task:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
         await self._flush()
         logger.info("CcIngestMetricsService stopped")
 
@@ -83,7 +83,7 @@ class CcIngestMetricsService:
         metrics = self._collector.drain()
         if not metrics:
             return
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         try:
             async with self._session_factory() as session:
                 await session.execute(

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import BigInteger, Index, Integer, Text, TIMESTAMP, UniqueConstraint
+from sqlalchemy import TIMESTAMP, BigInteger, Index, Integer, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -35,9 +36,15 @@ class PlayerSnapshot(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     rsn: Mapped[str] = mapped_column(Text, nullable=False)
-    skills: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
-    bosses: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
-    activities: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    skills: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
+    bosses: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
+    activities: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
     fetched_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False
     )
@@ -57,4 +64,6 @@ class CompetitionSnapshot(Base):
     captured_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False
     )
-    series: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    series: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )

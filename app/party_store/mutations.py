@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
-from typing import cast
+from datetime import UTC, datetime, timedelta
+from typing import Any, cast
 
 from sqlalchemy import delete
 from sqlalchemy.engine import CursorResult
@@ -33,7 +33,7 @@ async def create_party(
     ttl_hours: float,
     notification_category_ids: list[str],
 ) -> PartyDB:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     party_id = str(uuid.uuid4())
     party = PartyDB(
         id=party_id,
@@ -82,7 +82,7 @@ async def add_member(
             user_id=user_id,
             username=username,
             rsn=rsn,
-            joined_at=datetime.now(timezone.utc),
+            joined_at=datetime.now(UTC),
         )
     )
     await session.flush()
@@ -93,7 +93,7 @@ async def add_member(
 
 async def remove_member(session: AsyncSession, party: PartyDB, user_id: str) -> bool:
     result = cast(
-        CursorResult,
+        CursorResult[Any],
         await session.execute(
             delete(PartyMemberDB).where(
                 PartyMemberDB.party_id == party.id, PartyMemberDB.user_id == user_id
@@ -130,7 +130,7 @@ async def add_chat_message(
         username=username,
         rsn=rsn,
         text=text,
-        sent_at=datetime.now(timezone.utc),
+        sent_at=datetime.now(UTC),
     )
     session.add(msg)
     await session.commit()

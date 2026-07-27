@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import HTTPException, Request
@@ -22,14 +22,14 @@ class MetricReportBody(BaseModel):
     metrics: dict[str, Any] = {}
 
 
-async def require_staff(current_user: dict, session: AsyncSession) -> None:
+async def require_staff(current_user: dict[str, Any], session: AsyncSession) -> None:
     discord_user_id = int(current_user["sub"])
     roles = await get_effective_roles(discord_user_id, session)
     if not await check_page_permission("staff.home", "read", roles, session):
         raise HTTPException(status_code=403, detail="Permission denied.")
 
 
-def api_backend_status(request: Request) -> dict:
+def api_backend_status(request: Request) -> dict[str, Any]:
     """Build live inline status for api-backend's own background services."""
     ranking_service = getattr(request.app.state, "ranking_service", None)
     valkey = getattr(request.app.state, "valkey", None)
@@ -49,7 +49,7 @@ def api_backend_status(request: Request) -> dict:
     return {
         "service_name": "api-backend",
         "is_healthy": True,
-        "last_seen": datetime.now(timezone.utc).isoformat(),
+        "last_seen": datetime.now(UTC).isoformat(),
         "version": None,
         "uptime_seconds": None,
         "summary_metrics": {

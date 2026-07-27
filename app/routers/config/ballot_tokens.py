@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,7 +29,7 @@ class BallotTokenConfigBody(BaseModel):
 )
 async def get_ballot_token_config(
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     stored = await get_config_value(_BALLOT_TOKEN_CONFIG_KEY, session)
     merged = dict(DEFAULT_TOKEN_CONFIG)
     merged.update({k: v for k, v in stored.items() if k in DEFAULT_TOKEN_CONFIG})
@@ -40,7 +42,7 @@ async def get_ballot_token_config(
 )
 async def set_ballot_token_config(
     body: BallotTokenConfigBody, session: AsyncSession = Depends(get_session)
-) -> dict:
+) -> dict[str, Any]:
     value = body.model_dump()
     await set_config_value(_BALLOT_TOKEN_CONFIG_KEY, value, session)
     return value

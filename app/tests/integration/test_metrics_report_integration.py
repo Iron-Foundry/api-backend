@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 import sqlalchemy as sa
+from fastapi import FastAPI
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -13,7 +14,7 @@ pytestmark = pytest.mark.integration
 
 
 async def test_report_persists_status_and_record(
-    app, client: AsyncClient, db_url: str
+    app: FastAPI, client: AsyncClient, db_url: str
 ) -> None:
     app.dependency_overrides[verify_metrics_key] = lambda: None
 

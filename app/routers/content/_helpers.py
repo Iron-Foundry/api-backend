@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -8,7 +9,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import ContentCategory, ContentEntry
-from app.dependencies import get_current_user as _get_current_user  # noqa: F401 re-export
+from app.dependencies import (
+    get_current_user as _get_current_user,  # noqa: F401 re-export
+)
 from app.services.page_permissions import check_page_permission
 from app.services.rank_mappings import get_effective_roles
 
@@ -35,7 +38,7 @@ def _validate_page_type(page_type: str) -> None:
 
 
 async def _require_mentor(
-    current_user: dict, session: AsyncSession, page_type: str = "resource"
+    current_user: dict[str, Any], session: AsyncSession, page_type: str = "resource"
 ) -> None:
     uid = int(current_user["sub"])
     roles = await get_effective_roles(uid, session)
@@ -45,7 +48,7 @@ async def _require_mentor(
 
 
 async def _require_senior_mod(
-    current_user: dict, session: AsyncSession, page_type: str = "resource"
+    current_user: dict[str, Any], session: AsyncSession, page_type: str = "resource"
 ) -> None:
     uid = int(current_user["sub"])
     roles = await get_effective_roles(uid, session)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -32,7 +32,7 @@ async def insert_feed_event(
             type=type,
             player_name=player_name,
             data=data or {},
-            timestamp=timestamp or datetime.now(timezone.utc),
+            timestamp=timestamp or datetime.now(UTC),
             user_id=user_id,
             sender=sender,
             is_league_world=is_league_world,

@@ -1,8 +1,8 @@
 from fastapi import APIRouter
 
+from ._profile_route import router as profile_router
 from .admin import router as admin_router
 from .players import router as players_router
-from ._profile_route import router as profile_router
 from .stats import router as stats_router
 
 router = APIRouter(prefix="/ranking", tags=["ranking"])

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,7 +16,7 @@ router = APIRouter()
 async def clan_personal_bests(
     limit: int = Query(default=5, ge=1, le=50),
     session: AsyncSession = Depends(get_session),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Return recent personal best events from current rank 1 holders per activity."""
     rank1_subq = (
         select(
@@ -63,7 +65,7 @@ async def clan_personal_bests(
     )
 
     rows = result.all()
-    out: list[dict] = []
+    out: list[dict[str, Any]] = []
     for row in rows:
         d = row.data or {}
         out.append(

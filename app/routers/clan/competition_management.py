@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from valkey.asyncio import Valkey
@@ -36,7 +38,7 @@ async def create_competition_endpoint(
     body: CreateCompetitionInput,
     background_tasks: BackgroundTasks,
     valkey: Valkey = Depends(get_valkey),
-) -> dict:
+) -> dict[str, Any]:
     if not _WOM_GROUP_KEY:
         raise HTTPException(503, "WOM group key not configured.")
     try:
@@ -62,7 +64,7 @@ async def edit_competition_endpoint(
     body: EditCompetitionInput,
     background_tasks: BackgroundTasks,
     valkey: Valkey = Depends(get_valkey),
-) -> dict:
+) -> dict[str, Any]:
     if not _WOM_GROUP_KEY:
         raise HTTPException(503, "WOM group key not configured.")
     try:

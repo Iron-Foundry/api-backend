@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -29,9 +30,9 @@ router = APIRouter(prefix="/assets", tags=["assets"])
 
 @router.get("")
 async def list_assets(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     result = await session.execute(
         select(Asset, User)
         .join(User, Asset.uploaded_by == User.discord_user_id, isouter=True)
@@ -43,9 +44,9 @@ async def list_assets(
 @router.post("/upload")
 async def upload_asset(
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     uid = int(current_user["sub"])
     roles = await get_effective_roles(uid, session)
     if not await check_page_permission("resources", "create", roles, session):
@@ -80,7 +81,7 @@ async def upload_asset(
         content_type=file.content_type,
         size_bytes=len(data),
         uploaded_by=uid,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     session.add(asset)
     await session.commit()
@@ -92,9 +93,9 @@ async def upload_asset(
 @router.delete("/{asset_id}")
 async def delete_asset(
     asset_id: UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     uid = int(current_user["sub"])
     roles = await get_effective_roles(uid, session)
     is_senior_mod = await check_page_permission("resources", "delete", roles, session)

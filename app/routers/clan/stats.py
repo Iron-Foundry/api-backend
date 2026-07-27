@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +15,7 @@ router = APIRouter()
 
 
 @router.get("/wom-stats")
-async def wom_stats(session: AsyncSession = Depends(get_session)) -> dict:
+async def wom_stats(session: AsyncSession = Depends(get_session)) -> dict[str, Any]:
     """Return the latest WOM clan stat snapshot written by ClanStatsService."""
     result = await session.execute(select(ClanStats).where(ClanStats.id == 1))
     row = result.scalar_one_or_none()
@@ -39,7 +41,7 @@ async def wom_stats(session: AsyncSession = Depends(get_session)) -> dict:
 
 
 @router.get("/stats")
-async def clan_stats(session: AsyncSession = Depends(get_session)) -> dict:
+async def clan_stats(session: AsyncSession = Depends(get_session)) -> dict[str, Any]:
     """Return aggregate clan stats: total GP looted and total collection log items."""
     gp_result = await session.execute(
         select(func.coalesce(func.sum(Event.data["coin_value"].as_integer()), 0)).where(
@@ -79,9 +81,9 @@ async def clan_stats(session: AsyncSession = Depends(get_session)) -> dict:
 async def recent_achievements(
     limit: int = Query(default=20, ge=1, le=100),
     session: AsyncSession = Depends(get_session),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Return recent notable clan achievements: drops >=2M, 99s, total levels, and XP milestones >=15M."""
-    results: list[dict] = []
+    results: list[dict[str, Any]] = []
 
     drop_result = await session.execute(
         select(Event)

@@ -1,12 +1,14 @@
 import os
 import time
 from contextlib import asynccontextmanager
+from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
-from scalar_fastapi import get_scalar_api_reference
 from loguru import logger
+from scalar_fastapi import get_scalar_api_reference
+from starlette.middleware.base import RequestResponseEndpoint
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from valkey.asyncio import Valkey
 
@@ -19,7 +21,6 @@ from app.routers import (
     clan,
     config,
     content,
-    discord as discord_router,
     events,
     feedback,
     frenzy,
@@ -37,29 +38,32 @@ from app.routers import (
     ticket_config,
     tilerace,
 )
-from app.services.connection_manager import connection_manager
-from app.services.clan_stats import ClanStatsService
-from app.services.competition_snapshot import CompetitionSnapshotService
-from app.services.competition_schedule import CompetitionScheduleService
-from app.services.discord_chat import DiscordChatService
+from app.routers import (
+    discord as discord_router,
+)
+from app.routers.config import _ALL_SERVICE_KEYS, get_service_toggles
+from app.services.bulk_gains import BulkGainsService
 from app.services.ccingest_metrics import collector as ccingest_collector
+from app.services.clan_stats import ClanStatsService
+from app.services.competition_schedule import CompetitionScheduleService
+from app.services.competition_snapshot import CompetitionSnapshotService
+from app.services.connection_manager import connection_manager
+from app.services.discord_chat import DiscordChatService
+from app.services.efficiency_rates import EfficiencyRatesService
 from app.services.endpoint_metrics import (
     EndpointMetricsCollector,
     EndpointMetricsService,
 )
+from app.services.http.wom_queue import init_wom_queue
+from app.services.loot_tables import LootTablesService
+from app.services.metric_compaction import MetricCompactionService
+from app.services.name_change import WomNameChangeService
 from app.services.outbound_metrics import _collector as _outbound_collector
 from app.services.outbound_metrics.service import OutboundMetricsService
-from app.services.metric_compaction import MetricCompactionService
 from app.services.party_expiry import PartyExpiryService
-from app.services.websocket_metrics import WebSocketMetricsService
-from app.services.http.wom_queue import init_wom_queue
-from app.services.wom_metrics import WomMetricsService
-from app.services.name_change import WomNameChangeService
 from app.services.ranking_service import RankingService
-from app.services.bulk_gains import BulkGainsService
-from app.services.loot_tables import LootTablesService
-from app.services.efficiency_rates import EfficiencyRatesService
-from app.routers.config import get_service_toggles, _ALL_SERVICE_KEYS
+from app.services.websocket_metrics import WebSocketMetricsService
+from app.services.wom_metrics import WomMetricsService
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 VALKEY_URI = os.getenv("VALKEY_URI", "redis://localhost:6379")
@@ -99,9 +103,9 @@ async def lifespan(app: FastAPI):
             logger.warning(
                 "Could not read service toggles ({}), defaulting all enabled", exc
             )
-            toggles = {k: True for k in _ALL_SERVICE_KEYS}
+            toggles = dict.fromkeys(_ALL_SERVICE_KEYS, True)
     else:
-        toggles = {k: True for k in _ALL_SERVICE_KEYS}
+        toggles = dict.fromkeys(_ALL_SERVICE_KEYS, True)
 
     # Build all service instances
     discord_chat_svc = DiscordChatService(VALKEY_URI, app.state.session_factory)
@@ -202,7 +206,7 @@ async def lifespan(app: FastAPI):
     await wom_metrics_service.stop()
     await ws_metrics_service.stop()
     await endpoint_metrics_service.stop()
-    for key, svc in app.state.service_registry.items():
+    for svc in app.state.service_registry.values():
         if svc is not None and svc.is_running:
             await svc.stop()
     await wom_queue.stop()
@@ -234,7 +238,9 @@ app.add_middleware(
 
 
 @app.middleware("http")
-async def _request_metrics_middleware(request: Request, call_next):
+async def _request_metrics_middleware(
+    request: Request, call_next: RequestResponseEndpoint
+) -> Response:
     req_bytes = int(request.headers.get("content-length", 0))
     start = time.monotonic()
     response = await call_next(request)
@@ -284,5 +290,5 @@ async def scalar_docs() -> HTMLResponse:
 
 
 @app.get("/health")
-async def health() -> dict:
+async def health() -> dict[str, Any]:
     return {"status": "ok"}

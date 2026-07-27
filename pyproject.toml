@@ -23,6 +23,37 @@ dependencies = [
     "valkey>=6.1.1",
 ]
 
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E4", "E7", "E9", "F", "W", "I", "N", "UP", "B", "SIM", "RUF", "PLE",
+    "ASYNC", "DTZ", "LOG", "G", "C4", "RET", "PERF", "PTH", "S",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Pydantic models mirroring the Dink RuneLite plugin's wire payload; the
+# camelCase field names are the contract and cannot be renamed.
+"app/routers/ironclad/_helpers.py" = ["N815"]
+# assert is the point of a test.
+"app/tests/**" = ["S101"]
+# Config-table key names, not credential values.
+"app/routers/config/_helpers.py" = ["S105"]
+"app/services/competition_schedule/ballot_tokens.py" = ["S105"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = [
+    "fastapi.Body",
+    "fastapi.Depends",
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Header",
+    "fastapi.Path",
+    "fastapi.Query",
+    "fastapi.Security",
+]
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["app/tests"]
@@ -38,9 +69,10 @@ dev = [
     "bandit>=1.9.4",
     "mypy>=2.1.0",
     "pre-commit>=4.6.0",
+    "pyright>=1.1.411",
     "pytest>=9.0.3",
     "pytest-asyncio>=1.4.0",
-    "ruff>=0.15",
+    "ruff>=0.16",
     "testcontainers>=4.14.2",
     "tqdm>=4.68.3",
 ]

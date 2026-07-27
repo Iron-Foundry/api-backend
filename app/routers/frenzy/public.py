@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,8 +22,8 @@ router = APIRouter()
 @router.get("/active")
 async def get_active_event(
     session: AsyncSession = Depends(get_session),
-    _current_user: dict | None = Depends(get_optional_user),
-) -> dict:
+    _current_user: dict[str, Any] | None = Depends(get_optional_user),
+) -> dict[str, Any]:
     """Return the active event with all teams ranked by total points."""
     event = (
         await session.execute(
@@ -116,7 +118,7 @@ async def get_active_event(
 async def get_active_team_detail(
     team_slug: str,
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Full team detail: template merged with team progress and computed scores."""
     event = (
         await session.execute(

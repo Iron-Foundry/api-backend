@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -49,7 +51,7 @@ async def get_effective_roles(discord_user_id: int, session: AsyncSession) -> li
         )
     )
     cfg = cfg_result.scalar_one_or_none() or {}
-    mappings: list[dict] = cfg.get("mappings", [])
+    mappings: list[dict[str, Any]] = cfg.get("mappings", [])
 
     # Support both new (discord_role_id) and legacy (discord_role) field names
     mapped: list[str] = [

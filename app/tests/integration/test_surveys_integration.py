@@ -5,11 +5,14 @@ from __future__ import annotations
 import pytest
 import sqlalchemy as sa
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 pytestmark = pytest.mark.integration
 
 
-async def test_survey_create_and_open(staff_client: AsyncClient, seed_engine) -> None:
+async def test_survey_create_and_open(
+    staff_client: AsyncClient, seed_engine: AsyncEngine
+) -> None:
     payload = {
         "title": "Applicant Screening",
         "category": "application",

@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-from sqlalchemy import select
+from datetime import UTC
+
+from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.models import PartyChatMessageDB, PartyDB
 
 
-def _with_members(q):
+def _with_members(q: Select[tuple[PartyDB]]) -> Select[tuple[PartyDB]]:
     return q.options(selectinload(PartyDB.members))
 
 
@@ -43,9 +45,9 @@ async def get_chat_messages(
 
 async def expire_parties(session: AsyncSession) -> list[PartyDB]:
     """Mark timed-out parties as closed and return the newly-expired list."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     result = await session.execute(
         _with_members(
             select(PartyDB).where(PartyDB.status != "closed", PartyDB.expires_at <= now)

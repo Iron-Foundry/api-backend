@@ -4,11 +4,11 @@ from .prestige import PrestigeMetric, PrestigeMetricBuilder
 from .skill import SkillMetric, SkillMetricBuilder
 
 __all__ = [
-    "ScoringResult",
     "BossMetric",
     "BossMetricBuilder",
-    "SkillMetric",
-    "SkillMetricBuilder",
     "PrestigeMetric",
     "PrestigeMetricBuilder",
+    "ScoringResult",
+    "SkillMetric",
+    "SkillMetricBuilder",
 ]

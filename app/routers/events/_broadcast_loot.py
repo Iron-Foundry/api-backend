@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +16,7 @@ from ._helpers import dispatch_doc, increment_loot_value, insert_event
 
 async def handle_loot(
     payload: ClanChatPayload,
-    clan: dict,
+    clan: dict[str, Any],
     session: AsyncSession,
     valkey: Valkey,
     now: datetime,
@@ -54,7 +55,7 @@ async def handle_loot(
 
 async def handle_loot_key(
     payload: ClanChatPayload,
-    clan: dict,
+    clan: dict[str, Any],
     session: AsyncSession,
     valkey: Valkey,
     now: datetime,
@@ -87,7 +88,7 @@ async def handle_loot_key(
 
 async def handle_clue_item(
     payload: ClanChatPayload,
-    clan: dict,
+    clan: dict[str, Any],
     session: AsyncSession,
     valkey: Valkey,
     now: datetime,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -23,14 +24,14 @@ router = APIRouter()
 
 
 class SubmitResponseBody(BaseModel):
-    answers: dict
+    answers: dict[str, Any]
 
 
 @router.get("/")
 async def list_surveys(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     discord_user_id = int(current_user["sub"])
     roles = await get_roles(current_user, session)
     return await list_templates("survey", roles, discord_user_id, session)
@@ -38,9 +39,9 @@ async def list_surveys(
 
 @router.get("/applications")
 async def list_applications(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     discord_user_id = int(current_user["sub"])
     roles = await get_roles(current_user, session)
     return await list_templates("application", roles, discord_user_id, session)
@@ -49,9 +50,9 @@ async def list_applications(
 @router.get("/{template_id}")
 async def get_template(
     template_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     discord_user_id = int(current_user["sub"])
     roles = await get_roles(current_user, session)
     is_staff = await check_page_permission("staff.surveys", "read", roles, session)
@@ -106,9 +107,9 @@ async def get_template(
 async def submit_response(
     template_id: str,
     body: SubmitResponseBody,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Submit a web response. Survey must be open; any authenticated member may respond."""
     discord_user_id = int(current_user["sub"])
 
@@ -146,7 +147,7 @@ async def submit_response(
             template_id=template_id,
             discord_user_id=discord_user_id,
             answers=body.answers,
-            submitted_at=datetime.now(timezone.utc),
+            submitted_at=datetime.now(UTC),
         )
     )
     await session.commit()

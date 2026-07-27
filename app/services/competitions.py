@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -25,13 +25,13 @@ class CreateCompetitionInput(BaseModel):
     teams: list[CompetitionTeam] | None = None
 
     @model_validator(mode="after")
-    def validate_dates(self) -> "CreateCompetitionInput":
+    def validate_dates(self) -> CreateCompetitionInput:
         if self.ends_at <= self.starts_at:
             raise ValueError("ends_at must be after starts_at")
         return self
 
     @model_validator(mode="after")
-    def validate_participant_fields(self) -> "CreateCompetitionInput":
+    def validate_participant_fields(self) -> CreateCompetitionInput:
         if self.type == "team":
             if not self.teams:
                 raise ValueError("teams required when type is 'team'")
@@ -50,7 +50,7 @@ class EditCompetitionInput(BaseModel):
     ends_at: datetime | None = None
 
     @model_validator(mode="after")
-    def at_least_one_field(self) -> "EditCompetitionInput":
+    def at_least_one_field(self) -> EditCompetitionInput:
         if all(
             v is None for v in [self.title, self.metric, self.starts_at, self.ends_at]
         ):
@@ -65,8 +65,8 @@ async def create_competition(
     group_key: str,
     api_key: str | None = None,
     discord_contact: str | None = None,
-) -> dict:
-    payload: dict = {
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
         "title": data.title,
         "metric": data.metric,
         "startsAt": data.starts_at.isoformat(),
@@ -93,8 +93,8 @@ async def edit_competition(
     group_key: str,
     api_key: str | None = None,
     discord_contact: str | None = None,
-) -> dict:
-    payload: dict = {"verificationCode": group_key}
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {"verificationCode": group_key}
     if data.title is not None:
         payload["title"] = data.title
     if data.metric is not None:

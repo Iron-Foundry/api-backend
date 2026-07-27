@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,9 +16,9 @@ router = APIRouter()
 
 @router.get("/referral-stats")
 async def referral_stats(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Referral source breakdown + recruiter leaderboard."""
     await require_rank("staff.home", "read", current_user, session)
 
@@ -52,9 +54,9 @@ async def referral_stats(
 
 @router.get("/referral-details")
 async def referral_details(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Per-member referral source breakdown."""
     await require_rank("staff.home", "read", current_user, session)
     rows = await session.execute(
@@ -86,9 +88,9 @@ async def referral_details(
 
 @router.get("/overview")
 async def staff_overview(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """High-level clan stats. Requires Mentor or higher."""
     await require_rank("staff.home", "read", current_user, session)
 

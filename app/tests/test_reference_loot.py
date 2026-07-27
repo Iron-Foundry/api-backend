@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -119,7 +119,7 @@ def _source() -> LootSource:
         display_name="Zulrah",
         category="boss",
         wiki_page="Zulrah",
-        updated_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(UTC),
     )
 
 
@@ -137,7 +137,7 @@ def _drop() -> LootDrop:
         rarity_text=None,
         rolls=2,
         drop_group="Uniques",
-        updated_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(UTC),
     )
 
 

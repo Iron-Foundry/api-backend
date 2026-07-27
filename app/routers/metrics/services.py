@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
+from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import select, text
@@ -17,19 +18,17 @@ router = APIRouter()
 @router.get("/services/status")
 async def services_status(
     request: Request,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Return live service status for all reporting services plus api-backend itself."""
     await require_staff(current_user, session)
 
     rows = await session.execute(select(ServiceStatus))
     services = list(rows.scalars())
 
-    stale_cutoff = datetime.now(timezone.utc) - timedelta(
-        minutes=_STALE_THRESHOLD_MINUTES
-    )
-    result: list[dict] = []
+    stale_cutoff = datetime.now(UTC) - timedelta(minutes=_STALE_THRESHOLD_MINUTES)
+    result: list[dict[str, Any]] = []
     for svc in services:
         is_healthy = svc.is_healthy and svc.last_seen > stale_cutoff
         result.append(
@@ -60,9 +59,9 @@ async def services_status(
 @router.get("/services/uptime")
 async def services_uptime(
     days: int = Query(default=90, ge=7, le=365),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Return per-day operational status for all services over the last N days."""
     await require_staff(current_user, session)
 
@@ -92,7 +91,7 @@ async def services_uptime(
     )
     first_seen: dict[str, str] = {sn: str(d) for sn, d in first_seen_rows}
 
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(UTC).date()
     window_start = today - timedelta(days=days - 1)
     all_dates = [str(window_start + timedelta(days=i)) for i in range(days)]
 
@@ -101,20 +100,18 @@ async def services_uptime(
     all_services.update(active.keys())
     all_services.add("api-backend")
 
-    result: list[dict] = []
+    result: list[dict[str, Any]] = []
     for service_name in sorted(all_services):
         service_active = active.get(service_name, set())
         fs = first_seen.get(service_name)
-        reporting_start = (
-            max(window_start, datetime.strptime(fs, "%Y-%m-%d").date()) if fs else None
-        )
+        reporting_start = max(window_start, date.fromisoformat(fs)) if fs else None
 
-        day_list: list[dict] = []
+        day_list: list[dict[str, Any]] = []
         operational_count = 0
         total_count = 0
 
         for date_str in all_dates:
-            date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+            date_obj = date.fromisoformat(date_str)
             if reporting_start is None or date_obj < reporting_start:
                 day_list.append({"date": date_str, "status": "no_data"})
             elif date_str in service_active:

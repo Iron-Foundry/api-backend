@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from app.services.http.base import BaseRequestHandler
 
@@ -25,23 +25,23 @@ class DiscordApiService(BaseRequestHandler):
         super().__init__()
         self._auth = {"Authorization": f"Bot {token}"}
 
-    async def get_channels(self, guild_id: str) -> list[dict]:
+    async def get_channels(self, guild_id: str) -> list[dict[str, Any]]:
         """Return all channels for a guild, sorted by position."""
         resp = await self.get(f"/guilds/{guild_id}/channels", extra_headers=self._auth)
         resp.raise_for_status()
         return resp.json()
 
-    async def get_roles(self, guild_id: str) -> list[dict]:
+    async def get_roles(self, guild_id: str) -> list[dict[str, Any]]:
         """Return all roles for a guild."""
         resp = await self.get(f"/guilds/{guild_id}/roles", extra_headers=self._auth)
         resp.raise_for_status()
         return resp.json()
 
 
-def group_channels(channels: list[dict]) -> dict:
+def group_channels(channels: list[dict[str, Any]]) -> dict[str, Any]:
     """Group a flat channel list into categories with nested channels."""
-    categories: dict[str, dict] = {}
-    uncategorized: list[dict] = []
+    categories: dict[str, dict[str, Any]] = {}
+    uncategorized: list[dict[str, Any]] = []
 
     channel_fields = ("id", "name", "type")
 

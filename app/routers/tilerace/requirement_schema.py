@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated, Literal, Union
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -20,28 +20,26 @@ class TextRequirement(BaseModel):
 
 class AndRequirement(BaseModel):
     kind: Literal["and"]
-    children: list["RequirementNode"] = []
+    children: list[RequirementNode] = []
 
 
 class OrRequirement(BaseModel):
     kind: Literal["or"]
-    children: list["RequirementNode"] = []
+    children: list[RequirementNode] = []
 
 
 class NotRequirement(BaseModel):
     kind: Literal["not"]
-    child: "RequirementNode"
+    child: RequirementNode
 
 
 RequirementNode = Annotated[
-    Union[
-        LeafRequirement, TextRequirement, AndRequirement, OrRequirement, NotRequirement
-    ],
+    LeafRequirement | TextRequirement | AndRequirement | OrRequirement | NotRequirement,
     Field(discriminator="kind"),
 ]
 
 
-def requirement_from_items(items: list) -> dict | None:
+def requirement_from_items(items: list[dict[str, Any]]) -> dict[str, Any] | None:
     leaves = [
         {
             "kind": "item",

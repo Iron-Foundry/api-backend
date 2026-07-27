@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from typing import Any, Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Literal
 
 from app.db.models import Ticket, Transcript
 from app.dependencies import get_current_user, get_session
@@ -20,9 +21,9 @@ async def staff_tickets(
     limit: int = Query(default=50, ge=1, le=200),
     skip: int = Query(default=0, ge=0),
     status: Literal["open", "closed"] | None = Query(default=None),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Return tickets visible to the caller based on their rank."""
     roles = await get_roles(current_user, session)
     if not await check_page_permission("staff.all-tickets", "read", roles, session):
@@ -49,9 +50,9 @@ async def staff_tickets(
 @router.get("/tickets/{ticket_id}/transcript")
 async def staff_ticket_transcript(
     ticket_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Return the full transcript for a ticket the caller is authorised to view."""
     roles = await get_roles(current_user, session)
     if not await check_page_permission("staff.all-tickets", "read", roles, session):

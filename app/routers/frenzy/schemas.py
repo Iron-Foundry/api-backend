@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -8,15 +9,15 @@ from pydantic import BaseModel
 class TemplateBody(BaseModel):
     name: str
     description: str | None = None
-    tiers: dict = {}
-    activities: list = []
-    milestones: dict = {}
-    multipliers: list = []
+    tiers: dict[str, Any] = {}
+    activities: list[Any] = []
+    milestones: dict[str, Any] = {}
+    multipliers: list[Any] = []
     total_point_cap: int = 0
 
 
 class CalculatePointsBody(BaseModel):
-    tiers: dict
+    tiers: dict[str, Any]
     total_point_cap: int
 
 
@@ -44,7 +45,7 @@ class SubmissionBody(BaseModel):
     player_rsn: str
     source: str
     submission_type: str
-    payload: dict
+    payload: dict[str, Any]
     submitted_at: datetime | None = None
 
 
@@ -64,6 +65,6 @@ class TeamPatch(BaseModel):
     name: str | None = None
     icon_url: str | None = None
     sort_order: int | None = None
-    item_progress: dict | None = None
-    activity_progress: dict | None = None
-    milestone_progress: dict | None = None
+    item_progress: dict[str, Any] | None = None
+    activity_progress: dict[str, Any] | None = None
+    milestone_progress: dict[str, Any] | None = None

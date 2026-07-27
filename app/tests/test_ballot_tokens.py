@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from typing import Any
+
 from httpx import AsyncClient
 
 from app.services.competition_schedule.awards import compute_award_plan
 from app.services.competition_schedule.ballot_tokens import DEFAULT_TOKEN_CONFIG
 
 
-def _p(name: str, gained: int) -> dict:
+def _p(name: str, gained: int) -> dict[str, Any]:
     return {"player": {"displayName": name}, "progress": {"gained": gained}}
 
 

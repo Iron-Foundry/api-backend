@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,7 +18,9 @@ router = APIRouter()
     "/ranking",
     dependencies=[Depends(require_page_permission("staff.ranking", "read"))],
 )
-async def get_ranking_config(session: AsyncSession = Depends(get_session)) -> dict:
+async def get_ranking_config(
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
     data = await get_config_value(_RANKING_CONFIG_KEY, session)
     if not data or data.get("version") != 2:
         return _DEFAULT_CONFIG.to_dict()
@@ -28,7 +32,7 @@ async def get_ranking_config(session: AsyncSession = Depends(get_session)) -> di
     dependencies=[Depends(require_page_permission("staff.ranking", "edit"))],
 )
 async def set_ranking_config(
-    body: dict, session: AsyncSession = Depends(get_session)
-) -> dict:
+    body: dict[str, Any], session: AsyncSession = Depends(get_session)
+) -> dict[str, Any]:
     await set_config_value(_RANKING_CONFIG_KEY, body, session)
     return body

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,11 +16,11 @@ router = APIRouter()
 
 @router.get("/members")
 async def staff_members(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
     search: str | None = None,
     limit: int = Query(default=1000, ge=1, le=2000),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Return all member profiles. Requires staff.members read permission."""
     await require_rank("staff.members", "read", current_user, session)
     stmt = select(
@@ -43,34 +45,33 @@ async def staff_members(
         )
     stmt = stmt.order_by(User.join_date.asc().nulls_last()).limit(limit)
     result = await session.execute(stmt)
-    members: list[dict] = []
-    for row in result:
-        members.append(
-            {
-                "discord_user_id": str(row.discord_user_id),
-                "discord_username": row.discord_username,
-                "discord_avatar_url": row.discord_avatar_url,
-                "rsn": row.rsn,
-                "clan_rank": row.clan_rank,
-                "discord_roles": row.discord_roles,
-                "stats_opt_out": row.stats_opt_out,
-                "join_date": row.join_date.isoformat() if row.join_date else None,
-                "created_at": row.created_at.isoformat() if row.created_at else None,
-                "total_loot_value": row.total_loot_value,
-                "collection_log_slots": row.collection_log_slots,
-                "recruited_by": str(row.recruited_by) if row.recruited_by else None,
-                "key_is_active": row.key_is_active,
-            }
-        )
+    members: list[dict[str, Any]] = [
+        {
+            "discord_user_id": str(row.discord_user_id),
+            "discord_username": row.discord_username,
+            "discord_avatar_url": row.discord_avatar_url,
+            "rsn": row.rsn,
+            "clan_rank": row.clan_rank,
+            "discord_roles": row.discord_roles,
+            "stats_opt_out": row.stats_opt_out,
+            "join_date": row.join_date.isoformat() if row.join_date else None,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "total_loot_value": row.total_loot_value,
+            "collection_log_slots": row.collection_log_slots,
+            "recruited_by": str(row.recruited_by) if row.recruited_by else None,
+            "key_is_active": row.key_is_active,
+        }
+        for row in result
+    ]
     return members
 
 
 @router.get("/members/{discord_user_id}")
 async def staff_member_detail(
     discord_user_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Full member detail for the sheet view. Requires staff.members read permission."""
     await require_rank("staff.members", "read", current_user, session)
 

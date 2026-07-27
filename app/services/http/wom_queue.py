@@ -18,11 +18,13 @@ is exhausted, so effective budgets are:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Any, Callable
+from typing import Any
 
 import httpx
 from loguru import logger
@@ -49,14 +51,14 @@ class WomSnapshot:
 
 
 class _QueueItem:
-    __slots__ = ("priority", "seq", "coro_fn", "future")
+    __slots__ = ("coro_fn", "future", "priority", "seq")
 
     def __init__(
         self,
         priority: WomPriority,
         seq: int,
         coro_fn: Callable[[], Any],
-        future: asyncio.Future,
+        future: asyncio.Future[Any],
     ) -> None:
         self.priority = priority
         self.seq = seq
@@ -76,7 +78,7 @@ class WomRequestQueue:
         self._task: asyncio.Task[None] | None = None
         self._rl_remaining: int = 100
         self._rl_reset_at: float = 0.0
-        self._count: dict[WomPriority, int] = {p: 0 for p in WomPriority}
+        self._count: dict[WomPriority, int] = dict.fromkeys(WomPriority, 0)
         self._history: deque[WomSnapshot] = deque(maxlen=720)
 
     async def start(self) -> None:
@@ -86,10 +88,8 @@ class WomRequestQueue:
     async def stop(self) -> None:
         if self._task:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
         logger.info("WomRequestQueue stopped")
 
     def submit(
@@ -120,15 +120,11 @@ class WomRequestQueue:
         raw_remaining = headers.get("ratelimit-remaining")
         raw_reset = headers.get("ratelimit-reset")
         if raw_remaining is not None:
-            try:
+            with contextlib.suppress(ValueError):
                 self._rl_remaining = int(raw_remaining)
-            except ValueError:
-                pass
         if raw_reset is not None:
-            try:
+            with contextlib.suppress(ValueError):
                 self._rl_reset_at = time.monotonic() + float(raw_reset)
-            except ValueError:
-                pass
 
     async def _proactive_sleep(self, priority: WomPriority) -> None:
         effective = self._effective_remaining(priority)
@@ -161,7 +157,7 @@ class WomRequestQueue:
         while True:
             try:
                 item = await asyncio.wait_for(self._queue.get(), timeout=5.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 self._record_snapshot()
                 continue
 

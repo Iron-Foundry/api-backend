@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timedelta, timezone
-from typing import Annotated
+from datetime import UTC, datetime, timedelta
+from typing import Annotated, Any
 
 from fastapi import HTTPException
 from pydantic import BaseModel, Field, field_validator
@@ -109,14 +109,14 @@ async def get_rsn(
 
 
 def resolve_scheduled_at(dt: datetime) -> datetime:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     if dt > now:
         return dt
     today = now.date()
     candidate = datetime(
-        today.year, today.month, today.day, dt.hour, dt.minute, tzinfo=timezone.utc
+        today.year, today.month, today.day, dt.hour, dt.minute, tzinfo=UTC
     )
     if candidate > now:
         return candidate
@@ -172,7 +172,7 @@ async def dispatch_party_notifications(
     expires_ts = int(party.expires_at.timestamp())
     fields.append({"name": "Expires", "value": f"<t:{expires_ts}:R>", "inline": False})
 
-    embed: dict = {
+    embed: dict[str, Any] = {
         "title": f"New Party: {party.activity}",
         "color": _VIBE_COLOR.get(party.vibe, 0x57F287),
         "fields": fields,

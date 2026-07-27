@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from valkey.asyncio import Valkey
@@ -39,9 +41,9 @@ router = APIRouter()
 
 @router.get("/")
 async def get_parties(
-    current_user: dict | None = Depends(get_optional_user),
+    current_user: dict[str, Any] | None = Depends(get_optional_user),
     session: AsyncSession = Depends(get_session),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """List all non-closed parties. Public."""
     viewer_id = str(current_user["sub"]) if current_user else None
     return [party_to_dict(p, viewer_id) for p in await list_active_parties(session)]
@@ -50,9 +52,9 @@ async def get_parties(
 @router.get("/{party_id}")
 async def get_party_endpoint(
     party_id: str,
-    current_user: dict | None = Depends(get_optional_user),
+    current_user: dict[str, Any] | None = Depends(get_optional_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Return a single party by ID. Public."""
     party = await require_party(party_id, session)
     viewer_id = str(current_user["sub"]) if current_user else None
@@ -62,10 +64,10 @@ async def get_party_endpoint(
 @router.post("/", status_code=201)
 async def create_new_party(
     body: CreatePartyRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
     valkey: Valkey = Depends(get_valkey),
-) -> dict:
+) -> dict[str, Any]:
     """Create a party. The creator is automatically added as leader/first member."""
     uid = str(current_user["sub"])
     username = current_user.get("username", "Unknown")
@@ -100,10 +102,10 @@ async def create_new_party(
 async def update_party(
     party_id: str,
     body: UpdatePartyRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
     valkey: Valkey = Depends(get_valkey),
-) -> dict:
+) -> dict[str, Any]:
     """Edit party details. Leader only."""
     party = await require_party(party_id, session)
     uid = str(current_user["sub"])
@@ -141,20 +143,17 @@ async def update_party(
 @router.delete("/{party_id}")
 async def close_party_endpoint(
     party_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Close a party. Leader or staff only."""
     party = await require_party(party_id, session)
     uid = str(current_user["sub"])
 
     if party.status == "closed":
         raise HTTPException(409, "Party is already closed")
-    if party.leader_id != uid:
-        if not await is_staff(int(current_user["sub"]), session):
-            raise HTTPException(
-                403, "Only the party leader or staff can close this party"
-            )
+    if party.leader_id != uid and not await is_staff(int(current_user["sub"]), session):
+        raise HTTPException(403, "Only the party leader or staff can close this party")
 
     await close_party(session, party)
     await close_party_embed(party)

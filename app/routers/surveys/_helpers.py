@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,7 +15,7 @@ from app.services.page_permissions import check_page_permission
 from app.services.rank_mappings import get_effective_roles
 
 
-def normalize_visibility(raw: str | list | None) -> list[str] | None:
+def normalize_visibility(raw: str | list[Any] | None) -> list[str] | None:
     if raw is None:
         return None
     if isinstance(raw, str):
@@ -21,20 +23,22 @@ def normalize_visibility(raw: str | list | None) -> list[str] | None:
     return raw
 
 
-async def get_roles(current_user: dict, session: AsyncSession) -> list[str]:
+async def get_roles(current_user: dict[str, Any], session: AsyncSession) -> list[str]:
     discord_user_id = int(current_user["sub"])
     return await get_effective_roles(discord_user_id, session)
 
 
-def extract_fields(raw: list | dict) -> list[dict]:
-    fields: list[dict] = raw if isinstance(raw, list) else raw.get("fields", [])
+def extract_fields(raw: list[Any] | dict[str, Any]) -> list[dict[str, Any]]:
+    fields: list[dict[str, Any]] = (
+        raw if isinstance(raw, list) else raw.get("fields", [])
+    )
     return [
         {**f, "label": f["text"]} if "label" not in f and "text" in f else f
         for f in fields
     ]
 
 
-def extract_is_open(raw: list | dict) -> bool:
+def extract_is_open(raw: list[Any] | dict[str, Any]) -> bool:
     if isinstance(raw, list):
         return False
     if "is_open" in raw:
@@ -44,7 +48,7 @@ def extract_is_open(raw: list | dict) -> bool:
 
 async def list_templates(
     category: str, roles: list[str], discord_user_id: int, session: AsyncSession
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     is_staff = await check_page_permission("staff.surveys", "read", roles, session)
 
     active_row = (await session.execute(select(SurveyActive))).scalar_one_or_none()
@@ -76,7 +80,7 @@ async def list_templates(
     }
 
     rows = (await session.execute(select(SurveyTemplate))).scalars().all()
-    out: list[dict] = []
+    out: list[dict[str, Any]] = []
     for row in rows:
         raw = row.questions or {}
         if isinstance(raw, list):
@@ -90,11 +94,10 @@ async def list_templates(
             continue
 
         is_open = extract_is_open(raw)
-        if not is_staff:
-            if not is_open and row.template_id not in submitted_set:
-                continue
+        if not is_staff and not is_open and row.template_id not in submitted_set:
+            continue
 
-        entry: dict = {
+        entry: dict[str, Any] = {
             "template_id": row.template_id,
             "title": row.title,
             "description": description,

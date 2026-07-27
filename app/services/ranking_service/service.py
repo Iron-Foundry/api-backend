@@ -3,22 +3,25 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+import contextlib
+from datetime import UTC, datetime
+from typing import Any
 
 from loguru import logger
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.models import Config, PlayerRanking, PlayerSnapshot, UserAccount
 from app.services.http.wom import WiseOldManHandler
 from app.services.http.wom_queue import WomPriority
+
 from .config import (
-    POLL_INTERVAL,
     _DEFAULT_CONFIG,
     _GLOBAL_GUILD_ID,
     _RANKING_CONFIG_KEY,
     _WOM_DISCORD_CONTACT,
+    POLL_INTERVAL,
 )
 from .scoring import RankingConfig, rank_from_snapshots
 
@@ -61,10 +64,8 @@ class RankingService:
     async def stop(self) -> None:
         if self._task:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
         logger.info("RankingService stopped")
 
     def run_now(self) -> bool:
@@ -85,10 +86,8 @@ class RankingService:
                 logger.warning("RankingService._refresh error: {}", exc)
             finally:
                 self._run_active = False
-            try:
+            with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(self._run_event.wait(), timeout=POLL_INTERVAL)
-            except TimeoutError:
-                pass
 
     async def _get_config(self) -> RankingConfig:
         if self._session_factory is None:
@@ -132,8 +131,8 @@ class RankingService:
             "RankingService: received {} player entries from bulk hiscores", len(bulk)
         )
 
-        now = datetime.now(timezone.utc)
-        cleaned: list[dict] = []
+        now = datetime.now(UTC)
+        cleaned: list[dict[str, Any]] = []
         snapshot_rows = []
         skill_names = {m.name for m in config.skills}
 
@@ -228,7 +227,9 @@ class RankingService:
         self.last_error = None
         logger.info("RankingService: ranked {} players", len(ranked))
 
-    async def rank_from_config(self, config_override: dict) -> list[dict]:
+    async def rank_from_config(
+        self, config_override: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """Re-rank using stored snapshots and a given config dict. No DB writes."""
         if self._session_factory is None:
             return []

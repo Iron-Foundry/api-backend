@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from loguru import logger
@@ -15,7 +16,7 @@ from app.db.models import CompetitionSnapshot, Config, User
 from app.dependencies import get_session, get_valkey
 from app.services.page_permissions import require_page_permission
 
-from ._comp_cache import _build_metric_detail_cache, _build_competitions_cache
+from ._comp_cache import _build_competitions_cache, _build_metric_detail_cache
 from ._constants import (
     _COMP_METRIC_LOCK_TTL,
     _COMP_METRIC_MAP_KEY,
@@ -41,7 +42,7 @@ class CompetitionMetricMapBody(BaseModel):
 async def list_competitions(
     background_tasks: BackgroundTasks,
     valkey: Valkey = Depends(get_valkey),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Return all group competitions. Stale-while-revalidate: fresh 5 min, stale fallback 2 h."""
     fresh = await valkey.get(_COMPS_FRESH_KEY)
     if fresh:
@@ -60,7 +61,7 @@ async def list_competitions(
 @router.get("/competitions/metric-map")
 async def get_competition_metric_map(
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Return the staff-configured metric map: {comp_id: [metric, ...], ...}."""
     result = await session.execute(
         select(Config.value).where(
@@ -77,14 +78,14 @@ async def get_competition_metric_map(
 async def set_competition_metric_map(
     body: CompetitionMetricMapBody,
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Upsert the metric list for a competition. Senior staff only."""
     result = await session.execute(
         select(Config.value).where(
             Config.guild_id == _GLOBAL_GUILD_ID, Config.key == _COMP_METRIC_MAP_KEY
         )
     )
-    current: dict = result.scalar_one_or_none() or {}
+    current: dict[str, Any] = result.scalar_one_or_none() or {}
     current[str(body.competition_id)] = body.metrics
     await session.execute(
         pg_insert(Config)
@@ -100,7 +101,7 @@ async def set_competition_metric_map(
 @router.get("/competitions/participants")
 async def list_competition_participants(
     session: AsyncSession = Depends(get_session),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Return all users with linked RSNs for competition participant autofill."""
     result = await session.execute(
         select(User.rsn, User.discord_username).where(User.rsn.is_not(None))
@@ -116,14 +117,14 @@ async def competition_metric_detail(
     background_tasks: BackgroundTasks,
     metric: str = Query(..., description="WOM metric key, e.g. 'woodcutting'"),
     valkey: Valkey = Depends(get_valkey),
-) -> dict:
+) -> dict[str, Any]:
     """Return competition participant data for a specific metric, with stale-while-revalidate caching."""
     fresh_key, stale_key, lock_key = _comp_metric_keys(competition_id, metric)
     status = "ongoing"
     for cache_key in (_COMPS_FRESH_KEY, _COMPS_STALE_KEY):
         raw = await valkey.get(cache_key)
         if raw:
-            comps: list[dict] = json.loads(raw)
+            comps: list[dict[str, Any]] = json.loads(raw)
             match = next((c for c in comps if c.get("id") == competition_id), None)
             if match:
                 status = match.get("status", "ongoing")
@@ -160,13 +161,13 @@ async def competition_overtime(
     limit: int = Query(5, ge=1, le=25, description="Max players to return"),
     valkey: Valkey = Depends(get_valkey),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Player progress over time, reconstructed from DB snapshots."""
     status = "ongoing"
     for cache_key in (_COMPS_FRESH_KEY, _COMPS_STALE_KEY):
         raw = await valkey.get(cache_key)
         if raw:
-            comps: list[dict] = json.loads(raw)
+            comps: list[dict[str, Any]] = json.loads(raw)
             match = next((c for c in comps if c.get("id") == competition_id), None)
             if match:
                 status = match.get("status", "ongoing")
@@ -183,9 +184,9 @@ async def competition_overtime(
     db_snaps = db_result.scalars().all()
 
     if db_snaps:
-        age = datetime.now(timezone.utc) - db_snaps[-1].captured_at
+        age = datetime.now(UTC) - db_snaps[-1].captured_at
         if status == "finished" or age < timedelta(minutes=35):
-            players: dict[str, list[dict]] = {}
+            players: dict[str, list[dict[str, Any]]] = {}
             for snap in db_snaps:
                 for standing in snap.series:
                     name = standing["player_name"]
@@ -209,16 +210,17 @@ async def competition_overtime(
 async def competition_details(
     competition_id: int,
     valkey: Valkey = Depends(get_valkey),
-) -> dict:
+) -> dict[str, Any]:
     """Return full competition details with participant progress, served from cache."""
-    from app.services.http import WiseOldManHandler, WomPriority
     import httpx
+
+    from app.services.http import WiseOldManHandler, WomPriority
 
     metric: str | None = None
     for cache_key in (_COMPS_FRESH_KEY, _COMPS_STALE_KEY):
         raw = await valkey.get(cache_key)
         if raw:
-            comps: list[dict] = json.loads(raw)
+            comps: list[dict[str, Any]] = json.loads(raw)
             match = next((c for c in comps if c.get("id") == competition_id), None)
             if match:
                 metric = match.get("metric") or None
@@ -233,19 +235,21 @@ async def competition_details(
         data = await wom.get_cached_competition(competition_id, metric=metric)
     except httpx.HTTPStatusError as exc:
         if exc.response.status_code == 404:
-            raise HTTPException(status_code=404, detail="Competition not found.")
+            raise HTTPException(
+                status_code=404, detail="Competition not found."
+            ) from exc
         if exc.response.status_code == 429:
             raise HTTPException(
                 status_code=429,
                 detail="WiseOldMan rate limit reached - try again shortly.",
-            )
+            ) from exc
         raise HTTPException(
             status_code=502, detail="Failed to fetch competition details."
-        )
+        ) from exc
 
     starts_at = datetime.fromisoformat(data["startsAt"].replace("Z", "+00:00"))
     ends_at = datetime.fromisoformat(data["endsAt"].replace("Z", "+00:00"))
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if now < starts_at:
         status = "upcoming"
     elif now <= ends_at:

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -15,9 +17,9 @@ router = APIRouter()
 
 @router.get("/notifications")
 async def get_notification_preferences(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Return the current user's party notification preferences."""
     uid = int(current_user["sub"])
     result = await session.execute(
@@ -32,9 +34,9 @@ async def get_notification_preferences(
 @router.put("/notifications")
 async def update_notification_preferences(
     body: UpdateNotificationPrefsRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Upsert the current user's party notification preferences."""
     uid = int(current_user["sub"])
     await session.execute(

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -22,7 +22,7 @@ async def store_source_drops(
     item_index: dict[str, int],
 ) -> None:
     """Upsert one source row and replace its full drop table in one transaction."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     stmt = pg_insert(LootSource).values(
         slug=entry.slug,

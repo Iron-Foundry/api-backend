@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -35,12 +36,12 @@ async def sabotage(
     body: SabotageBody,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-) -> dict:
+) -> dict[str, Any]:
     actor = await _team(session, event_id, team_id)
     target = await _team(session, event_id, body.target_team_id)
     if actor is None or target is None:
         raise HTTPException(404, "Team not found.")
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if body.action == "steal_progress":
         moved = min(body.amount, target.position)
         target.position = target.position - moved

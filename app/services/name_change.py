@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+from typing import Any
 
 from loguru import logger
 from sqlalchemy import func, select, update
@@ -28,7 +30,7 @@ class WomNameChangeService:
         self._group_key = group_key
         self._clan_name = clan_name
         self._api_key = api_key
-        self._task: asyncio.Task | None = None
+        self._task: asyncio.Task[None] | None = None
         self._last_id: int = 0
 
     @property
@@ -42,10 +44,8 @@ class WomNameChangeService:
     async def stop(self) -> None:
         if self._task:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
         logger.info("WomNameChangeService stopped")
 
     async def _poll_loop(self) -> None:
@@ -66,7 +66,7 @@ class WomNameChangeService:
             api_key=self._api_key,
             priority=WomPriority.NORMAL,
         )
-        changes: list[dict] = await wom.get_group_name_changes(self._group_id)
+        changes: list[dict[str, Any]] = await wom.get_group_name_changes(self._group_id)
 
         approved = [
             c
@@ -160,7 +160,7 @@ class WomNameChangeService:
                 .where(UserAccount.id == ua_id)
                 .values(rsn_history=history)
             )
-            await backfill_event_user_account(session, ua_id, [new_rsn] + history)
+            await backfill_event_user_account(session, ua_id, [new_rsn, *history])
             await session.commit()
 
         logger.info(

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,7 +12,7 @@ from app.db.models.users import User, UserAccount
 from .ballot_tokens import award_tokens
 
 
-def _gained(participation: dict) -> int:
+def _gained(participation: dict[str, Any]) -> int:
     return (participation.get("progress") or {}).get("gained", 0) or 0
 
 
@@ -25,8 +27,7 @@ async def resolve_rsns(session: AsyncSession, names: list[str]) -> dict[str, int
             func.lower(UserAccount.rsn).in_(lowered)
         )
     )
-    for rsn, uid in account_rows.all():
-        resolved[rsn] = uid
+    resolved.update(dict(account_rows.tuples().all()))
     missing = [n for n in lowered if n not in resolved]
     if missing:
         user_rows = await session.execute(
@@ -34,14 +35,14 @@ async def resolve_rsns(session: AsyncSession, names: list[str]) -> dict[str, int
                 func.lower(User.rsn).in_(missing)
             )
         )
-        for rsn, uid in user_rows.all():
-            if rsn is not None:
-                resolved[rsn] = uid
+        resolved.update(
+            {rsn: uid for rsn, uid in user_rows.tuples().all() if rsn is not None}
+        )
     return resolved
 
 
 def compute_award_plan(
-    ranked: list[dict], resolved: dict[str, int], config: dict
+    ranked: list[dict[str, Any]], resolved: dict[str, int], config: dict[str, Any]
 ) -> list[tuple[int, int, str]]:
     """Build (discord_user_id, amount, reason) awards from ranked participations."""
     if not ranked or _gained(ranked[0]) <= 0:
@@ -67,9 +68,9 @@ def compute_award_plan(
 async def process_run_awards(
     session: AsyncSession,
     run_id: int,
-    participations: list[dict],
-    config: dict,
-) -> dict:
+    participations: list[dict[str, Any]],
+    config: dict[str, Any],
+) -> dict[str, Any]:
     """Grant placement (1st-5th) and >=threshold%-of-rank-1 bonus tokens."""
     ranked = sorted(participations, key=_gained, reverse=True)
     names = [p.get("player", {}).get("displayName", "") for p in ranked]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
@@ -32,7 +33,7 @@ class FetchBulkGainsBody(BaseModel):
 async def fetch_bulk_gains(
     body: FetchBulkGainsBody,
     request: Request,
-) -> dict:
+) -> dict[str, Any]:
     if not body.period and not (body.start_date and body.end_date):
         raise HTTPException(
             422, "Provide either period or both start_date and end_date"
@@ -47,7 +48,7 @@ async def fetch_bulk_gains(
 
 
 @router.get("/bulk-gains/batches")
-async def list_bulk_gains_batches(request: Request) -> list[dict]:
+async def list_bulk_gains_batches(request: Request) -> list[dict[str, Any]]:
     svc = _get_service(request)
     batches = await svc.list_batches()
     return [
@@ -63,7 +64,7 @@ async def list_bulk_gains_batches(request: Request) -> list[dict]:
 
 
 @router.get("/bulk-gains/batches/{batch_id}")
-async def get_bulk_gains_batch(batch_id: int, request: Request) -> dict:
+async def get_bulk_gains_batch(batch_id: int, request: Request) -> dict[str, Any]:
     svc = _get_service(request)
     players = await svc.get_batch_players(batch_id)
     if not players:
@@ -86,7 +87,9 @@ async def get_bulk_gains_batch(batch_id: int, request: Request) -> dict:
 
 
 @router.get("/bulk-gains/batches/{batch_id}/players/{rsn}")
-async def get_player_bulk_gains(batch_id: int, rsn: str, request: Request) -> dict:
+async def get_player_bulk_gains(
+    batch_id: int, rsn: str, request: Request
+) -> dict[str, Any]:
     svc = _get_service(request)
     row = await svc.get_player_gains(batch_id, rsn)
     if not row:

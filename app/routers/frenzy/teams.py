@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select
@@ -26,7 +27,7 @@ async def add_team(
     body: TeamBody,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-) -> dict:
+) -> dict[str, Any]:
     event = (
         await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))
     ).scalar_one_or_none()
@@ -45,7 +46,7 @@ async def add_team(
             409, f"Team with slug '{body.slug}' already exists in this event."
         )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     team = FrenzyTeam(
         event_id=event_id,
         name=body.name,
@@ -70,7 +71,7 @@ async def patch_team(
     body: TeamPatch,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-) -> dict:
+) -> dict[str, Any]:
     team = (
         await session.execute(
             select(FrenzyTeam).where(
@@ -93,7 +94,7 @@ async def patch_team(
         team.activity_progress = body.activity_progress
     if body.milestone_progress is not None:
         team.milestone_progress = body.milestone_progress
-    team.updated_at = datetime.now(timezone.utc)
+    team.updated_at = datetime.now(UTC)
     await session.commit()
     return {"ok": True}
 
@@ -104,7 +105,7 @@ async def delete_team(
     team_slug: str,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-) -> dict:
+) -> dict[str, Any]:
     team = (
         await session.execute(
             select(FrenzyTeam).where(
@@ -125,7 +126,7 @@ async def refresh_leaderboards(
     session: AsyncSession = Depends(get_session),
     valkey: Valkey = Depends(get_valkey),
     _perm: None = _PERM,
-) -> dict:
+) -> dict[str, Any]:
     await valkey.delete(_LB_FRESH_KEY)
     event = (
         await session.execute(

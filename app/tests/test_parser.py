@@ -14,7 +14,6 @@ from app.services.parser import (
     parse_personal_best,
 )
 
-
 # ---------------------------------------------------------------------------
 # Combat achievements - individual tasks
 # ---------------------------------------------------------------------------

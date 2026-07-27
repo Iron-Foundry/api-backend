@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from httpx import AsyncClient
 from unittest.mock import MagicMock
+
+from httpx import AsyncClient
 
 
 async def test_me_requires_auth(anon_client: AsyncClient) -> None:

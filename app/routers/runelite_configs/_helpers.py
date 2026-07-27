@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,7 +21,7 @@ class RuneLiteConfigBody(BaseModel):
     data: list[object]
 
 
-def serialize_config(c: RuneLiteConfig) -> dict:
+def serialize_config(c: RuneLiteConfig) -> dict[str, Any]:
     return {
         "id": str(c.id),
         "type": c.type,
@@ -46,7 +48,7 @@ def validate_config_data(config_type: str, data: list[object]) -> None:
 
 
 async def require_permission(
-    current_user: dict, action: str, session: AsyncSession
+    current_user: dict[str, Any], action: str, session: AsyncSession
 ) -> None:
     uid = int(current_user["sub"])
     roles = await get_effective_roles(uid, session)

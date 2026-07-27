@@ -33,7 +33,7 @@ class BossMetric:
         }
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "BossMetric":
+    def from_dict(cls, d: dict[str, Any]) -> BossMetric:
         return cls(
             name=d["name"],
             points_per_kc=float(d.get("points_per_kc", 5.0)),
@@ -53,19 +53,19 @@ class BossMetricBuilder:
         self._tier_weight: float = 1.0
         self._log_scale: bool = False
 
-    def points_per_kc(self, value: float) -> "BossMetricBuilder":
+    def points_per_kc(self, value: float) -> BossMetricBuilder:
         self._points_per_kc = value
         return self
 
-    def first_kill_bonus(self, value: float) -> "BossMetricBuilder":
+    def first_kill_bonus(self, value: float) -> BossMetricBuilder:
         self._first_kill_bonus = value
         return self
 
-    def tier_weight(self, value: float) -> "BossMetricBuilder":
+    def tier_weight(self, value: float) -> BossMetricBuilder:
         self._tier_weight = value
         return self
 
-    def with_log_scale(self) -> "BossMetricBuilder":
+    def with_log_scale(self) -> BossMetricBuilder:
         self._log_scale = True
         return self
 

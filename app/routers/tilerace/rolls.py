@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,8 +21,8 @@ async def list_rolls(
     event_id: int,
     limit: int = 25,
     session: AsyncSession = Depends(get_session),
-    _current_user: dict = Depends(get_current_user),
-) -> list[dict]:
+    _current_user: dict[str, Any] = Depends(get_current_user),
+) -> list[dict[str, Any]]:
     event = (
         await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
     ).scalar_one_or_none()

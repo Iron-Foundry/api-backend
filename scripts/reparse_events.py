@@ -18,11 +18,13 @@ import asyncio
 import json
 import os
 import sys
+from pathlib import Path
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.services import parser as p
 
@@ -59,8 +61,8 @@ _LINK_USER_IDS_SQL = text(
 
 
 def _reparse_row(
-    row_type: str, raw_message: str, stored_data: dict
-) -> tuple[str, str | None, dict] | None:
+    row_type: str, raw_message: str, stored_data: dict[str, Any]
+) -> tuple[str, str | None, dict[str, Any]] | None:
     """Return (new_type, new_player_name, new_data) if the row needs updating, else None."""
     kind = p.classify(raw_message)
 
@@ -68,7 +70,7 @@ def _reparse_row(
         parsed = p.parse_achievement(raw_message)
         if not parsed:
             return None
-        new_data: dict = {
+        new_data: dict[str, Any] = {
             "achievement_type": parsed.kind,
             "name": parsed.name,
         }
@@ -121,7 +123,7 @@ def _reparse_row(
         parse_fn = dispatch.get(kind)
         if not parse_fn:
             return None
-        parsed = parse_fn(raw_message)  # type: ignore[arg-type]
+        parsed = parse_fn(raw_message)
         if not parsed:
             return None
         # Build data dict from parsed fields (exclude player_name)
@@ -154,7 +156,7 @@ async def run(dry_run: bool) -> None:
 
     print(f"Inspecting {len(rows)} events...")
 
-    updates: list[dict] = []
+    updates: list[dict[str, Any]] = []
     for row in rows:
         change = _reparse_row(row["type"], row["raw_message"], row["data"] or {})
         if change is None:

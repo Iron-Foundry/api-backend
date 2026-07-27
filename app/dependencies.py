@@ -1,6 +1,6 @@
 import os
 from collections.abc import AsyncGenerator
-from typing import Optional
+from typing import Any
 
 from fastapi import Depends, Header, HTTPException, Request
 from jose import JWTError, jwt
@@ -19,13 +19,13 @@ def get_valkey(request: Request) -> Valkey:
     return request.app.state.valkey
 
 
-async def get_session(request: Request) -> AsyncGenerator[AsyncSession, None]:
+async def get_session(request: Request) -> AsyncGenerator[AsyncSession]:
     """Yield an AsyncSession scoped to the request."""
     async with request.app.state.session_factory() as session:
         yield session
 
 
-async def get_current_user(authorization: str = Header(...)) -> dict:
+async def get_current_user(authorization: str = Header(...)) -> dict[str, Any]:
     """Decode a Bearer JWT and return its payload.
 
     Raises 401 if the header is missing, malformed, or the token is invalid.
@@ -40,8 +40,8 @@ async def get_current_user(authorization: str = Header(...)) -> dict:
 
 
 async def get_optional_user(
-    authorization: Optional[str] = Header(default=None),
-) -> dict | None:
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any] | None:
     """Decode a Bearer JWT if present; return None if no token provided."""
     if not authorization or not authorization.startswith("Bearer "):
         return None
@@ -61,7 +61,7 @@ async def verify_metrics_key(verification_code: str = Header(...)) -> None:
 async def verify_clan(
     verification_code: str = Header(...),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Resolve a verification-code header to the matching user row in PostgreSQL.
 
     Returns a dict with ``guild_id`` and ``discord_user_id``.

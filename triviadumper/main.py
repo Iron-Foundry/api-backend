@@ -1,6 +1,7 @@
 import json
-import httpx
 from pathlib import Path
+
+import httpx
 
 SUPABASE_URL = "https://nnlkcwvqhkxasjtshvpw.supabase.co"
 API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ubGtjd3ZxaGt4YXNqdHNodnB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUxODY4MzAsImV4cCI6MjA4MDc2MjgzMH0.BtEWYzE4ZA6Fc8rr0n28fPhvIcWdwzoBaOMbAqHYoAo"

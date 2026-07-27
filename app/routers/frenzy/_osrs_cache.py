@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 import httpx
 from loguru import logger
@@ -112,7 +113,7 @@ async def _build_lb_cache(
             )
             return
 
-        out: list[dict] = []
+        out: list[dict[str, Any]] = []
         for metric in metrics:
             category = "bosses" if metric in _BOSS_METRICS else "activities"
             rows: list[tuple[str, int]] = []

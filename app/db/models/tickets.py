@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import ARRAY, BigInteger, Boolean, Integer, Text, TIMESTAMP
+from sqlalchemy import ARRAY, TIMESTAMP, BigInteger, Boolean, Integer, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -26,10 +27,10 @@ class Ticket(Base):
     channel_id: Mapped[int | None] = mapped_column(BigInteger)
     creator_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     creator_name: Mapped[str] = mapped_column(Text, nullable=False)
-    assigned_staff: Mapped[list] = mapped_column(
+    assigned_staff: Mapped[list[int]] = mapped_column(
         ARRAY(BigInteger), nullable=False, server_default="{}"
     )
-    participants: Mapped[list] = mapped_column(
+    participants: Mapped[list[int]] = mapped_column(
         ARRAY(BigInteger), nullable=False, server_default="{}"
     )
     closed_by_id: Mapped[int | None] = mapped_column(BigInteger)
@@ -39,13 +40,13 @@ class Ticket(Base):
     panel_message_id: Mapped[int | None] = mapped_column(BigInteger)
     staff_note: Mapped[str | None] = mapped_column(Text)
     close_reason: Mapped[str | None] = mapped_column(Text)
-    reopen_history: Mapped[list] = mapped_column(
+    reopen_history: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, nullable=False, server_default="[]"
     )
     timeout_frozen: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="false"
     )
-    extra_metadata: Mapped[dict] = mapped_column(
+    extra_metadata: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default="{}", name="metadata"
     )
 
@@ -54,4 +55,6 @@ class Transcript(Base):
     __tablename__ = "transcripts"
 
     ticket_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    entries: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    entries: Mapped[list[Any] | dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )

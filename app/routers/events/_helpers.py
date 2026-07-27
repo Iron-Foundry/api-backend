@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import func, select, update
@@ -52,11 +52,13 @@ def clan_matches(clan_name: str) -> bool:
 
 
 def now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
-def dispatch_doc(event_type: str, player_name: str | None, data: dict) -> dict:
-    result: dict = {"type": event_type, "timestamp": now().isoformat()}
+def dispatch_doc(
+    event_type: str, player_name: str | None, data: dict[str, Any]
+) -> dict[str, Any]:
+    result: dict[str, Any] = {"type": event_type, "timestamp": now().isoformat()}
     if player_name:
         result["player_name"] = player_name
     result.update(data)

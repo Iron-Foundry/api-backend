@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import BigInteger, Index, Text, TIMESTAMP
+from sqlalchemy import TIMESTAMP, BigInteger, Index, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -46,6 +47,12 @@ class PlayerBulkGains(Base):
     gains_end: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False
     )
-    skills: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
-    bosses: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
-    activities: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    skills: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
+    bosses: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
+    activities: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )

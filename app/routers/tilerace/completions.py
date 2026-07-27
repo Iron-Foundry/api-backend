@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -21,8 +22,8 @@ _PERM = Depends(require_page_permission("tilerace.admin", "edit"))
 async def list_completions(
     event_id: int,
     session: AsyncSession = Depends(get_session),
-    _current_user: dict = Depends(get_current_user),
-) -> list[dict]:
+    _current_user: dict[str, Any] = Depends(get_current_user),
+) -> list[dict[str, Any]]:
     event = (
         await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
     ).scalar_one_or_none()
@@ -50,8 +51,8 @@ async def set_completion(
     body: CompletionBody,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-    current_user: dict = Depends(get_current_user),
-) -> dict:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     team = (
         await session.execute(
             select(TileRaceTeam).where(
@@ -76,7 +77,7 @@ async def set_completion(
                 team_id=team_id,
                 path_position=path_position,
                 completed_by=int(current_user["sub"]),
-                completed_at=datetime.now(timezone.utc),
+                completed_at=datetime.now(UTC),
             )
         )
     elif not body.completed and existing is not None:

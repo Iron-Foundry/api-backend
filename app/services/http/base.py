@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from functools import lru_cache
+from functools import cache
 from typing import Any, ClassVar, Self
 from urllib.parse import urlparse
 
@@ -12,23 +12,24 @@ import httpx
 from app.services.outbound_metrics import _collector as _outbound_collector
 
 
-@lru_cache(maxsize=None)
+@cache
 def _extract_host(base_url: str) -> str:
     return urlparse(base_url).netloc
 
 
 class BaseRequestHandler:
     base_url: ClassVar[str] = ""
-    default_headers: dict[str, str] = {}
+    default_headers: ClassVar[dict[str, str]] = {}
     default_timeout: ClassVar[float] = 30.0
 
     def __init__(self, *, timeout: float | None = None) -> None:
         self._client: httpx.AsyncClient | None = None
         self._timeout = timeout if timeout is not None else self.default_timeout
+        self.headers: dict[str, str] = dict(self.default_headers)
 
     async def __aenter__(self) -> Self:
         self._client = httpx.AsyncClient(
-            headers=dict(self.default_headers),
+            headers=dict(self.headers),
             timeout=self._timeout,
         )
         return self
@@ -42,7 +43,7 @@ class BaseRequestHandler:
         self,
         path: str,
         *,
-        params: dict | None = None,
+        params: dict[str, Any] | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> httpx.Response:
         """GET request. Uses shared client if inside context manager, else per-call client."""
@@ -54,7 +55,7 @@ class BaseRequestHandler:
                 kw["headers"] = extra_headers
             response = await self._client.get(url, **kw)
         else:
-            headers = {**self.default_headers, **(extra_headers or {})}
+            headers = {**self.headers, **(extra_headers or {})}
             async with httpx.AsyncClient(
                 headers=headers, timeout=self._timeout
             ) as client:
@@ -72,7 +73,7 @@ class BaseRequestHandler:
         self,
         path: str,
         *,
-        json: dict | None = None,
+        json: dict[str, Any] | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> httpx.Response:
         url = self.base_url.rstrip("/") + path
@@ -83,7 +84,7 @@ class BaseRequestHandler:
                 kw["headers"] = extra_headers
             response = await self._client.post(url, **kw)
         else:
-            headers = {**self.default_headers, **(extra_headers or {})}
+            headers = {**self.headers, **(extra_headers or {})}
             async with httpx.AsyncClient(
                 headers=headers, timeout=self._timeout
             ) as client:
@@ -101,7 +102,7 @@ class BaseRequestHandler:
         self,
         path: str,
         *,
-        json: dict | None = None,
+        json: dict[str, Any] | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> httpx.Response:
         url = self.base_url.rstrip("/") + path
@@ -112,7 +113,7 @@ class BaseRequestHandler:
                 kw["headers"] = extra_headers
             response = await self._client.put(url, **kw)
         else:
-            headers = {**self.default_headers, **(extra_headers or {})}
+            headers = {**self.headers, **(extra_headers or {})}
             async with httpx.AsyncClient(
                 headers=headers, timeout=self._timeout
             ) as client:
@@ -130,7 +131,7 @@ class BaseRequestHandler:
         self,
         path: str,
         *,
-        json: dict | None = None,
+        json: dict[str, Any] | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> httpx.Response:
         url = self.base_url.rstrip("/") + path
@@ -141,7 +142,7 @@ class BaseRequestHandler:
                 kw["headers"] = extra_headers
             response = await self._client.request("DELETE", url, **kw)
         else:
-            headers = {**self.default_headers, **(extra_headers or {})}
+            headers = {**self.headers, **(extra_headers or {})}
             async with httpx.AsyncClient(
                 headers=headers, timeout=self._timeout
             ) as client:

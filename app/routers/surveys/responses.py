@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,9 +25,9 @@ router = APIRouter()
 @router.get("/{template_id}/responses")
 async def get_template_responses(
     template_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """List all submissions for a template. Access gated by template visibility setting."""
     roles = await get_roles(current_user, session)
 
@@ -67,7 +69,7 @@ async def get_template_responses(
                 403, "You do not have permission to view responses for this survey."
             )
 
-    out: list[dict] = []
+    out: list[dict[str, Any]] = []
 
     for sub, user in await session.execute(
         select(WebSurveySubmission, User)
@@ -99,7 +101,7 @@ async def get_template_responses(
         .join(User, User.discord_user_id == Ticket.creator_id, isouter=True)
         .where(SurveyResponse.template_id == template_id)
     ):
-        raw_resp: dict = resp.responses or {}
+        raw_resp: dict[str, Any] = resp.responses or {}
         answers = raw_resp.get("answers") or {} if "ticket_id" in raw_resp else raw_resp
         out.append(
             {

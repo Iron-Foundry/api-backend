@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +17,7 @@ from ._helpers import dispatch_doc, insert_event
 
 async def handle_new_member(
     payload: ClanChatPayload,
-    clan: dict,
+    clan: dict[str, Any],
     session: AsyncSession,
     valkey: Valkey,
     now: datetime,
@@ -48,7 +49,7 @@ async def handle_new_member(
 
 async def handle_clan_leave(
     payload: ClanChatPayload,
-    clan: dict,
+    clan: dict[str, Any],
     session: AsyncSession,
     valkey: Valkey,
     now: datetime,
@@ -89,7 +90,7 @@ async def handle_clan_leave(
 
 async def handle_coffer(
     payload: ClanChatPayload,
-    clan: dict,
+    clan: dict[str, Any],
     session: AsyncSession,
     valkey: Valkey,
     now: datetime,
@@ -129,7 +130,7 @@ async def handle_coffer(
 
 async def handle_hcim_death(
     payload: ClanChatPayload,
-    clan: dict,
+    clan: dict[str, Any],
     session: AsyncSession,
     valkey: Valkey,
     now: datetime,

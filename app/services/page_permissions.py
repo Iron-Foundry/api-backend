@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,7 +21,7 @@ _RANK_MAPPINGS_KEY = "clan_rank_mappings"
 _DEFAULT_BYPASS_LABELS = ["Senior Moderator", "Deputy Owner", "Co-owner"]
 
 
-async def _get_page_perms_config(session: AsyncSession) -> dict:
+async def _get_page_perms_config(session: AsyncSession) -> dict[str, Any]:
     result = await session.execute(
         select(Config.value).where(
             Config.guild_id == _GLOBAL_GUILD_ID,
@@ -30,7 +32,7 @@ async def _get_page_perms_config(session: AsyncSession) -> dict:
     return data.get("pages", {})
 
 
-async def _get_rank_mappings(session: AsyncSession) -> list[dict]:
+async def _get_rank_mappings(session: AsyncSession) -> list[dict[str, Any]]:
     result = await session.execute(
         select(Config.value).where(
             Config.guild_id == _GLOBAL_GUILD_ID,
@@ -106,17 +108,14 @@ async def check_page_permission(
         if "discord_role_id" in m
     }
     role_names = {role_labels.get(r, r) for r in roles}
-    if role_names & set(allowed):
-        return True
-
-    return False
+    return bool(role_names & set(allowed))
 
 
 def require_page_permission(page_id: str, action: str):
     """FastAPI dependency factory - raises 403 if the caller lacks permission."""
 
     async def _dep(
-        current_user: dict = Depends(get_current_user),
+        current_user: dict[str, Any] = Depends(get_current_user),
         session: AsyncSession = Depends(get_session),
     ) -> None:
         uid = int(current_user["sub"])

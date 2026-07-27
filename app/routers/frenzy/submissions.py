@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_, select
@@ -19,7 +20,9 @@ router = APIRouter()
 _PERM = Depends(require_page_permission("frenzy", "edit"))
 
 
-def _submission_to_dict(sub: FrenzySubmission, reviewer: User | None = None) -> dict:
+def _submission_to_dict(
+    sub: FrenzySubmission, reviewer: User | None = None
+) -> dict[str, Any]:
     return {
         "id": sub.id,
         "event_id": sub.event_id,
@@ -61,7 +64,7 @@ async def list_submissions(
     offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-) -> dict:
+) -> dict[str, Any]:
     event = (
         await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))
     ).scalar_one_or_none()
@@ -154,8 +157,8 @@ async def create_submission(
     body: SubmissionBody,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-    current_user: dict = Depends(get_current_user),
-) -> dict:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     if body.source not in _VALID_SOURCES:
         raise HTTPException(400, f"Invalid source. Must be one of: {_VALID_SOURCES}")
     if body.submission_type not in _VALID_SUBMISSION_TYPES:
@@ -182,7 +185,7 @@ async def create_submission(
 
     trusted: list[str] = event.trusted_sources or []
     auto_approve = body.source in trusted
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     submitted_at = body.submitted_at or now
 
     sub = FrenzySubmission(
@@ -217,8 +220,8 @@ async def patch_submission(
     body: SubmissionPatch,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-    current_user: dict = Depends(get_current_user),
-) -> dict:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     if body.status not in _VALID_STATUSES:
         raise HTTPException(400, f"Invalid status. Must be one of: {_VALID_STATUSES}")
 
@@ -237,7 +240,7 @@ async def patch_submission(
     sub.status = body.status
     sub.review_notes = body.review_notes
     sub.reviewed_by = int(current_user["sub"])
-    sub.reviewed_at = datetime.now(timezone.utc)
+    sub.reviewed_at = datetime.now(UTC)
 
     if body.status != prev_status and body.status in ("approved", "rejected"):
         team = (
@@ -257,7 +260,7 @@ async def delete_submission(
     submission_id: int,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-) -> dict:
+) -> dict[str, Any]:
     sub = (
         await session.execute(
             select(FrenzySubmission).where(

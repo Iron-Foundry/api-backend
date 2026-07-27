@@ -8,8 +8,8 @@ from httpx import AsyncClient
 
 async def test_ccingest_missing_key_header(auth_client: AsyncClient) -> None:
     """Missing required verification-code header → 401 or 422."""
-    from app.tests.conftest import _app
     from app.dependencies import verify_metrics_key
+    from app.tests.conftest import _app
 
     original = _app.dependency_overrides.pop(verify_metrics_key, None)
     try:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -28,7 +29,7 @@ def _check_configured() -> None:
     "/channels",
     dependencies=[Depends(require_page_permission("staff.discord-config", "read"))],
 )
-async def get_discord_channels() -> dict:
+async def get_discord_channels() -> dict[str, Any]:
     """Return guild channels grouped by category."""
     _check_configured()
     try:
@@ -47,7 +48,7 @@ async def get_discord_channels() -> dict:
     "/emojis",
     dependencies=[Depends(require_page_permission("staff.discord-config", "read"))],
 )
-async def get_discord_emojis() -> dict:
+async def get_discord_emojis() -> dict[str, Any]:
     """Return guild custom emojis."""
     _check_configured()
     try:
@@ -82,7 +83,7 @@ async def get_discord_emojis() -> dict:
     "/roles",
     dependencies=[Depends(require_page_permission("staff.discord-config", "read"))],
 )
-async def get_discord_roles() -> dict:
+async def get_discord_roles() -> dict[str, Any]:
     """Return guild roles sorted by position descending, excluding @everyone."""
     _check_configured()
     try:
@@ -112,8 +113,8 @@ async def get_discord_roles() -> dict:
 @router.get("/members")
 async def search_discord_members(
     q: str = Query(default="", max_length=100),
-    current_user: dict = Depends(get_current_user),
-) -> list[dict]:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> list[dict[str, Any]]:
     """Search guild members by username prefix for the recruited-by autocomplete."""
     if not _TOKEN or not _GUILD_ID:
         return []

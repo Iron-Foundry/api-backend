@@ -1,6 +1,28 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, patch
+
 from httpx import AsyncClient
+
+_NOW = datetime.now(UTC)
+_COMPETITION = {
+    "id": 1,
+    "title": "Test Competition",
+    "metric": "overall",
+    "type": "classic",
+    "startsAt": (_NOW - timedelta(days=1)).isoformat(),
+    "endsAt": (_NOW + timedelta(days=1)).isoformat(),
+    "groupId": 1,
+    "participations": [
+        {
+            "player": {"displayName": "Tester"},
+            "teamName": None,
+            "progress": {"gained": 100},
+            "levels": {},
+        }
+    ],
+}
 
 
 async def test_wom_stats(auth_client: AsyncClient) -> None:
@@ -44,11 +66,8 @@ async def test_leaderboards_killcounts(auth_client: AsyncClient) -> None:
 
 
 async def test_leaderboards_cluescrolls(auth_client: AsyncClient) -> None:
-    try:
-        resp = await auth_client.get("/clan/leaderboards/cluescrolls")
-        assert resp.status_code in (200, 500, 503)
-    except Exception:
-        pass
+    resp = await auth_client.get("/clan/leaderboards/cluescrolls")
+    assert resp.status_code in (200, 500, 503)
 
 
 async def test_leaderboards_collection_log(auth_client: AsyncClient) -> None:
@@ -77,26 +96,26 @@ async def test_competitions_participants(auth_client: AsyncClient) -> None:
 
 
 async def test_competition_by_id(auth_client: AsyncClient) -> None:
-    try:
+    from app.services.http import WiseOldManHandler
+
+    with patch.object(
+        WiseOldManHandler,
+        "get_cached_competition",
+        AsyncMock(return_value=dict(_COMPETITION)),
+    ):
         resp = await auth_client.get("/clan/competitions/1")
-        assert resp.status_code in (200, 404, 500, 503)
-    except Exception:
-        pass
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["title"] == "Test Competition"
+    assert body["status"] == "ongoing"
+    assert body["participantCount"] == 1
 
 
 async def test_competition_metric_detail(auth_client: AsyncClient) -> None:
-    try:
-        resp = await auth_client.get(
-            "/clan/competitions/1/metric-detail?metric=overall"
-        )
-        assert resp.status_code in (200, 404, 500, 503)
-    except Exception:
-        pass
+    resp = await auth_client.get("/clan/competitions/1/metric-detail?metric=overall")
+    assert resp.status_code in (200, 404, 500, 503)
 
 
 async def test_competition_overtime(auth_client: AsyncClient) -> None:
-    try:
-        resp = await auth_client.get("/clan/competitions/1/overtime?metric=overall")
-        assert resp.status_code in (200, 404, 500, 503)
-    except Exception:
-        pass
+    resp = await auth_client.get("/clan/competitions/1/overtime?metric=overall")
+    assert resp.status_code in (200, 404, 500, 503)

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
-from typing import cast
+from datetime import UTC, datetime
+from typing import Any, cast
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from loguru import logger
 from pydantic import BaseModel
 from sqlalchemy import func, select, update
@@ -38,9 +38,9 @@ class StaffCascadeBody(BaseModel):
 async def update_member_rsn(
     user_id: int,
     body: StaffRsnUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Set, change, or clear a member's RSN. Performs backfill and event-linking."""
     await require_rank("staff.members", "edit", current_user, session)
 
@@ -68,7 +68,7 @@ async def update_member_rsn(
         raise HTTPException(404, "Member not found.")
 
     old_rsn: str | None = user_row.rsn
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     if new_rsn is None:
         await session.execute(
@@ -146,7 +146,7 @@ async def update_member_rsn(
     logger.info(
         "staff/rsn: linked user_id {} to {} event rows (ua_id={})",
         user_id,
-        cast(CursorResult, event_result).rowcount,
+        cast(CursorResult[Any], event_result).rowcount,
         ua_id,
     )
 
@@ -157,10 +157,10 @@ async def update_member_rsn(
 @router.post("/members/{user_id}/rsn/cascade")
 async def force_rsn_cascade(
     user_id: int,
-    body: StaffCascadeBody = StaffCascadeBody(),
-    current_user: dict = Depends(get_current_user),
+    body: StaffCascadeBody = Body(default_factory=StaffCascadeBody),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Force a full RSN cascade. Supply old_rsn to cascade a name predating user_accounts."""
     await require_rank("staff.members", "edit", current_user, session)
 

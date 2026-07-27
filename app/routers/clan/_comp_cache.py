@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from loguru import logger
 from valkey.asyncio import Valkey
@@ -76,7 +77,7 @@ async def _build_metric_detail_cache(
 
         starts_at = datetime.fromisoformat(data["startsAt"].replace("Z", "+00:00"))
         ends_at = datetime.fromisoformat(data["endsAt"].replace("Z", "+00:00"))
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if now < starts_at:
             status = "upcoming"
         elif now <= ends_at:
@@ -87,7 +88,7 @@ async def _build_metric_detail_cache(
         def _safe_num(v: object) -> int | float:
             return v if isinstance(v, (int, float)) else 0
 
-        raw_parts: list[dict] = []
+        raw_parts: list[dict[str, Any]] = []
         for p in data.get("participations", []):
             progress = p.get("progress") or {}
             raw_parts.append(

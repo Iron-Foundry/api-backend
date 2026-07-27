@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -65,7 +67,9 @@ class NotificationCategoriesBody(BaseModel):
     "/rank-mappings",
     dependencies=[Depends(require_page_permission("staff.rank-mappings", "read"))],
 )
-async def get_rank_mappings(session: AsyncSession = Depends(get_session)) -> dict:
+async def get_rank_mappings(
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
     data = await get_config_value(_RANK_MAPPINGS_KEY, session)
     return {"mappings": data.get("mappings", [])}
 
@@ -76,7 +80,7 @@ async def get_rank_mappings(session: AsyncSession = Depends(get_session)) -> dic
 )
 async def set_rank_mappings(
     body: RankMappingsBody, session: AsyncSession = Depends(get_session)
-) -> dict:
+) -> dict[str, Any]:
     mappings = [
         m.model_dump()
         for m in body.mappings
@@ -88,9 +92,9 @@ async def set_rank_mappings(
 
 @router.get("/page-permissions")
 async def get_page_permissions(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     data = await get_config_value(_PAGE_PERMISSIONS_KEY, session)
     bypass_roles = await get_admin_bypass_roles(session)
     return {"pages": data.get("pages", {}), "admin_bypass_roles": bypass_roles}
@@ -102,7 +106,7 @@ async def get_page_permissions(
 )
 async def set_page_permissions(
     body: PagePermissionsBody, session: AsyncSession = Depends(get_session)
-) -> dict:
+) -> dict[str, Any]:
     pages = {k: v.model_dump() for k, v in body.pages.items()}
     await set_config_value(_PAGE_PERMISSIONS_KEY, {"pages": pages}, session)
     return {"pages": pages}
@@ -110,9 +114,9 @@ async def set_page_permissions(
 
 @router.get("/admin-bypass-roles")
 async def get_admin_bypass_roles_endpoint(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     roles = await get_admin_bypass_roles(session)
     return {"roles": roles}
 
@@ -120,9 +124,9 @@ async def get_admin_bypass_roles_endpoint(
 @router.put("/admin-bypass-roles")
 async def set_admin_bypass_roles(
     body: AdminBypassBody,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     uid = int(current_user["sub"])
     caller_roles = await get_effective_roles(uid, session)
     bypass_roles = await get_admin_bypass_roles(session)
@@ -147,9 +151,9 @@ async def set_admin_bypass_roles(
 
 @router.get("/party-notification-categories")
 async def get_notification_categories(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     data = await get_config_value(_NOTIFICATION_CATEGORIES_KEY, session)
     return {"categories": data.get("categories", [])}
 
@@ -160,7 +164,7 @@ async def get_notification_categories(
 )
 async def set_notification_categories(
     body: NotificationCategoriesBody, session: AsyncSession = Depends(get_session)
-) -> dict:
+) -> dict[str, Any]:
     categories = [
         c.model_dump() for c in body.categories if c.id.strip() and c.label.strip()
     ]

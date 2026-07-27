@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -117,7 +117,7 @@ async def cascade_rsn_change(session: AsyncSession, old_rsn: str, new_rsn: str) 
     Cascades all historical RSNs linked to the same user to ensure previously-missed
     renames are caught. Commits the transaction internally.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     user_result = await session.execute(
         select(UserAccount.discord_user_id).where(

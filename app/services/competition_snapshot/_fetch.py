@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta
+from typing import Any
 
 from loguru import logger
 from sqlalchemy import select
@@ -23,12 +24,12 @@ def _safe_gained(v: object) -> float:
 
 async def load_ongoing_comps(
     valkey: Valkey, wom: WiseOldManHandler, wom_group_id: str
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Return ongoing competitions from Valkey cache, falling back to WOM."""
     for cache_key in (_COMPS_FRESH_KEY, _COMPS_STALE_KEY):
         raw = await valkey.get(cache_key)
         if raw:
-            comps: list[dict] = json.loads(raw)
+            comps: list[dict[str, Any]] = json.loads(raw)
             ongoing = [c for c in comps if c.get("status") == "ongoing"]
             logger.debug(
                 "CompetitionSnapshotService: {} competition(s) from Valkey cache",
@@ -43,7 +44,7 @@ async def load_ongoing_comps(
 
 async def fetch_metric_standings(
     wom: WiseOldManHandler, comp_id: int, metric: str
-) -> list[dict] | None:
+) -> list[dict[str, Any]] | None:
     """Fetch top-10 standings for a single (comp_id, metric) from WOM."""
     try:
         data = await wom.get_competition_details(comp_id, metric=metric)

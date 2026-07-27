@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,9 +15,9 @@ router = APIRouter()
 @router.get("/me/snapshot")
 async def get_me_snapshot(
     rsn: str | None = Query(None),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Return the latest WOM skill/boss/activity snapshot for one of the user's linked RSNs."""
     discord_user_id = int(current_user["sub"])
 

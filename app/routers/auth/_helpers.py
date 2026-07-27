@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import httpx
 from jose import jwt
@@ -33,7 +33,7 @@ def issue_jwt(discord_user_id: str, username: str, avatar: str | None) -> str:
         "sub": discord_user_id,
         "username": username,
         "avatar": avatar,
-        "exp": datetime.now(timezone.utc) + timedelta(days=30),
+        "exp": datetime.now(UTC) + timedelta(days=30),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=_ALGORITHM)
 

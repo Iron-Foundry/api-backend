@@ -5,8 +5,8 @@ from app.services.http.wom import WiseOldManHandler
 from app.services.http.wom_queue import WomPriority
 
 __all__ = [
+    "OsrsWikiContentHandler",
+    "OsrsWikiHandler",
     "WiseOldManHandler",
     "WomPriority",
-    "OsrsWikiHandler",
-    "OsrsWikiContentHandler",
 ]

@@ -16733,8 +16733,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/StaffCascadeBody",
-                "default": {}
+                "$ref": "#/components/schemas/StaffCascadeBody"
               }
             }
           }
@@ -18590,10 +18589,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SignupBody",
-                "default": {
-                  "wants_captain": false
-                }
+                "$ref": "#/components/schemas/SignupBody"
               }
             }
           }

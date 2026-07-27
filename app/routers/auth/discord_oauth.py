@@ -1,33 +1,32 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from uuid import uuid4
-
 import time
+from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import httpx
 from fastapi import APIRouter, Depends
 from fastapi.responses import RedirectResponse
 from jose import JWTError, jwt
 from loguru import logger
-
-from app.services.outbound_metrics import _collector as _outbound_collector
 from sqlalchemy import update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import User
 from app.dependencies import get_session
+from app.services.outbound_metrics import _collector as _outbound_collector
 from app.services.rsn_cascade import get_user_ticket_ids
+
 from ._helpers import (
+    _ALGORITHM,
+    _DISCORD_API,
     DISCORD_CLIENT_ID,
     DISCORD_CLIENT_SECRET,
     DISCORD_REDIRECT_URI,
     FRONTEND_URL,
     GUILD_ID,
     JWT_SECRET,
-    _ALGORITHM,
-    _DISCORD_API,
     fetch_discord_roles,
     issue_jwt,
 )
@@ -40,7 +39,7 @@ async def login() -> RedirectResponse:
     state = jwt.encode(
         {
             "nonce": uuid4().hex,
-            "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
+            "exp": datetime.now(UTC) + timedelta(minutes=5),
         },
         JWT_SECRET,
         algorithm=_ALGORITHM,
@@ -120,7 +119,7 @@ async def callback(
 
     discord_user_id = int(me["id"])
     discord_roles = await fetch_discord_roles(discord_user_id)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     await session.execute(
         pg_insert(User)

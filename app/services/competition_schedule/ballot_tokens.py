@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -22,7 +23,7 @@ from app.db.models.config import Config
 BALLOT_TOKEN_CONFIG_KEY = "ballot_token_config"
 _GLOBAL_GUILD_ID = 0
 
-DEFAULT_TOKEN_CONFIG: dict = {
+DEFAULT_TOKEN_CONFIG: dict[str, Any] = {
     "placement_tokens": [10, 7, 5, 3, 2],
     "bonus_threshold_pct": 10,
     "bonus_tokens": 1,
@@ -32,12 +33,12 @@ DEFAULT_TOKEN_CONFIG: dict = {
 
 
 def _now() -> datetime:
-    return datetime.now(tz=timezone.utc)
+    return datetime.now(tz=UTC)
 
 
 async def resolve_token_config(
     session: AsyncSession, schedule: CompetitionSchedule | None
-) -> dict:
+) -> dict[str, Any]:
     """Merge global ballot token config over defaults, then per-schedule override."""
     merged = dict(DEFAULT_TOKEN_CONFIG)
     result = await session.execute(

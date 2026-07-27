@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -32,10 +33,8 @@ class DiscordChatService:
     async def stop(self) -> None:
         if self._task:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
         logger.info("DiscordChatService stopped")
 
     async def _run(self) -> None:
@@ -111,7 +110,7 @@ class DiscordChatService:
                                     )
                                 if count >= 2:
                                     record_id = f"longest_spacebar_check_{guild_id}"
-                                    now = datetime.now(timezone.utc)
+                                    now = datetime.now(UTC)
                                     stmt = (
                                         pg_insert(Metric)
                                         .values(

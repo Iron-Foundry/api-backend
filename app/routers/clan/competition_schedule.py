@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -20,7 +20,6 @@ from app.services.competition_schedule.ballot_tokens import (
     refund_run,
     resolve_token_config,
 )
-from app.services.wiki_icons import metric_icon_url
 from app.services.competition_schedule.repository import (
     create_run,
     get_active_run_for_schedule,
@@ -32,6 +31,7 @@ from app.services.competition_schedule.repository import (
     update_schedule,
 )
 from app.services.page_permissions import require_page_permission
+from app.services.wiki_icons import metric_icon_url
 
 router = APIRouter()
 
@@ -91,7 +91,7 @@ class CreateScheduleBody(BaseModel):
     poll_options: list[PollOptionBody] = Field(min_length=2, max_length=5)
     title_template: str = Field(default="{metric} Competition")
     poll_version: int = Field(default=1, ge=1, le=2)
-    token_config_override: dict | None = None
+    token_config_override: dict[str, Any] | None = None
     next_poll_at: datetime
 
 
@@ -106,13 +106,13 @@ class PatchScheduleBody(BaseModel):
     poll_options: list[PollOptionBody] | None = None
     title_template: str | None = None
     poll_version: int | None = Field(default=None, ge=1, le=2)
-    token_config_override: dict | None = None
+    token_config_override: dict[str, Any] | None = None
     next_poll_at: datetime | None = None
     is_active: bool | None = None
 
 
 def _now() -> datetime:
-    return datetime.now(tz=timezone.utc)
+    return datetime.now(tz=UTC)
 
 
 def _run_to_dict(run: ScheduledCompetitionRun) -> dict[str, Any]:
@@ -172,7 +172,9 @@ async def _schedule_to_dict(
 
 
 @router.get("/competition-schedules", dependencies=[_READ_DEP])
-async def list_schedules(session: AsyncSession = Depends(get_session)) -> list[dict]:
+async def list_schedules(
+    session: AsyncSession = Depends(get_session),
+) -> list[dict[str, Any]]:
     schedules = await get_all_schedules(session)
     return [await _schedule_to_dict(s, session) for s in schedules]
 
@@ -181,7 +183,7 @@ async def list_schedules(session: AsyncSession = Depends(get_session)) -> list[d
 async def create_schedule(
     body: CreateScheduleBody,
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     now = _now()
     sched = CompetitionSchedule(
         name=body.name,
@@ -212,7 +214,7 @@ async def create_schedule(
 async def get_schedule_endpoint(
     schedule_id: int,
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     sched = await get_schedule(session, schedule_id)
     if not sched:
         raise HTTPException(404, "Schedule not found")
@@ -224,7 +226,7 @@ async def patch_schedule(
     schedule_id: int,
     body: PatchScheduleBody,
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     sched = await get_schedule(session, schedule_id)
     if not sched:
         raise HTTPException(404, "Schedule not found")
@@ -265,7 +267,7 @@ async def delete_schedule(
 async def pause_schedule(
     schedule_id: int,
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     sched = await get_schedule(session, schedule_id)
     if not sched:
         raise HTTPException(404, "Schedule not found")
@@ -279,7 +281,7 @@ async def pause_schedule(
 async def resume_schedule(
     schedule_id: int,
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     sched = await get_schedule(session, schedule_id)
     if not sched:
         raise HTTPException(404, "Schedule not found")
@@ -295,7 +297,7 @@ async def resume_schedule(
 async def skip_next(
     schedule_id: int,
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     sched = await get_schedule(session, schedule_id)
     if not sched:
         raise HTTPException(404, "Schedule not found")
@@ -326,7 +328,7 @@ async def adjust_poll(
     body: AdjustPollBody,
     session: AsyncSession = Depends(get_session),
     valkey: Valkey = Depends(get_valkey),
-) -> dict:
+) -> dict[str, Any]:
     sched = await get_schedule(session, schedule_id)
     if not sched:
         raise HTTPException(404, "Schedule not found")
@@ -350,7 +352,7 @@ async def adjust_poll(
 async def trigger_now(
     schedule_id: int,
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     sched = await get_schedule(session, schedule_id)
     if not sched:
         raise HTTPException(404, "Schedule not found")
@@ -374,9 +376,9 @@ async def trigger_now(
 )
 async def set_next_poll_at(
     schedule_id: int,
-    body: dict,
+    body: dict[str, Any],
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     sched = await get_schedule(session, schedule_id)
     if not sched:
         raise HTTPException(404, "Schedule not found")
@@ -403,7 +405,7 @@ async def override_options(
     schedule_id: int,
     body: OverrideOptionsBody,
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     sched = await get_schedule(session, schedule_id)
     if not sched:
         raise HTTPException(404, "Schedule not found")
@@ -450,7 +452,7 @@ async def patch_run(
     run_id: int,
     body: PatchRunBody,
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     sched = await get_schedule(session, schedule_id)
     if not sched:
         raise HTTPException(404, "Schedule not found")
@@ -482,7 +484,7 @@ async def list_runs(
     status: str | None = None,
     limit: int = 20,
     session: AsyncSession = Depends(get_session),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     sched = await get_schedule(session, schedule_id)
     if not sched:
         raise HTTPException(404, "Schedule not found")

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import os
 import re
-from datetime import datetime, timezone
-from typing import cast
+from datetime import UTC, datetime
+from typing import Any, cast
 
 from loguru import logger
 from pydantic import BaseModel
@@ -60,7 +60,7 @@ async def _upsert_primary_account(
     session: AsyncSession, discord_user_id: int, rsn: str
 ) -> None:
     """Demote current primary to alt and set rsn as the new primary. Does NOT commit."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     await session.execute(
         update(UserAccount)
         .where(
@@ -122,7 +122,7 @@ async def _wom_link_rsn(
                 .where(UserAccount.id == ua_id)
                 .values(rsn_history=history)
             )
-            all_rsns = [rsn] + history
+            all_rsns = [rsn, *history]
     except Exception as exc:
         logger.warning(
             "members: failed to fetch WOM name history for {!r}: {}", rsn, exc
@@ -147,7 +147,7 @@ async def _wom_link_rsn(
     logger.info(
         "members: linked user_id {} to {} event rows (history: {})",
         discord_user_id,
-        cast(CursorResult, event_result).rowcount,
+        cast(CursorResult[Any], event_result).rowcount,
         len(all_rsns) - 1,
     )
     return all_rsns

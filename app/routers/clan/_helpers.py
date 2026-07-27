@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Never
+from typing import Any, Never
 
 import httpx
 from fastapi import HTTPException
@@ -46,7 +46,7 @@ def _handle_wom_error(exc: httpx.HTTPStatusError) -> Never:
 
 
 async def _enrich_with_ranks(
-    entries_by_name: dict[str, list[dict]],
+    entries_by_name: dict[str, list[dict[str, Any]]],
     session: AsyncSession,
 ) -> None:
     """Mutate entry dicts in-place, adding clan_rank and discord_rank."""
@@ -66,7 +66,7 @@ async def _enrich_with_ranks(
         if m.get("discord_role_id") and m.get("label")
     }
 
-    def _highest_discord_rank(discord_roles: list) -> str | None:
+    def _highest_discord_rank(discord_roles: list[str]) -> str | None:
         best_order, best_label = -1, None
         for rid in discord_roles:
             if rid in role_id_to_rank:

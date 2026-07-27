@@ -1,21 +1,23 @@
 from __future__ import annotations
 
+from typing import Any
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
-    TileRepositoryTile,
     TileRaceCompletion,
     TileRaceEvent,
     TileRaceRoll,
     TileRaceSignup,
     TileRaceTeam,
+    TileRepositoryTile,
 )
 
 from .requirement_schema import requirement_from_items
 
 
-def _serialize_tile(t: TileRepositoryTile) -> dict:
+def _serialize_tile(t: TileRepositoryTile) -> dict[str, Any]:
     items = t.items or []
     return {
         "id": str(t.id),
@@ -31,9 +33,11 @@ def _serialize_tile(t: TileRepositoryTile) -> dict:
     }
 
 
-async def _embed_cells(cells: list, session: AsyncSession) -> list[dict]:
+async def _embed_cells(
+    cells: list[dict[str, Any]], session: AsyncSession
+) -> list[dict[str, Any]]:
     tile_ids = {int(c["tile_id"]) for c in cells if c.get("tile_id")}
-    tiles: dict[int, dict] = {}
+    tiles: dict[int, dict[str, Any]] = {}
     if tile_ids:
         rows = (
             (
@@ -58,7 +62,7 @@ async def _embed_cells(cells: list, session: AsyncSession) -> list[dict]:
     return result
 
 
-def _serialize_summary(e: TileRaceEvent) -> dict:
+def _serialize_summary(e: TileRaceEvent) -> dict[str, Any]:
     return {
         "id": str(e.id),
         "name": e.name,
@@ -80,7 +84,7 @@ def _serialize_summary(e: TileRaceEvent) -> dict:
     }
 
 
-def _serialize_team(t: TileRaceTeam) -> dict:
+def _serialize_team(t: TileRaceTeam) -> dict[str, Any]:
     return {
         "id": str(t.id),
         "name": t.name,
@@ -94,7 +98,7 @@ def _serialize_team(t: TileRaceTeam) -> dict:
     }
 
 
-def _serialize_signup(s: TileRaceSignup) -> dict:
+def _serialize_signup(s: TileRaceSignup) -> dict[str, Any]:
     return {
         "discord_user_id": str(s.discord_user_id),
         "account_id": s.account_id,
@@ -105,7 +109,7 @@ def _serialize_signup(s: TileRaceSignup) -> dict:
     }
 
 
-def _serialize_roll(r: TileRaceRoll) -> dict:
+def _serialize_roll(r: TileRaceRoll) -> dict[str, Any]:
     return {
         "id": str(r.id),
         "team_id": str(r.team_id),
@@ -118,7 +122,7 @@ def _serialize_roll(r: TileRaceRoll) -> dict:
     }
 
 
-def _serialize_completion(c: TileRaceCompletion) -> dict:
+def _serialize_completion(c: TileRaceCompletion) -> dict[str, Any]:
     return {
         "team_id": str(c.team_id),
         "path_position": c.path_position,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -45,5 +46,5 @@ class RateOut(BaseModel):
     metric: str
     kind: str
     rate: float
-    payload: dict
+    payload: dict[str, Any]
     updated_at: datetime

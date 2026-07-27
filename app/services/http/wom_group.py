@@ -2,24 +2,26 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from loguru import logger
 
 from app.services.http.wom_queue import get_wom_queue
+
 from .wom_base import WomHandlerBase
 from .wom_cache import parse_dt
 
 
 class WomGroupMixin(WomHandlerBase):
-    async def get_group(self, group_id: str | int) -> dict:
+    async def get_group(self, group_id: str | int) -> dict[str, Any]:
         resp = await self._get_with_rate_limit(f"/groups/{group_id}")
         resp.raise_for_status()
         return resp.json()
 
     async def get_group_name_changes(
         self, group_id: str | int, *, limit: int = 50
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         queue = get_wom_queue()
         resp = await queue.submit(
             lambda gid=group_id, lim=limit: self.get(
@@ -32,7 +34,7 @@ class WomGroupMixin(WomHandlerBase):
 
     async def get_group_competitions(
         self, group_id: str | int, *, limit: int = 20, offset: int = 0
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         resp = await self._get_with_rate_limit(
             f"/groups/{group_id}/competitions",
             params={"limit": limit, "offset": offset},
@@ -47,7 +49,9 @@ class WomGroupMixin(WomHandlerBase):
             return []
         return resp.json()
 
-    async def get_group_bulk_hiscores(self, group_id: str | int) -> list[dict]:
+    async def get_group_bulk_hiscores(
+        self, group_id: str | int
+    ) -> list[dict[str, Any]]:
         resp = await self._get_with_rate_limit(f"/groups/{group_id}/bulk-hiscores")
         if not resp.is_success:
             logger.warning(
@@ -65,8 +69,8 @@ class WomGroupMixin(WomHandlerBase):
         period: str | None = None,
         start_date: datetime | None = None,
         end_date: datetime | None = None,
-    ) -> list[dict]:
-        params: dict = {}
+    ) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {}
         if period:
             params["period"] = period
         if start_date:
@@ -87,13 +91,13 @@ class WomGroupMixin(WomHandlerBase):
 
     async def get_all_group_competitions(
         self, group_id: str | int, *, max_finished: int = 30
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Fetch recent group competitions with derived status. Stops after max_finished finished ones."""
-        all_comps: list[dict] = []
+        all_comps: list[dict[str, Any]] = []
         limit = 50
         offset = 0
         finished_seen = 0
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         logger.info("wom: fetching group competitions (group={})", group_id)
         while True:
             logger.debug("wom: GET /groups/{}/competitions offset={}", group_id, offset)
@@ -119,8 +123,8 @@ class WomGroupMixin(WomHandlerBase):
         logger.info(
             "wom: fetched {} competitions total for group={}", len(all_comps), group_id
         )
-        now = datetime.now(timezone.utc)
-        result: list[dict] = []
+        now = datetime.now(UTC)
+        result: list[dict[str, Any]] = []
         for comp in all_comps:
             starts_at = parse_dt(comp["startsAt"])
             ends_at = parse_dt(comp["endsAt"])

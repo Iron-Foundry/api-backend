@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends
 from loguru import logger
@@ -20,9 +21,9 @@ async def report_metrics(
     body: MetricReportBody,
     _key: None = Depends(verify_metrics_key),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Upsert service status and append a time-series record."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     await session.execute(
         pg_insert(MetricRecord).values(

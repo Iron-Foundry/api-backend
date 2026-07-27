@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import (
+    TIMESTAMP,
+    Float,
     ForeignKey,
     Integer,
     Text,
-    TIMESTAMP,
-    Float,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -67,7 +68,7 @@ class EfficiencyRate(Base):
     metric: Mapped[str] = mapped_column(Text, nullable=False, index=True)
     kind: Mapped[str] = mapped_column(Text, nullable=False)
     rate: Mapped[float] = mapped_column(Float, nullable=False)
-    payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     updated_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False
     )

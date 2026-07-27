@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -10,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import RuneLiteConfig
 from app.dependencies import get_current_user, get_session
+
 from ._helpers import (
     RuneLiteConfigBody,
     require_permission,
@@ -24,7 +26,7 @@ router = APIRouter()
 async def list_configs(
     session: AsyncSession = Depends(get_session),
     type: str | None = Query(default=None),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     query = select(RuneLiteConfig).order_by(RuneLiteConfig.name)
     if type is not None:
         query = query.where(RuneLiteConfig.type == type)
@@ -35,12 +37,12 @@ async def list_configs(
 @router.post("/")
 async def create_config(
     body: RuneLiteConfigBody,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     await require_permission(current_user, "create", session)
     validate_config_data(body.type, body.data)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     uid = int(current_user["sub"])
     config = RuneLiteConfig(
         id=uuid.uuid4(),
@@ -62,9 +64,9 @@ async def create_config(
 async def update_config(
     config_id: UUID,
     body: RuneLiteConfigBody,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     await require_permission(current_user, "edit", session)
     validate_config_data(body.type, body.data)
     result = await session.execute(
@@ -77,7 +79,7 @@ async def update_config(
     config.name = body.name.strip()
     config.description = body.description.strip()
     config.data = body.data
-    config.updated_at = datetime.now(timezone.utc)
+    config.updated_at = datetime.now(UTC)
     config.updated_by = int(current_user["sub"])
     await session.commit()
     return serialize_config(config)
@@ -86,9 +88,9 @@ async def update_config(
 @router.delete("/{config_id}")
 async def delete_config(
     config_id: UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     await require_permission(current_user, "delete", session)
     result = await session.execute(
         select(RuneLiteConfig).where(RuneLiteConfig.id == config_id)
@@ -105,7 +107,7 @@ async def delete_config(
 async def get_config(
     config_id: UUID,
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     result = await session.execute(
         select(RuneLiteConfig).where(RuneLiteConfig.id == config_id)
     )

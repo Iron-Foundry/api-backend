@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated, Literal, Union
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
@@ -27,11 +27,6 @@ class SabotageModifier(BaseModel):
 
 
 Modifier = Annotated[
-    Union[
-        SnakesLaddersModifier,
-        FogModifier,
-        BonusPenaltyModifier,
-        SabotageModifier,
-    ],
+    SnakesLaddersModifier | FogModifier | BonusPenaltyModifier | SabotageModifier,
     Field(discriminator="type"),
 ]

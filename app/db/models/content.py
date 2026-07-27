@@ -5,12 +5,12 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import (
+    TIMESTAMP,
     BigInteger,
     Boolean,
     ForeignKey,
     Integer,
     Text,
-    TIMESTAMP,
     UniqueConstraint,
 )
 from sqlalchemy.dialects import postgresql as pg

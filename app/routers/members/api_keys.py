@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import secrets
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends
 from loguru import logger
@@ -16,9 +17,9 @@ router = APIRouter()
 
 @router.get("/me/api-key")
 async def get_api_key(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     discord_user_id = int(current_user["sub"])
     result = await session.execute(
         select(User.api_key, User.key_is_active, User.key_created_at).where(
@@ -37,12 +38,12 @@ async def get_api_key(
 
 @router.post("/me/api-key/rotate")
 async def rotate_api_key(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     discord_user_id = int(current_user["sub"])
     new_key = secrets.token_urlsafe(32)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     await session.execute(
         update(User)
         .where(User.discord_user_id == discord_user_id)

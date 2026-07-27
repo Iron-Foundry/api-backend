@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import select
@@ -19,10 +20,10 @@ from ._helpers import (
     _ALLOWED_IMAGE_TYPES,
     _MAX_IMAGE_BYTES,
     _VALID_TYPES,
+    UPLOAD_DIR,
     EditFeedbackBody,
     SubmitFeedbackBody,
     UpdateStatusBody,
-    UPLOAD_DIR,
 )
 
 router = APIRouter()
@@ -31,9 +32,9 @@ router = APIRouter()
 @router.post("/upload-attachment")
 async def upload_attachment(
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Upload an image attachment. Available to all authenticated members."""
     uid = int(current_user["sub"])
 
@@ -61,7 +62,7 @@ async def upload_attachment(
         content_type=file.content_type,
         size_bytes=len(data),
         uploaded_by=uid,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     session.add(asset)
     await session.commit()
@@ -79,8 +80,8 @@ async def upload_attachment(
 async def list_feedback(
     type: str | None = None,
     session: AsyncSession = Depends(get_session),
-    current_user: dict | None = Depends(get_optional_user),
-) -> list[dict]:
+    current_user: dict[str, Any] | None = Depends(get_optional_user),
+) -> list[dict[str, Any]]:
     current_user_id = int(current_user["sub"]) if current_user else None
     query = select(Feedback).order_by(Feedback.created_at.desc())
     if type is not None:
@@ -96,11 +97,11 @@ async def list_feedback(
 async def submit_feedback(
     body: SubmitFeedbackBody,
     session: AsyncSession = Depends(get_session),
-    current_user: dict = Depends(get_current_user),
-) -> dict:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     discord_user_id = int(current_user["sub"])
-    now = datetime.now(timezone.utc)
-    extra: dict = {}
+    now = datetime.now(UTC)
+    extra: dict[str, Any] = {}
     if body.type == "bug" and body.steps_to_reproduce:
         extra["steps_to_reproduce"] = body.steps_to_reproduce
     item = Feedback(
@@ -125,8 +126,8 @@ async def submit_feedback(
 async def get_feedback(
     feedback_id: int,
     session: AsyncSession = Depends(get_session),
-    current_user: dict | None = Depends(get_optional_user),
-) -> dict:
+    current_user: dict[str, Any] | None = Depends(get_optional_user),
+) -> dict[str, Any]:
     current_user_id = int(current_user["sub"]) if current_user else None
     item = await session.get(Feedback, feedback_id)
     if not item:
@@ -139,8 +140,8 @@ async def edit_feedback(
     feedback_id: int,
     body: EditFeedbackBody,
     session: AsyncSession = Depends(get_session),
-    current_user: dict = Depends(get_current_user),
-) -> dict:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     discord_user_id = int(current_user["sub"])
     item = await session.get(Feedback, feedback_id)
     if not item:
@@ -162,7 +163,7 @@ async def edit_feedback(
         item.extra = extra
     if body.attachment_ids is not None:
         item.attachment_ids = body.attachment_ids
-    item.updated_at = datetime.now(timezone.utc)
+    item.updated_at = datetime.now(UTC)
 
     await session.commit()
     await session.refresh(item)
@@ -174,8 +175,8 @@ async def update_status(
     feedback_id: int,
     body: UpdateStatusBody,
     session: AsyncSession = Depends(get_session),
-    current_user: dict = Depends(get_current_user),
-) -> dict:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     discord_user_id = int(current_user["sub"])
     roles = await get_effective_roles(discord_user_id, session)
     if not await check_page_permission("staff.feedback", "edit", roles, session):
@@ -184,7 +185,7 @@ async def update_status(
     if not item:
         raise HTTPException(404, "Feedback item not found")
     item.status = body.status
-    item.updated_at = datetime.now(timezone.utc)
+    item.updated_at = datetime.now(UTC)
     await session.commit()
     await session.refresh(item)
     return await build_item(item, session, discord_user_id)

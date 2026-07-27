@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -62,10 +63,10 @@ async def _get_signup(
 @router.post("/events/{event_id}/signup", status_code=201)
 async def sign_up(
     event_id: int,
-    body: SignupBody = SignupBody(),
+    body: SignupBody = Body(default_factory=SignupBody),
     session: AsyncSession = Depends(get_session),
-    current_user: dict = Depends(get_current_user),
-) -> dict:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     event = (
         await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
     ).scalar_one_or_none()
@@ -85,7 +86,7 @@ async def sign_up(
             rsn=account.rsn,
             ranking_score=await _ranking_score(session, account.rsn),
             wants_captain=body.wants_captain,
-            signed_up_at=datetime.now(timezone.utc),
+            signed_up_at=datetime.now(UTC),
         )
     )
     await session.commit()
@@ -97,8 +98,8 @@ async def change_signup(
     event_id: int,
     body: SignupPatch,
     session: AsyncSession = Depends(get_session),
-    current_user: dict = Depends(get_current_user),
-) -> dict:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     user_id = int(current_user["sub"])
     signup = await _get_signup(session, event_id, user_id)
     if signup is None:
@@ -118,8 +119,8 @@ async def change_signup(
 async def cancel_signup(
     event_id: int,
     session: AsyncSession = Depends(get_session),
-    current_user: dict = Depends(get_current_user),
-) -> dict:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     user_id = int(current_user["sub"])
     signup = await _get_signup(session, event_id, user_id)
     if signup is None:

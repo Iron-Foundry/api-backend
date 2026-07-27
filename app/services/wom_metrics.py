@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+import contextlib
+from datetime import UTC, datetime
 
 from loguru import logger
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.models import MetricRecord
@@ -35,10 +35,8 @@ class WomMetricsService:
     async def stop(self) -> None:
         if self._task:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
         logger.info("WomMetricsService stopped")
 
     async def _poll_loop(self) -> None:
@@ -63,7 +61,7 @@ class WomMetricsService:
                         pg_insert(MetricRecord).values(
                             service_name=_SERVICE_NAME,
                             module_name=_MODULE_NAME,
-                            recorded_at=datetime.fromtimestamp(s.ts, tz=timezone.utc),
+                            recorded_at=datetime.fromtimestamp(s.ts, tz=UTC),
                             metrics={
                                 "remaining": s.remaining,
                                 "reserved_used": s.reserved_used,

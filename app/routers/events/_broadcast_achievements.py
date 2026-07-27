@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +16,7 @@ from ._helpers import dispatch_doc, insert_event
 
 async def handle_achievement(
     payload: ClanChatPayload,
-    clan: dict,
+    clan: dict[str, Any],
     session: AsyncSession,
     valkey: Valkey,
     now: datetime,
@@ -23,7 +24,7 @@ async def handle_achievement(
     parsed = parser.parse_achievement(payload.message)
     if not parsed:
         return
-    data: dict = {"achievement_type": parsed.kind, "name": parsed.name}
+    data: dict[str, Any] = {"achievement_type": parsed.kind, "name": parsed.name}
     if parsed.difficulty:
         data["difficulty"] = parsed.difficulty
     await insert_event(
@@ -46,7 +47,7 @@ async def handle_achievement(
 
 async def handle_pet(
     payload: ClanChatPayload,
-    clan: dict,
+    clan: dict[str, Any],
     session: AsyncSession,
     valkey: Valkey,
     now: datetime,

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, timezone
+from datetime import UTC, date, datetime
 from typing import Any
 
 from sqlalchemy import select, text
@@ -11,11 +11,8 @@ from app.db.models import Ticket, User
 _BOGUS_DATE = date(2026, 4, 14)
 
 
-def _is_bogus(created_at) -> bool:
-    return (
-        created_at is not None
-        and created_at.astimezone(timezone.utc).date() == _BOGUS_DATE
-    )
+def _is_bogus(created_at: datetime | None) -> bool:
+    return created_at is not None and created_at.astimezone(UTC).date() == _BOGUS_DATE
 
 
 async def _load_user_map(ids: set[int], session: AsyncSession) -> dict[int, Any]:
@@ -32,7 +29,7 @@ async def _load_user_map(ids: set[int], session: AsyncSession) -> dict[int, Any]
     return {row.discord_user_id: row for row in rows}
 
 
-def _staff_ref(user_id: int | None, user_map: dict[int, Any]) -> dict | None:
+def _staff_ref(user_id: int | None, user_map: dict[int, Any]) -> dict[str, Any] | None:
     if user_id is None:
         return None
     u = user_map.get(user_id)
@@ -70,7 +67,7 @@ async def _load_transcript_timestamps(
 
 async def serialize_tickets(
     ticket_rows: list[Ticket], session: AsyncSession
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Resolve staff identities and transcript-derived timestamps for tickets."""
     staff_ids: set[int] = set()
     for row in ticket_rows:
@@ -82,7 +79,7 @@ async def serialize_tickets(
     user_map = await _load_user_map(staff_ids, session)
     transcript_ts_map = await _load_transcript_timestamps(ticket_rows, session)
 
-    tickets: list[dict] = []
+    tickets: list[dict[str, Any]] = []
     for row in ticket_rows:
         creator = user_map.get(row.creator_id)
         td = transcript_ts_map.get(row.ticket_id, {})

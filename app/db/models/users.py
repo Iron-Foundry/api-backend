@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import ARRAY, BigInteger, Boolean, ForeignKey, Integer, Text, TIMESTAMP
+from sqlalchemy import ARRAY, TIMESTAMP, BigInteger, Boolean, ForeignKey, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
@@ -19,10 +19,10 @@ class User(Base):
     )
     rsn: Mapped[str | None] = mapped_column(Text, unique=True)
     clan_rank: Mapped[str | None] = mapped_column(Text)
-    discord_roles: Mapped[list] = mapped_column(
+    discord_roles: Mapped[list[str]] = mapped_column(
         ARRAY(Text), nullable=False, server_default="{}"
     )
-    ticket_ids: Mapped[list] = mapped_column(
+    ticket_ids: Mapped[list[int]] = mapped_column(
         ARRAY(Integer), nullable=False, server_default="{}"
     )
     total_loot_value: Mapped[int] = mapped_column(
@@ -78,7 +78,7 @@ class UserAccount(Base):
         index=True,
     )
     rsn: Mapped[str] = mapped_column(Text, nullable=False)
-    rsn_history: Mapped[list] = mapped_column(
+    rsn_history: Mapped[list[str]] = mapped_column(
         ARRAY(Text), nullable=False, server_default="{}"
     )
     is_primary: Mapped[bool] = mapped_column(

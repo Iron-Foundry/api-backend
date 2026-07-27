@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -10,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import Config, User, UserAccount
 from app.dependencies import get_current_user, get_session
 from app.services.rank_mappings import get_effective_roles
+
 from ._helpers import ROLES_REFRESH_TTL, fetch_discord_roles, issue_jwt
 
 router = APIRouter()
@@ -22,7 +24,7 @@ class ApiKeyRequest(BaseModel):
 @router.post("/token")
 async def token(
     body: ApiKeyRequest, session: AsyncSession = Depends(get_session)
-) -> dict:
+) -> dict[str, Any]:
     """Exchange a web API key for a JWT."""
     result = await session.execute(
         select(User).where(User.api_key == body.api_key, User.key_is_active == True)  # noqa: E712
@@ -40,9 +42,9 @@ async def token(
 
 @router.get("/me")
 async def me(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Return authenticated user profile. Discord roles are auto-refreshed if stale."""
     discord_user_id = int(current_user["sub"])
     result = await session.execute(
@@ -62,11 +64,11 @@ async def me(
     stale = (
         row is None
         or row.roles_fetched_at is None
-        or datetime.now(timezone.utc) - row.roles_fetched_at > ROLES_REFRESH_TTL
+        or datetime.now(UTC) - row.roles_fetched_at > ROLES_REFRESH_TTL
     )
     if stale:
         fresh_roles = await fetch_discord_roles(discord_user_id)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         await session.execute(
             update(User)
             .where(User.discord_user_id == discord_user_id)

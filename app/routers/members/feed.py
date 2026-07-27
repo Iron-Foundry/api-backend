@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.db.models import Event, User, UserAccount
 from app.dependencies import get_current_user, get_session
@@ -12,7 +15,7 @@ router = APIRouter()
 
 def _build_feed_item(
     row: Event, discord_user_id: int, rsn_lower_set: set[str]
-) -> dict | None:
+) -> dict[str, Any] | None:
     d = row.data or {}
     ts = row.timestamp.isoformat()
     t = row.type
@@ -164,9 +167,9 @@ def _build_feed_item(
 async def member_feed(
     limit: int = Query(default=100, ge=1, le=500),
     skip: int = Query(default=0, ge=0),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     discord_user_id = int(current_user["sub"])
 
     accounts_result = await session.execute(
@@ -208,7 +211,7 @@ async def member_feed(
     )
     rows = events_result.scalars().all()
 
-    pk_conditions: list = [
+    pk_conditions: list[ColumnElement[bool]] = [
         func.lower(Event.data["loser"].as_string()).in_(list(rsn_lower_set)),
         Event.user_id != discord_user_id,
     ]
@@ -251,11 +254,11 @@ async def member_feed(
             seen_ids.add(row.id)
             all_rows.append(row)
 
-    items: list[dict] = []
+    items: list[dict[str, Any]] = []
     for row in all_rows:
         item = _build_feed_item(row, discord_user_id, rsn_lower_set)
         if item is not None:
             item["rsn"] = row.player_name or None
             items.append(item)
-    items.sort(key=lambda x: x["timestamp"], reverse=True)  # type: ignore[index]
+    items.sort(key=lambda x: x["timestamp"], reverse=True)
     return items[skip : skip + limit]

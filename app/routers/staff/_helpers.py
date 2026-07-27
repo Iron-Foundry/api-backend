@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -67,13 +69,13 @@ def allowed_ticket_types(role_labels: list[str]) -> list[str]:
     ]
 
 
-async def get_roles(current_user: dict, session: AsyncSession) -> list[str]:
+async def get_roles(current_user: dict[str, Any], session: AsyncSession) -> list[str]:
     discord_user_id = int(current_user["sub"])
     return await get_effective_roles(discord_user_id, session)
 
 
 async def require_rank(
-    page_id: str, action: str, current_user: dict, session: AsyncSession
+    page_id: str, action: str, current_user: dict[str, Any], session: AsyncSession
 ) -> None:
     roles = await get_roles(current_user, session)
     if not await check_page_permission(page_id, action, roles, session):

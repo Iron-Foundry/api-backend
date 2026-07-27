@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from loguru import logger
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.models import MetricRecord, ServiceStatus
+
 from .collector import EndpointMetricsCollector
 
 _FLUSH_INTERVAL = 300  # 5 minutes
@@ -40,10 +42,8 @@ class EndpointMetricsService:
     async def stop(self) -> None:
         if self._task:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
         await self._flush()
         logger.info("EndpointMetricsService stopped")
 
@@ -58,7 +58,7 @@ class EndpointMetricsService:
         metrics = self._collector.drain()
         if not metrics:
             return
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         uptime = int(time.monotonic() - self._start_time)
         try:
             async with self._session_factory() as session:

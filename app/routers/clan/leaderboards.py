@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import json
+from typing import Any
+
 from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from valkey.asyncio import Valkey
-
-import json
 
 from app.db.models import Event, Leaderboard, User
 from app.dependencies import get_session, get_valkey
@@ -22,10 +23,10 @@ from ._leaderboard_cache import _build_cluescrolls_cache, _build_kc_cache
 router = APIRouter()
 
 
-def _dedup_flat(entries: list[dict]) -> list[dict]:
+def _dedup_flat(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Remove entries where the same discord_user_id already appeared. Assumes entries are pre-sorted best-first."""
     seen: set[int] = set()
-    out: list[dict] = []
+    out: list[dict[str, Any]] = []
     for e in entries:
         uid = e.pop("_discord_user_id", None)
         if uid is None or uid not in seen:
@@ -35,10 +36,10 @@ def _dedup_flat(entries: list[dict]) -> list[dict]:
     return out
 
 
-def _dedup_pb(entries: list[dict]) -> list[dict]:
+def _dedup_pb(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Remove PB entries where same discord_user_id already holds a time in the same activity+variant. Assumes sorted by time ASC."""
-    seen: set[tuple] = set()
-    out: list[dict] = []
+    seen: set[tuple[Any, ...]] = set()
+    out: list[dict[str, Any]] = []
     for e in entries:
         uid = e.pop("_discord_user_id", None)
         if uid is not None:
@@ -51,7 +52,9 @@ def _dedup_pb(entries: list[dict]) -> list[dict]:
 
 
 @router.get("/leaderboards")
-async def clan_leaderboards(session: AsyncSession = Depends(get_session)) -> list[dict]:
+async def clan_leaderboards(
+    session: AsyncSession = Depends(get_session),
+) -> list[dict[str, Any]]:
     """Return all personal best entries from the leaderboards table, sorted by activity then time."""
     result = await session.execute(
         select(Leaderboard)
@@ -70,7 +73,7 @@ async def clan_leaderboards(session: AsyncSession = Depends(get_session)) -> lis
         }
         for r in rows
     ]
-    entries_by_name: dict[str, list[dict]] = {}
+    entries_by_name: dict[str, list[dict[str, Any]]] = {}
     for e in result_dicts:
         if e["player_name"]:
             entries_by_name.setdefault(e["player_name"].lower(), []).append(e)
@@ -83,16 +86,16 @@ async def killcount_leaderboard(
     background_tasks: BackgroundTasks,
     valkey: Valkey = Depends(get_valkey),
     session: AsyncSession = Depends(get_session),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Top players per boss, served from cache. Fresh 15 min, stale fallback 48 h."""
     fresh = await valkey.get(_KC_FRESH_KEY)
-    data: list[dict] = json.loads(fresh) if fresh else []
+    data: list[dict[str, Any]] = json.loads(fresh) if fresh else []
     if not data:
         background_tasks.add_task(_build_kc_cache, valkey)
         stale = await valkey.get(_KC_STALE_KEY)
         data = json.loads(stale) if stale else []
     if data:
-        entries_by_name: dict[str, list[dict]] = {}
+        entries_by_name: dict[str, list[dict[str, Any]]] = {}
         for boss in data:
             for e in boss.get("entries", []):
                 entries_by_name.setdefault(e["player_name"].lower(), []).append(e)
@@ -107,16 +110,16 @@ async def cluescrolls_leaderboard(
     background_tasks: BackgroundTasks,
     valkey: Valkey = Depends(get_valkey),
     session: AsyncSession = Depends(get_session),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Clan members ranked by Clue Scrolls completed, per tier, served from cache. Fresh 15 min, stale 48 h."""
     fresh = await valkey.get(_CLUESCROLLS_FRESH_KEY)
-    data: list[dict] = json.loads(fresh) if fresh else []
+    data: list[dict[str, Any]] = json.loads(fresh) if fresh else []
     if not data:
         background_tasks.add_task(_build_cluescrolls_cache, valkey)
         stale = await valkey.get(_CLUESCROLLS_STALE_KEY)
         data = json.loads(stale) if stale else []
     if data:
-        entries_by_name: dict[str, list[dict]] = {}
+        entries_by_name: dict[str, list[dict[str, Any]]] = {}
         for tier in data:
             for e in tier.get("entries", []):
                 entries_by_name.setdefault(e["player_name"].lower(), []).append(e)
@@ -129,7 +132,7 @@ async def cluescrolls_leaderboard(
 @router.get("/leaderboards/collection-log")
 async def collection_log_leaderboard(
     session: AsyncSession = Depends(get_session),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Players ranked by collection log slots. Excludes opted-out players."""
     opt_out_result = await session.execute(
         select(func.lower(User.rsn)).where(
@@ -169,7 +172,7 @@ async def collection_log_leaderboard(
         }
         for r in rows
     ]
-    entries_by_name_clog: dict[str, list[dict]] = {}
+    entries_by_name_clog: dict[str, list[dict[str, Any]]] = {}
     for e in result_dicts:
         if e["player_name"]:
             entries_by_name_clog.setdefault(e["player_name"].lower(), []).append(e)

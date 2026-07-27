@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -36,7 +37,7 @@ _ALL_SERVICE_KEYS: list[str] = [
 ]
 
 
-async def get_config_value(key: str, session: AsyncSession) -> dict:
+async def get_config_value(key: str, session: AsyncSession) -> dict[str, Any]:
     result = await session.execute(
         select(Config.value).where(
             Config.guild_id == _GLOBAL_GUILD_ID, Config.key == key
@@ -45,7 +46,9 @@ async def get_config_value(key: str, session: AsyncSession) -> dict:
     return result.scalar_one_or_none() or {}
 
 
-async def set_config_value(key: str, value: dict, session: AsyncSession) -> None:
+async def set_config_value(
+    key: str, value: dict[str, Any], session: AsyncSession
+) -> None:
     await session.execute(
         pg_insert(Config)
         .values(guild_id=_GLOBAL_GUILD_ID, key=key, value=value)
@@ -56,7 +59,7 @@ async def set_config_value(key: str, value: dict, session: AsyncSession) -> None
     await session.commit()
 
 
-async def get_guild_config_value(key: str, session: AsyncSession) -> dict:
+async def get_guild_config_value(key: str, session: AsyncSession) -> dict[str, Any]:
     result = await session.execute(
         select(Config.value).where(
             Config.guild_id == _DISCORD_GUILD_ID, Config.key == key
@@ -65,7 +68,9 @@ async def get_guild_config_value(key: str, session: AsyncSession) -> dict:
     return result.scalar_one_or_none() or {}
 
 
-async def set_guild_config_value(key: str, value: dict, session: AsyncSession) -> None:
+async def set_guild_config_value(
+    key: str, value: dict[str, Any], session: AsyncSession
+) -> None:
     await session.execute(
         pg_insert(Config)
         .values(guild_id=_DISCORD_GUILD_ID, key=key, value=value)
@@ -79,6 +84,6 @@ async def set_guild_config_value(key: str, value: dict, session: AsyncSession) -
 async def get_service_toggles(session: AsyncSession) -> dict[str, bool]:
     """Return service toggle states, defaulting to True for any unset key."""
     data = await get_config_value(_SERVICE_TOGGLES_KEY, session)
-    defaults: dict[str, bool] = {k: True for k in _ALL_SERVICE_KEYS}
+    defaults: dict[str, bool] = dict.fromkeys(_ALL_SERVICE_KEYS, True)
     defaults.update({k: bool(v) for k, v in data.items() if k in defaults})
     return defaults

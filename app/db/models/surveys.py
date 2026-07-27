@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import BigInteger, Integer, Text, TIMESTAMP
+from sqlalchemy import TIMESTAMP, BigInteger, Integer, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -14,7 +15,9 @@ class SurveyTemplate(Base):
 
     template_id: Mapped[str] = mapped_column(Text, primary_key=True)
     title: Mapped[str] = mapped_column(Text, nullable=False)
-    questions: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    questions: Mapped[list[Any] | dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )
     created_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
 
 
@@ -32,7 +35,9 @@ class SurveyResponse(Base):
 
     ticket_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     template_id: Mapped[str] = mapped_column(Text, nullable=False)
-    responses: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    responses: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
     submitted_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
 
 
@@ -42,5 +47,7 @@ class WebSurveySubmission(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     template_id: Mapped[str] = mapped_column(Text, nullable=False)
     discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    answers: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    answers: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
     submitted_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))

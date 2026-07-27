@@ -3,12 +3,12 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import (
+    TIMESTAMP,
     BigInteger,
     ForeignKey,
     Index,
     Integer,
     Text,
-    TIMESTAMP,
     UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column

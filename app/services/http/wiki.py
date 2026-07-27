@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 from app.services.http.base import BaseRequestHandler
 
 
 class OsrsWikiHandler(BaseRequestHandler):
     base_url = "https://prices.runescape.wiki/api/v1/osrs"
-    default_headers: dict[str, str] = {
+    default_headers: ClassVar[dict[str, str]] = {
         "User-Agent": "The Foundry Project - clan event tracker"
     }
     default_timeout = 5.0
@@ -23,7 +23,7 @@ class OsrsWikiHandler(BaseRequestHandler):
 
 class OsrsWikiContentHandler(BaseRequestHandler):
     base_url = "https://oldschool.runescape.wiki"
-    default_headers: dict[str, str] = {
+    default_headers: ClassVar[dict[str, str]] = {
         "User-Agent": "The Foundry Project - clan event tracker"
     }
     default_timeout = 15.0

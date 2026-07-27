@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +16,7 @@ from ._helpers import dispatch_doc, insert_event
 
 async def handle_pk(
     payload: ClanChatPayload,
-    clan: dict,
+    clan: dict[str, Any],
     session: AsyncSession,
     valkey: Valkey,
     now: datetime,
@@ -50,7 +51,7 @@ async def handle_pk(
 
 async def handle_league_relic(
     payload: ClanChatPayload,
-    clan: dict,
+    clan: dict[str, Any],
     session: AsyncSession,
     valkey: Valkey,
     now: datetime,
@@ -82,7 +83,7 @@ async def handle_league_relic(
 
 async def handle_league_rank(
     payload: ClanChatPayload,
-    clan: dict,
+    clan: dict[str, Any],
     session: AsyncSession,
     valkey: Valkey,
     now: datetime,
@@ -114,7 +115,7 @@ async def handle_league_rank(
 
 async def handle_league_area(
     payload: ClanChatPayload,
-    clan: dict,
+    clan: dict[str, Any],
     session: AsyncSession,
     valkey: Valkey,
     now: datetime,
@@ -146,7 +147,7 @@ async def handle_league_area(
 
 async def handle_unknown(
     payload: ClanChatPayload,
-    clan: dict,
+    clan: dict[str, Any],
     session: AsyncSession,
     valkey: Valkey,
     now: datetime,

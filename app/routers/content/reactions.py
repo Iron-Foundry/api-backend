@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
@@ -19,13 +20,13 @@ router = APIRouter()
 async def toggle_reaction(
     page_type: str,
     entry_id: UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Toggle a heart reaction on a content entry. Returns updated reacted state and count."""
     _validate_page_type(page_type)
     uid = int(current_user["sub"])
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     existing = (
         await session.execute(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select
@@ -22,7 +23,7 @@ async def get_leaderboards(
     background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_session),
     valkey: Valkey = Depends(get_valkey),
-) -> dict:
+) -> dict[str, Any]:
     """Leaderboard data with Valkey stale-while-revalidate."""
     event = (
         await session.execute(
@@ -55,7 +56,7 @@ async def get_leaderboards(
 async def get_team_history(
     team_slug: str,
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Time-series of cumulative approved points for a team, plus per-player contribution."""
     event = (
         await session.execute(
@@ -99,7 +100,7 @@ async def get_team_history(
     item_p: dict[str, int] = {}
     act_by_player: dict[str, dict[int, int]] = {}
     mil_by_player: dict[str, dict[int, int]] = {}
-    points_series: list[dict] = []
+    points_series: list[dict[str, Any]] = []
     player_contribution: dict[str, float] = {}
 
     for sub in approved_subs:
@@ -159,7 +160,9 @@ async def get_team_history(
 
 
 @router.get("/active/history")
-async def get_event_history(session: AsyncSession = Depends(get_session)) -> dict:
+async def get_event_history(
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
     """All teams' cumulative points over time - used for rank-over-time chart."""
     event = (
         await session.execute(
@@ -202,7 +205,7 @@ async def get_event_history(session: AsyncSession = Depends(get_session)) -> dic
     item_states: dict[int, dict[str, int]] = {t.id: {} for t in teams}
     act_states: dict[int, dict[str, dict[int, int]]] = {t.id: {} for t in teams}
     mil_states: dict[int, dict[str, dict[int, int]]] = {t.id: {} for t in teams}
-    team_series: dict[int, list[dict]] = {t.id: [] for t in teams}
+    team_series: dict[int, list[dict[str, Any]]] = {t.id: [] for t in teams}
 
     for sub in all_subs:
         tid = sub.team_id

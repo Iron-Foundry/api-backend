@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,7 +15,7 @@ async def build_item(
     session: AsyncSession,
     current_user_id: int | None,
     include_replies: bool = False,
-) -> dict:
+) -> dict[str, Any]:
     is_own = current_user_id == item.discord_user_id
 
     if item.is_anonymous and not is_own:
@@ -80,7 +82,7 @@ async def build_item(
 
     attachments = await resolve_attachments(item.attachment_ids or [], session)
 
-    result: dict = {
+    result: dict[str, Any] = {
         "id": item.id,
         "type": item.type,
         "title": item.title,

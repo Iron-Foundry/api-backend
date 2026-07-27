@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -16,14 +17,14 @@ router = APIRouter()
 
 
 class GoalsSaveRequest(BaseModel):
-    goals: list[dict]
+    goals: list[dict[str, Any]]
 
 
 @router.get("/goals/{token}")
 async def get_goals_by_token(
     token: uuid.UUID,
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Return stored goals for a share token (public)."""
     result = await session.execute(
         select(MemberGoals.rsn, MemberGoals.goals, MemberGoals.updated_at).where(
@@ -43,9 +44,9 @@ async def get_goals_by_token(
 @router.get("/me/goals/{rsn}")
 async def get_my_goals(
     rsn: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Return the authenticated user's goals and share token for a linked RSN."""
     discord_user_id = int(current_user["sub"])
     result = await session.execute(
@@ -71,9 +72,9 @@ async def get_my_goals(
 async def save_my_goals(
     rsn: str,
     body: GoalsSaveRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Upsert the authenticated user's goals for a linked RSN."""
     discord_user_id = int(current_user["sub"])
 
@@ -86,7 +87,7 @@ async def save_my_goals(
     if not owned.scalar_one_or_none():
         raise HTTPException(status_code=403, detail="RSN not linked to your account")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     stmt = pg_insert(MemberGoals).values(
         discord_user_id=discord_user_id,
         rsn=rsn.lower(),

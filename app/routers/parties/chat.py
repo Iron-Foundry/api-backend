@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,9 +19,9 @@ router = APIRouter()
 @router.get("/{party_id}/chat")
 async def get_chat(
     party_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Fetch the most recent 50 chat messages for a party."""
     await require_party(party_id, session)
     messages = await get_chat_messages(session, party_id)
@@ -30,10 +32,10 @@ async def get_chat(
 async def send_chat(
     party_id: str,
     body: SendChatRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
     valkey: Valkey = Depends(get_valkey),
-) -> dict:
+) -> dict[str, Any]:
     """Post a chat message to a party."""
     party = await require_party(party_id, session)
     if party.status == "closed":

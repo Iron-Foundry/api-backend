@@ -1,5 +1,6 @@
 import hashlib
 import json
+from typing import Any
 
 from valkey.asyncio import Valkey
 
@@ -18,12 +19,9 @@ async def is_duplicate(
     if await valkey.set(key2, "1", nx=True, ex=_DEDUP_TTL) is None:
         return True
 
-    if await valkey.set(key1, "1", nx=True, ex=_DEDUP_TTL) is None:
-        return True
-
-    return False
+    return await valkey.set(key1, "1", nx=True, ex=_DEDUP_TTL) is None
 
 
-async def publish(valkey: Valkey, event_type: str, data: dict) -> None:
+async def publish(valkey: Valkey, event_type: str, data: dict[str, Any]) -> None:
     """Publish a clan event to the Valkey stream."""
     await valkey.xadd(STREAM_KEY, {"type": event_type, "data": json.dumps(data)})

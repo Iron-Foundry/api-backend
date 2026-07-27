@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -20,9 +21,9 @@ router = APIRouter()
 async def list_entry_versions(
     page_type: str,
     entry_id: UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     _validate_page_type(page_type)
     await _require_mentor(current_user, session)
 
@@ -56,9 +57,9 @@ async def get_entry_version(
     page_type: str,
     entry_id: UUID,
     version_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     _validate_page_type(page_type)
     await _require_mentor(current_user, session)
 
@@ -96,9 +97,9 @@ async def revert_entry_to_version(
     page_type: str,
     entry_id: UUID,
     version_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     _validate_page_type(page_type)
     await _require_mentor(current_user, session)
 
@@ -120,7 +121,7 @@ async def revert_entry_to_version(
         raise HTTPException(404, "Version not found.")
 
     uid = int(current_user["sub"])
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     entry.title = ver.title
     entry.body = ver.body
     entry.updated_at = now

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,9 +14,9 @@ router = APIRouter()
 
 @router.get("/me/tickets")
 async def member_tickets(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     discord_user_id = int(current_user["sub"])
     result = await session.execute(
         select(Ticket)
@@ -40,9 +42,9 @@ async def member_tickets(
 @router.get("/me/tickets/{ticket_id}/transcript")
 async def member_ticket_transcript(
     ticket_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Return transcript for one of the authenticated user's tickets. staff_note is never returned."""
     discord_user_id = int(current_user["sub"])
     ticket_result = await session.execute(

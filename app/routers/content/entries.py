@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -39,8 +40,8 @@ async def get_entry_by_slug(
     page_type: str,
     slug: str,
     session: AsyncSession = Depends(get_session),
-    current_user: dict | None = Depends(get_optional_user),
-) -> dict:
+    current_user: dict[str, Any] | None = Depends(get_optional_user),
+) -> dict[str, Any]:
     _validate_page_type(page_type)
 
     result = await session.execute(
@@ -143,7 +144,7 @@ async def get_entry(
     page_type: str,
     entry_id: UUID,
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     _validate_page_type(page_type)
 
     result = await session.execute(
@@ -201,9 +202,9 @@ async def create_entry(
     page_type: str,
     category_id: UUID,
     body: CreateEntryBody,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     _validate_page_type(page_type)
     await _require_mentor(current_user, session)
 
@@ -234,7 +235,7 @@ async def create_entry(
             409, f"An entry with slug '{slug}' already exists under {page_type}."
         )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     entry = ContentEntry(
         category_id=category_id,
         slug=slug,

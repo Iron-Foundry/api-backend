@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from typing import Any
 
 from sqlalchemy import (
+    TIMESTAMP,
     BigInteger,
     Boolean,
     Date,
     Index,
     Integer,
     Text,
-    TIMESTAMP,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -30,7 +31,7 @@ class ServiceStatus(Base):
     )
     version: Mapped[str | None] = mapped_column(Text)
     uptime_seconds: Mapped[int | None] = mapped_column(BigInteger)
-    summary_metrics: Mapped[dict] = mapped_column(
+    summary_metrics: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default="{}"
     )
 
@@ -49,7 +50,9 @@ class MetricRecord(Base):
     recorded_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False
     )
-    metrics: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    metrics: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
 
 
 class MetricRecordCompact(Base):
@@ -67,6 +70,6 @@ class MetricRecordCompact(Base):
     module_name: Mapped[str] = mapped_column(Text, nullable=False)
     date: Mapped[date] = mapped_column(Date, nullable=False)
     sample_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    metrics_agg: Mapped[dict] = mapped_column(
+    metrics_agg: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default="{}"
     )

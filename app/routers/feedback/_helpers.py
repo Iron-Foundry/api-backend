@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import os
 import uuid
 from pathlib import Path
-from typing import Literal
-import os
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,7 +33,7 @@ class SubmitFeedbackBody(BaseModel):
     attachment_ids: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def require_steps_for_bugs(self) -> "SubmitFeedbackBody":
+    def require_steps_for_bugs(self) -> SubmitFeedbackBody:
         if self.type == "bug" and not self.steps_to_reproduce:
             raise ValueError("steps_to_reproduce is required for bug reports")
         return self
@@ -90,8 +90,8 @@ async def get_user_info(
 
 
 async def resolve_attachments(
-    attachment_ids: list, session: AsyncSession
-) -> list[dict]:
+    attachment_ids: list[str], session: AsyncSession
+) -> list[dict[str, Any]]:
     if not attachment_ids:
         return []
     results = []
@@ -115,7 +115,7 @@ async def resolve_attachments(
 
 def serialize_reply(
     reply: FeedbackReply, author_name: str | None, author_clan_rank: str | None = None
-) -> dict:
+) -> dict[str, Any]:
     return {
         "id": reply.id,
         "feedback_id": reply.feedback_id,

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 
 class EndpointMetricsCollector:
     """Accumulates per-request data. drain() aggregates and resets the buffer.
@@ -23,12 +25,12 @@ class EndpointMetricsCollector:
     ) -> None:
         self._buf.append((method, path, status, duration_ms, req_bytes, resp_bytes))
 
-    def drain(self) -> dict:
+    def drain(self) -> dict[str, Any]:
         buf, self._buf = self._buf, []
         if not buf:
             return {}
 
-        per_endpoint: dict[str, dict] = {}
+        per_endpoint: dict[str, dict[str, Any]] = {}
         for method, path, status, ms, req_b, resp_b in buf:
             key = f"{method} {path}"
             if key not in per_endpoint:
@@ -57,7 +59,7 @@ class EndpointMetricsCollector:
 
         total_requests = total_4xx = total_5xx = 0
         total_ms = total_req_bytes = total_resp_bytes = 0
-        endpoints: dict[str, dict] = {}
+        endpoints: dict[str, dict[str, Any]] = {}
 
         for key, s in per_endpoint.items():
             n = s["count"]

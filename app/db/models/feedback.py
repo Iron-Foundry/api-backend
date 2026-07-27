@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import BigInteger, Boolean, ForeignKey, Index, Text, TIMESTAMP
+from sqlalchemy import TIMESTAMP, BigInteger, Boolean, ForeignKey, Index, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -24,9 +25,11 @@ class Feedback(Base):
     )
     title: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    extra: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    extra: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="open")
-    attachment_ids: Mapped[list] = mapped_column(
+    attachment_ids: Mapped[list[str]] = mapped_column(
         JSONB, nullable=False, server_default="[]"
     )
     created_at: Mapped[datetime] = mapped_column(

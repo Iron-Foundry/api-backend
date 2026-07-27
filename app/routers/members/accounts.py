@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
@@ -18,9 +19,9 @@ router = APIRouter()
 
 @router.get("/me/accounts")
 async def list_accounts(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     discord_user_id = int(current_user["sub"])
     result = await session.execute(
         select(UserAccount)
@@ -40,9 +41,9 @@ async def list_accounts(
 
 @router.get("/me/rankings")
 async def get_me_rankings(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     discord_user_id = int(current_user["sub"])
     result = await session.execute(
         select(
@@ -75,9 +76,9 @@ async def get_me_rankings(
 @router.post("/me/accounts", status_code=201)
 async def add_account(
     body: AddAccount,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     rsn = body.rsn.strip()
     if not rsn:
         raise HTTPException(status_code=422, detail="RSN cannot be empty.")
@@ -112,7 +113,7 @@ async def add_account(
     if current_count >= _ACCOUNT_CAP:
         raise HTTPException(status_code=422, detail=_CAP_MSG)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     is_first = current_count == 0
     new_row = UserAccount(
         discord_user_id=discord_user_id, rsn=rsn, is_primary=is_first, created_at=now
@@ -156,9 +157,9 @@ async def add_account(
 @router.patch("/me/accounts/{account_id}/set-primary")
 async def set_primary_account(
     account_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     discord_user_id = int(current_user["sub"])
     row_result = await session.execute(
         select(UserAccount).where(
@@ -170,7 +171,7 @@ async def set_primary_account(
         raise HTTPException(status_code=404, detail="Account not found.")
     if row.is_primary:
         return {"id": row.id, "rsn": row.rsn, "is_primary": True}
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     await session.execute(
         update(UserAccount)
         .where(
@@ -195,7 +196,7 @@ async def set_primary_account(
 @router.delete("/me/accounts/{account_id}", status_code=204)
 async def delete_account(
     account_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> None:
     discord_user_id = int(current_user["sub"])
@@ -218,7 +219,7 @@ async def delete_account(
             status_code=422,
             detail="Cannot delete primary account while other accounts are linked. Set a different primary first.",
         )
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if total == 1:
         await session.execute(
             update(User)

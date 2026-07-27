@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 from loguru import logger
@@ -22,7 +23,7 @@ router = APIRouter()
 async def search_osrs_items(
     q: str = Query("", min_length=0),
     valkey: Valkey = Depends(get_valkey),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     if not q or len(q) < 2:
         return []
     raw = await valkey.get(_ITEMS_KEY)
@@ -36,14 +37,14 @@ async def search_osrs_items(
     if not raw:
         return []
     norm_q = q.lower().replace("'", "").strip()
-    all_items: list[dict] = json.loads(raw)
+    all_items: list[dict[str, Any]] = json.loads(raw)
     return [
         item for item in all_items if norm_q in item["name"].lower().replace("'", "")
     ][:30]
 
 
 @router.get("/osrs/bosses")
-async def get_osrs_bosses(valkey: Valkey = Depends(get_valkey)) -> list[dict]:
+async def get_osrs_bosses(valkey: Valkey = Depends(get_valkey)) -> list[dict[str, Any]]:
     raw = await valkey.get(_BOSSES_KEY)
     if not raw:
         await _refresh_osrs_bosses(valkey)
@@ -52,7 +53,9 @@ async def get_osrs_bosses(valkey: Valkey = Depends(get_valkey)) -> list[dict]:
 
 
 @router.get("/osrs/activities")
-async def get_osrs_activities(valkey: Valkey = Depends(get_valkey)) -> list[dict]:
+async def get_osrs_activities(
+    valkey: Valkey = Depends(get_valkey),
+) -> list[dict[str, Any]]:
     raw = await valkey.get(_ACTIVITIES_KEY)
     if not raw:
         await _refresh_osrs_activities(valkey)

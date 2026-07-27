@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from valkey.asyncio import Valkey
@@ -17,10 +19,10 @@ router = APIRouter()
 async def join_party(
     party_id: str,
     body: JoinPartyRequest = Body(default_factory=JoinPartyRequest),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
     valkey: Valkey = Depends(get_valkey),
-) -> dict:
+) -> dict[str, Any]:
     """Join an open party."""
     party = await require_party(party_id, session)
     uid = str(current_user["sub"])
@@ -50,10 +52,10 @@ async def join_party(
 @router.delete("/{party_id}/leave")
 async def leave_party(
     party_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
     valkey: Valkey = Depends(get_valkey),
-) -> dict:
+) -> dict[str, Any]:
     """Leave a party. Leaders cannot leave - they must close the party instead."""
     party = await require_party(party_id, session)
     uid = str(current_user["sub"])
@@ -87,10 +89,10 @@ async def leave_party(
 async def kick_member(
     party_id: str,
     user_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
     valkey: Valkey = Depends(get_valkey),
-) -> dict:
+) -> dict[str, Any]:
     """Kick a member from the party. Leader only."""
     party = await require_party(party_id, session)
     uid = str(current_user["sub"])

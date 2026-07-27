@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from typing import Any
+
 from app.db.models import PartyChatMessageDB, PartyDB
 
 
-def party_to_dict(party: PartyDB, viewer_id: str | None = None) -> dict:
+def party_to_dict(party: PartyDB, viewer_id: str | None = None) -> dict[str, Any]:
     is_member = viewer_id is not None and any(
         m.user_id == viewer_id for m in party.members
     )
@@ -37,7 +39,7 @@ def party_to_dict(party: PartyDB, viewer_id: str | None = None) -> dict:
     }
 
 
-def chat_message_to_dict(msg: PartyChatMessageDB) -> dict:
+def chat_message_to_dict(msg: PartyChatMessageDB) -> dict[str, Any]:
     return {
         "id": msg.id,
         "user_id": msg.user_id,

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 
 class OutboundHttpCollector:
     """Accumulates per-call data for outgoing HTTP requests.
@@ -23,13 +25,13 @@ class OutboundHttpCollector:
     ) -> None:
         self._buf.append((target, method, path, status, duration_ms))
 
-    def drain(self) -> dict:
+    def drain(self) -> dict[str, Any]:
         buf, self._buf = self._buf, []
         if not buf:
             return {}
 
-        per_endpoint: dict[str, dict] = {}
-        per_target: dict[str, dict] = {}
+        per_endpoint: dict[str, dict[str, Any]] = {}
+        per_target: dict[str, dict[str, Any]] = {}
 
         for target, method, path, status, ms in buf:
             key = f"{target} {method} {path}"
@@ -69,7 +71,7 @@ class OutboundHttpCollector:
                 t["errors_5xx"] += 1
 
         total_calls = total_4xx = total_5xx = 0
-        endpoints: dict[str, dict] = {}
+        endpoints: dict[str, dict[str, Any]] = {}
 
         for key, s in per_endpoint.items():
             n = s["count"]

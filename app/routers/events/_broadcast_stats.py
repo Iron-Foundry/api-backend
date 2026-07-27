@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from loguru import logger
 from sqlalchemy import func, update
@@ -18,7 +19,7 @@ from ._helpers import dispatch_doc, insert_event
 
 async def handle_level_up(
     payload: ClanChatPayload,
-    clan: dict,
+    clan: dict[str, Any],
     session: AsyncSession,
     valkey: Valkey,
     now: datetime,
@@ -49,7 +50,7 @@ async def handle_level_up(
 
 async def handle_xp_milestone(
     payload: ClanChatPayload,
-    clan: dict,
+    clan: dict[str, Any],
     session: AsyncSession,
     valkey: Valkey,
     now: datetime,
@@ -82,7 +83,7 @@ async def handle_xp_milestone(
 
 async def handle_collection_log(
     payload: ClanChatPayload,
-    clan: dict,
+    clan: dict[str, Any],
     session: AsyncSession,
     valkey: Valkey,
     now: datetime,
@@ -140,7 +141,7 @@ async def handle_collection_log(
 
 async def handle_personal_best(
     payload: ClanChatPayload,
-    clan: dict,
+    clan: dict[str, Any],
     session: AsyncSession,
     valkey: Valkey,
     now: datetime,

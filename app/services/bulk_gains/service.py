@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from loguru import logger
 from sqlalchemy import select
@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.db.models.gains import BulkGainsBatch, PlayerBulkGains
 from app.services.http.wom import WiseOldManHandler
 from app.services.http.wom_queue import WomPriority
+
 from ._parse import parse_bulk_gains_data
 
 _WOM_API_KEY = os.getenv("WOM_API_KEY")
@@ -47,7 +48,7 @@ class BulkGainsService:
             logger.warning("BulkGainsService: WOM returned empty bulk-gained response")
             return 0
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         batch = BulkGainsBatch(
             period=period,
             start_date=start_date,

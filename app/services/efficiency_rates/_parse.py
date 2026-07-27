@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -10,10 +11,10 @@ class RateRow:
     metric: str
     kind: str
     rate: float
-    payload: dict = field(default_factory=dict)
+    payload: dict[str, Any] = field(default_factory=dict)
 
 
-def parse_ehb(entries: list[dict]) -> list[RateRow]:
+def parse_ehb(entries: list[dict[str, Any]]) -> list[RateRow]:
     """Boss rates arrive as a flat list of {boss, rate} (kills per hour)."""
     rows: list[RateRow] = []
     for entry in entries:
@@ -24,7 +25,7 @@ def parse_ehb(entries: list[dict]) -> list[RateRow]:
     return rows
 
 
-def parse_ehp(entries: list[dict]) -> list[RateRow]:
+def parse_ehp(entries: list[dict[str, Any]]) -> list[RateRow]:
     """Skill rates carry tiered methods; store the peak xp/hr plus the full tiers."""
     rows: list[RateRow] = []
     for entry in entries:

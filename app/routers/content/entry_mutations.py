@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -36,9 +37,9 @@ async def update_entry(
     page_type: str,
     entry_id: UUID,
     body: UpdateEntryBody,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     _validate_page_type(page_type)
     await _require_mentor(current_user, session)
 
@@ -57,11 +58,7 @@ async def update_entry(
     ):
 
         def _to_utc(dt: datetime) -> datetime:
-            return (
-                dt.replace(tzinfo=timezone.utc)
-                if dt.tzinfo is None
-                else dt.astimezone(timezone.utc)
-            )
+            return dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt.astimezone(UTC)
 
         if _to_utc(body.expected_updated_at).replace(microsecond=0) != _to_utc(
             entry.updated_at
@@ -99,7 +96,7 @@ async def update_entry(
     content_fields = fields - {"sort_order", "expected_updated_at"}
     if content_fields:
         uid = int(current_user["sub"])
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         entry.updated_at = now
 
         max_ver_result = await session.execute(
@@ -141,9 +138,9 @@ async def update_entry(
 async def delete_entry(
     page_type: str,
     entry_id: UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Soft-delete: marks entry as deprecated."""
     _validate_page_type(page_type)
     await _require_mentor(current_user, session)
@@ -155,7 +152,7 @@ async def delete_entry(
         raise HTTPException(404, "Entry not found.")
 
     uid = int(current_user["sub"])
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     entry.deprecated = True
     entry.deprecated_at = now
     entry.deprecated_by = uid
@@ -167,9 +164,9 @@ async def delete_entry(
 async def restore_entry(
     page_type: str,
     entry_id: UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     _validate_page_type(page_type)
     await _require_mentor(current_user, session)
 
@@ -190,9 +187,9 @@ async def restore_entry(
 async def permanent_delete_entry(
     page_type: str,
     entry_id: UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     _validate_page_type(page_type)
     await _require_senior_mod(current_user, session, page_type)
 

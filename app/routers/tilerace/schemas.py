@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, field_validator
 
@@ -31,7 +32,7 @@ class TileBody(BaseModel):
     description: str = ""
     icon_url: str | None = None
     icon_source: str = "wiki"
-    items: list = []
+    items: list[Any] = []
     requirement: RequirementNode | None = None
     tags: list[str] = []
 
@@ -41,7 +42,7 @@ class TilePatch(BaseModel):
     description: str | None = None
     icon_url: str | None = None
     icon_source: str | None = None
-    items: list | None = None
+    items: list[Any] | None = None
     requirement: RequirementNode | None = None
     tags: list[str] | None = None
 
@@ -89,7 +90,7 @@ class EventPatch(BaseModel):
     fog_of_war: bool | None = None
     is_finished: bool | None = None
     signups_open: bool | None = None
-    cells: list | None = None
+    cells: list[Any] | None = None
     start_pad: Pad | None = None
     end_pad: Pad | None = None
     starts_at: datetime | None = None

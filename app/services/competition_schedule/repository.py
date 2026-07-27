@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Sequence
+from collections.abc import Sequence
+from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,7 +24,7 @@ _TERMINAL_STATUSES = {"results_announced", "skipped", "error"}
 
 
 def _now() -> datetime:
-    return datetime.now(tz=timezone.utc)
+    return datetime.now(tz=UTC)
 
 
 async def get_active_schedules(session: AsyncSession) -> Sequence[CompetitionSchedule]:
@@ -100,7 +101,7 @@ async def create_run(
     session: AsyncSession,
     schedule_id: int,
     *,
-    poll_options_override: list | None = None,
+    poll_options_override: list[dict[str, Any]] | None = None,
 ) -> ScheduledCompetitionRun:
     now = _now()
     run = ScheduledCompetitionRun(

@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -18,6 +20,7 @@ from app.db.models.competition_schedule import (
 from app.services.competitions import CreateCompetitionInput, create_competition
 from app.services.http import WiseOldManHandler, WomPriority
 from app.services.wiki_icons import metric_icon_url
+
 from .awards import process_run_awards
 from .ballot_tokens import refund_run, resolve_token_config
 from .repository import (
@@ -42,7 +45,7 @@ _CH_ANNOUNCE = "foundry:comp_schedule:announce_results"
 
 
 def _now() -> datetime:
-    return datetime.now(tz=timezone.utc)
+    return datetime.now(tz=UTC)
 
 
 class CompetitionScheduleService:
@@ -83,10 +86,8 @@ class CompetitionScheduleService:
         for task in (self._tick_task, self._sub_task):
             if task:
                 task.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await task
-                except asyncio.CancelledError:
-                    pass
         logger.info("CompetitionScheduleService stopped")
 
     # ── Tick loop ─────────────────────────────────────────────────────────
@@ -362,8 +363,8 @@ class CompetitionScheduleService:
             )
         ).scalar_one_or_none()
 
-        top_results: list[dict] = []
-        participations: list[dict] = []
+        top_results: list[dict[str, Any]] = []
+        participations: list[dict[str, Any]] = []
         if run.wom_competition_id:
             try:
                 async with WiseOldManHandler(
@@ -392,7 +393,7 @@ class CompetitionScheduleService:
                     exc,
                 )
 
-        awards_summary: dict = {"recipients": 0, "total": 0}
+        awards_summary: dict[str, Any] = {"recipients": 0, "total": 0}
         if participations and run.tokens_awarded_at is None:
             config = await resolve_token_config(session, sched)
             awards_summary = await process_run_awards(
@@ -474,7 +475,7 @@ class CompetitionScheduleService:
                 await client.aclose()
                 await asyncio.sleep(5)
 
-    async def _handle_poll_posted(self, data: dict) -> None:
+    async def _handle_poll_posted(self, data: dict[str, Any]) -> None:
         run_id = data.get("run_id")
         msg_id = data.get("discord_poll_message_id")
         channel_id = data.get("discord_poll_channel_id")
@@ -491,7 +492,7 @@ class CompetitionScheduleService:
                 )
                 await session.commit()
 
-    async def _handle_poll_result(self, data: dict) -> None:
+    async def _handle_poll_result(self, data: dict[str, Any]) -> None:
         run_id = data.get("run_id")
         if not run_id or self._session_factory is None:
             return

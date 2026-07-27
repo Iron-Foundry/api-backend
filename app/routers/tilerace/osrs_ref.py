@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from typing import Any
 
 import httpx
 from fastapi import APIRouter, Query
@@ -21,7 +22,7 @@ def _npc_icon_url(image_field: str) -> str:
 
 
 @router.get("/osrs/npcs")
-async def search_osrs_npcs(q: str = Query("", min_length=0)) -> list[dict]:
+async def search_osrs_npcs(q: str = Query("", min_length=0)) -> list[dict[str, Any]]:
     if not q or len(q) < 2:
         return []
     safe_q = q.replace("'", "''").replace(";", "")[:50]

@@ -9,11 +9,15 @@ whenever a router or response model changes:
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
-from app.main import app
+_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_ROOT))
 
-_SCHEMA_PATH = Path(__file__).resolve().parents[1] / "openapi.json"
+from app.main import app  # noqa: E402
+
+_SCHEMA_PATH = _ROOT / "openapi.json"
 
 
 def main() -> None:

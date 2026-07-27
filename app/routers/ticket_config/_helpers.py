@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from typing import Any
 
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -19,7 +20,7 @@ _MAX_IMAGE_BYTES = 8 * 1024 * 1024  # 8 MB
 _KNOWN_TYPES = ["general", "rankup", "join_cc", "contact_mentor", "sensitive"]
 _IMAGE_ALLOWED_TYPES = set(_KNOWN_TYPES) | {"panel"}
 
-_DEFAULTS: dict[str, dict] = {
+_DEFAULTS: dict[str, dict[str, Any]] = {
     "general": {
         "display_name": "General Support",
         "description": "General questions and miscellaneous requests.",
@@ -99,7 +100,7 @@ class PanelConfigOut(BaseModel):
     images: list[ImageInfo]
 
 
-async def get_ticket_row(session: AsyncSession) -> dict:
+async def get_ticket_row(session: AsyncSession) -> dict[str, Any]:
     result = await session.execute(
         select(Config.value).where(
             Config.guild_id == _DISCORD_GUILD_ID, Config.key == _TICKET_KEY
@@ -108,7 +109,7 @@ async def get_ticket_row(session: AsyncSession) -> dict:
     return dict(result.scalar_one_or_none() or {})
 
 
-async def set_ticket_row(value: dict, session: AsyncSession) -> None:
+async def set_ticket_row(value: dict[str, Any], session: AsyncSession) -> None:
     stmt = (
         pg_insert(Config)
         .values(guild_id=_DISCORD_GUILD_ID, key=_TICKET_KEY, value=value)
@@ -120,12 +121,12 @@ async def set_ticket_row(value: dict, session: AsyncSession) -> None:
     await session.commit()
 
 
-def merge_config(type_id: str, row: dict) -> dict:
+def merge_config(type_id: str, row: dict[str, Any]) -> dict[str, Any]:
     overrides = row.get("type_configs", {}).get(type_id, {})
     return {**_DEFAULTS[type_id], **overrides}
 
 
-def get_images(type_id: str, row: dict) -> list[ImageInfo]:
+def get_images(type_id: str, row: dict[str, Any]) -> list[ImageInfo]:
     prefix = f"{type_id}_img_"
     return [
         ImageInfo(name=key[len(prefix) : -len("_filename")], filename=row[key])
@@ -134,7 +135,7 @@ def get_images(type_id: str, row: dict) -> list[ImageInfo]:
     ]
 
 
-def build_response(type_id: str, row: dict) -> TicketTypeConfigOut:
+def build_response(type_id: str, row: dict[str, Any]) -> TicketTypeConfigOut:
     cfg = merge_config(type_id, row)
     return TicketTypeConfigOut(
         type_id=type_id,

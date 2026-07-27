@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import (
+    TIMESTAMP,
     BigInteger,
     Boolean,
     ForeignKey,
     Integer,
     Text,
-    TIMESTAMP,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -27,9 +28,11 @@ class TileRepositoryTile(Base):
     icon_source: Mapped[str] = mapped_column(
         Text, nullable=False, server_default="wiki"
     )
-    items: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
-    requirement: Mapped[dict | None] = mapped_column(JSONB)
-    tags: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    items: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )
+    requirement: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    tags: Mapped[list[str]] = mapped_column(JSONB, nullable=False, server_default="[]")
     created_by: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False
@@ -62,9 +65,11 @@ class TileRaceEvent(Base):
     dice_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
     dice_sides: Mapped[int] = mapped_column(Integer, nullable=False, server_default="6")
     background_url: Mapped[str | None] = mapped_column(Text)
-    cells: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
-    start_pad: Mapped[dict | None] = mapped_column(JSONB)
-    end_pad: Mapped[dict | None] = mapped_column(JSONB)
+    cells: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )
+    start_pad: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    end_pad: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     starts_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     ends_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     created_by: Mapped[int | None] = mapped_column(BigInteger)
@@ -94,8 +99,10 @@ class TileRaceTeam(Base):
     icon_url: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
     color: Mapped[str] = mapped_column(Text, nullable=False, server_default="#888888")
     position: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
-    members: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
-    pending_effects: Mapped[dict] = mapped_column(
+    members: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )
+    pending_effects: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default="{}"
     )
     updated_at: Mapped[datetime] = mapped_column(
@@ -117,7 +124,7 @@ class TileRaceRoll(Base):
         ForeignKey("tilerace_teams.id", ondelete="CASCADE"),
         nullable=False,
     )
-    dice: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    dice: Mapped[list[int]] = mapped_column(JSONB, nullable=False, server_default="[]")
     roll: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     skipped: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="false"

@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import BigInteger, Text, TIMESTAMP, UniqueConstraint, text
+from sqlalchemy import TIMESTAMP, BigInteger, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -19,7 +20,9 @@ class MemberGoals(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     rsn: Mapped[str] = mapped_column(Text, nullable=False)
-    goals: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    goals: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )
     share_token: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), nullable=False, server_default=text("gen_random_uuid()")
     )

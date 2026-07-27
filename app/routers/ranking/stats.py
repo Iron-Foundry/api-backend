@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,8 +17,8 @@ router = APIRouter()
 @router.get("/status")
 async def get_ranking_status(
     request: Request,
-    _: dict = Depends(get_current_user),
-) -> dict:
+    _: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     """Last run info. All authenticated users."""
     svc = getattr(request.app.state, "ranking_service", None)
     if svc is None:
@@ -37,7 +39,9 @@ async def get_ranking_status(
 
 
 @router.get("/stats")
-async def get_ranking_stats(session: AsyncSession = Depends(get_session)) -> dict:
+async def get_ranking_stats(
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
     """Full WOM + clan rank distribution across all ranked players. Public."""
     all_deduplicated = await get_all_deduplicated(session)
 
@@ -68,7 +72,7 @@ async def get_ranking_stats(session: AsyncSession = Depends(get_session)) -> dic
             if m.get("discord_role_id") and m.get("label")
         }
 
-        def _highest_discord_rank(discord_roles: list) -> str | None:
+        def _highest_discord_rank(discord_roles: list[str]) -> str | None:
             best_order, best_label = -1, None
             for rid in discord_roles:
                 if rid in role_id_to_rank:
@@ -82,7 +86,7 @@ async def get_ranking_stats(session: AsyncSession = Depends(get_session)) -> dic
                 User.discord_user_id.in_(user_ids)
             )
         )
-        user_data_by_id: dict[int, tuple[str | None, list]] = {
+        user_data_by_id: dict[int, tuple[str | None, list[str]]] = {
             row.discord_user_id: (row.clan_rank, row.discord_roles or [])
             for row in user_rows
         }

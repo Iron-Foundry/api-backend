@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select, delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import RolePanel
@@ -39,7 +40,7 @@ class RolePanelUpdate(BaseModel):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
-def _serialize(panel: RolePanel) -> dict:
+def _serialize(panel: RolePanel) -> dict[str, Any]:
     return {
         "panel_id": panel.panel_id,
         "guild_id": str(panel.guild_id),
@@ -71,7 +72,7 @@ def _serialize(panel: RolePanel) -> dict:
 )
 async def list_role_panels(
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Return all role panels for the guild."""
     result = await session.execute(
         select(RolePanel)
@@ -89,7 +90,7 @@ async def list_role_panels(
 async def get_role_panel(
     panel_id: str,
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     result = await session.execute(
         select(RolePanel).where(
             RolePanel.panel_id == panel_id, RolePanel.guild_id == _GUILD_ID
@@ -109,7 +110,7 @@ async def update_role_panel(
     panel_id: str,
     body: RolePanelUpdate,
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Update panel metadata and roles list. Run /rolepanel refresh in Discord to sync the embed."""
     result = await session.execute(
         select(RolePanel).where(
@@ -133,7 +134,7 @@ async def update_role_panel(
         for r in body.roles
         if r.role_id.strip() and r.label.strip()
     ]
-    panel.updated_at = datetime.now(timezone.utc)
+    panel.updated_at = datetime.now(UTC)
 
     await session.commit()
     await session.refresh(panel)
@@ -147,7 +148,7 @@ async def update_role_panel(
 async def delete_role_panel(
     panel_id: str,
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Delete a panel from the database. The Discord message will become orphaned - delete it manually."""
     result = await session.execute(
         select(RolePanel).where(

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from app.db.models import Event
 
 ACHIEVEMENT_TYPES = {
@@ -17,7 +19,7 @@ ACHIEVEMENT_TYPES = {
 }
 
 
-def build_achievement(row: Event) -> dict | None:
+def build_achievement(row: Event) -> dict[str, Any] | None:
     d = row.data or {}
     t = row.type
     if t == "level":

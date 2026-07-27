@@ -37,7 +37,7 @@ LimitQuery = Annotated[int, Query(ge=1, le=500)]
 OffsetQuery = Annotated[int, Query(ge=0)]
 
 
-async def _proxy_json(path: str, params: dict) -> Any:
+async def _proxy_json(path: str, params: dict[str, Any]) -> Any:
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
             resp = await client.get(f"{OSRS_CACHE_SERVICE_URL}{path}", params=params)
@@ -49,7 +49,7 @@ async def _proxy_json(path: str, params: dict) -> Any:
 
 
 @router.get("/meta")
-async def get_meta() -> dict:
+async def get_meta() -> dict[str, Any]:
     return await _proxy_json("/meta", {})
 
 
@@ -58,25 +58,25 @@ async def list_items(
     search: SearchQuery = None,
     limit: LimitQuery = 50,
     offset: OffsetQuery = 0,
-) -> list:
-    params = {"limit": limit, "offset": offset}
+) -> list[Any]:
+    params: dict[str, Any] = {"limit": limit, "offset": offset}
     if search:
         params["search"] = search
     return await _proxy_json("/items", params)
 
 
 @router.get("/items/names")
-async def list_item_names() -> dict:
+async def list_item_names() -> dict[str, Any]:
     return await _proxy_json("/items/names", {})
 
 
 @router.get("/items/{item_id}")
-async def get_item(item_id: Annotated[int, Path(ge=0)]) -> dict:
+async def get_item(item_id: Annotated[int, Path(ge=0)]) -> dict[str, Any]:
     return await _proxy_json(f"/items/{item_id}", {})
 
 
 @router.get("/items/{item_id}/variants")
-async def get_item_variants(item_id: Annotated[int, Path(ge=0)]) -> list:
+async def get_item_variants(item_id: Annotated[int, Path(ge=0)]) -> list[Any]:
     return await _proxy_json(f"/items/{item_id}/variants", {})
 
 
@@ -85,8 +85,8 @@ async def list_npcs(
     search: SearchQuery = None,
     limit: LimitQuery = 50,
     offset: OffsetQuery = 0,
-) -> list:
-    params = {"limit": limit, "offset": offset}
+) -> list[Any]:
+    params: dict[str, Any] = {"limit": limit, "offset": offset}
     if search:
         params["search"] = search
     return await _proxy_json("/npcs", params)
@@ -97,8 +97,8 @@ async def list_objects(
     search: SearchQuery = None,
     limit: LimitQuery = 50,
     offset: OffsetQuery = 0,
-) -> list:
-    params = {"limit": limit, "offset": offset}
+) -> list[Any]:
+    params: dict[str, Any] = {"limit": limit, "offset": offset}
     if search:
         params["search"] = search
     return await _proxy_json("/objects", params)
@@ -148,8 +148,8 @@ async def list_sprites(
     search: SearchQuery = None,
     limit: LimitQuery = 100,
     offset: OffsetQuery = 0,
-) -> list:
-    params = {"limit": limit, "offset": offset}
+) -> list[Any]:
+    params: dict[str, Any] = {"limit": limit, "offset": offset}
     if category:
         params["category"] = category
     if search:
@@ -158,12 +158,12 @@ async def list_sprites(
 
 
 @router.get("/sprites/categories")
-async def list_sprite_categories() -> list:
+async def list_sprite_categories() -> list[Any]:
     return await _proxy_json("/sprites/categories", {})
 
 
 @router.get("/sprites/{sprite_id}")
-async def get_sprite(sprite_id: Annotated[int, Path(ge=0)]) -> list:
+async def get_sprite(sprite_id: Annotated[int, Path(ge=0)]) -> list[Any]:
     return await _proxy_json(f"/sprites/{sprite_id}", {})
 
 
@@ -196,7 +196,7 @@ async def get_sprite_image(
 
 
 @router.get("/map/meta")
-async def get_map_meta() -> dict:
+async def get_map_meta() -> dict[str, Any]:
     manifest = await _proxy_json("/map/meta", {})
     if isinstance(manifest, dict) and MAP_TILES_BASE_URL and manifest.get("tileUrl"):
         manifest["tileUrl"] = f"{MAP_TILES_BASE_URL}{manifest['tileUrl']}"
@@ -204,7 +204,7 @@ async def get_map_meta() -> dict:
 
 
 @router.get("/map/regions/{region_id}")
-async def get_map_region(region_id: Annotated[int, Path(ge=0)]) -> dict:
+async def get_map_region(region_id: Annotated[int, Path(ge=0)]) -> dict[str, Any]:
     return await _proxy_json(f"/map/regions/{region_id}", {})
 
 
@@ -217,25 +217,29 @@ async def get_map_locations(
     max_x: Annotated[int | None, Query(ge=0)] = None,
     max_y: Annotated[int | None, Query(ge=0)] = None,
     limit: Annotated[int, Query(ge=1, le=10000)] = 1000,
-) -> dict:
-    params: dict = {"limit": limit}
-    for key, value in (
-        ("object_id", object_id),
-        ("plane", plane),
-        ("min_x", min_x),
-        ("min_y", min_y),
-        ("max_x", max_x),
-        ("max_y", max_y),
-    ):
-        if value is not None:
-            params[key] = value
+) -> dict[str, Any]:
+    params: dict[str, Any] = {"limit": limit}
+    params.update(
+        {
+            key: value
+            for key, value in (
+                ("object_id", object_id),
+                ("plane", plane),
+                ("min_x", min_x),
+                ("min_y", min_y),
+                ("max_x", max_x),
+                ("max_y", max_y),
+            )
+            if value is not None
+        }
+    )
     return await _proxy_json("/map/locations", params)
 
 
 @router.get("/map/icons")
 async def get_map_icons(
     plane: Annotated[int | None, Query(ge=0, le=4)] = None,
-) -> dict:
+) -> dict[str, Any]:
     params = {"plane": plane} if plane is not None else {}
     return await _proxy_json("/map/icons", params)
 
@@ -243,11 +247,11 @@ async def get_map_icons(
 @router.get("/map/labels")
 async def get_map_labels(
     plane: Annotated[int | None, Query(ge=0, le=3)] = None,
-) -> dict:
+) -> dict[str, Any]:
     params = {"plane": plane} if plane is not None else {}
     return await _proxy_json("/map/labels", params)
 
 
 @router.get("/map/sections")
-async def get_map_sections() -> dict:
+async def get_map_sections() -> dict[str, Any]:
     return await _proxy_json("/map/sections", {})

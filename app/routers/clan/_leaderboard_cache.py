@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from loguru import logger
 from valkey.asyncio import Valkey
@@ -8,13 +9,6 @@ from valkey.asyncio import Valkey
 from app.services.http import WiseOldManHandler, WomPriority
 
 from ._constants import (
-    _KC_FRESH_KEY,
-    _KC_FRESH_TTL,
-    _KC_LOCK_KEY,
-    _KC_LOCK_TTL,
-    _KC_METRICS,
-    _KC_STALE_KEY,
-    _KC_STALE_TTL,
     _CLUESCROLLS_FRESH_KEY,
     _CLUESCROLLS_FRESH_TTL,
     _CLUESCROLLS_LOCK_KEY,
@@ -22,13 +16,20 @@ from ._constants import (
     _CLUESCROLLS_METRICS,
     _CLUESCROLLS_STALE_KEY,
     _CLUESCROLLS_STALE_TTL,
+    _KC_FRESH_KEY,
+    _KC_FRESH_TTL,
+    _KC_LOCK_KEY,
+    _KC_LOCK_TTL,
+    _KC_METRICS,
+    _KC_STALE_KEY,
+    _KC_STALE_TTL,
     _WOM_API_KEY,
     _WOM_DISCORD_CONTACT,
     _WOM_GROUP_ID,
 )
 
 
-async def _fetch_bulk_hiscores() -> list[dict] | None:
+async def _fetch_bulk_hiscores() -> list[dict[str, Any]] | None:
     """Fetch clan bulk hiscores. Returns None (logged) on any WOM failure."""
     try:
         async with WiseOldManHandler(
@@ -44,12 +45,12 @@ async def _fetch_bulk_hiscores() -> list[dict] | None:
 
 
 def _bucket_bulk_by_metric(
-    bulk: list[dict], metrics: dict[str, str], category: str, value_key: str
-) -> list[dict]:
+    bulk: list[dict[str, Any]], metrics: dict[str, str], category: str, value_key: str
+) -> list[dict[str, Any]]:
     """Bucket a bulk-hiscores response into one ranked leaderboard per metric."""
-    out: list[dict] = []
+    out: list[dict[str, Any]] = []
     for metric, display_name in metrics.items():
-        entries: list[dict] = []
+        entries: list[dict[str, Any]] = []
         for entry in bulk:
             snapshot = (entry.get("data") or {}).get("data")
             if not snapshot:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -23,7 +24,7 @@ async def list_tiles(
     tag: str = Query("", min_length=0),
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     rows = (
         (
             await session.execute(
@@ -48,9 +49,9 @@ async def create_tile(
     body: TileBody,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-    current_user: dict = Depends(get_current_user),
-) -> dict:
-    now = datetime.now(timezone.utc)
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    now = datetime.now(UTC)
     tile = TileRepositoryTile(
         title=body.title,
         description=body.description,
@@ -73,7 +74,7 @@ async def get_tile(
     tile_id: int,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-) -> dict:
+) -> dict[str, Any]:
     tile = (
         await session.execute(
             select(TileRepositoryTile).where(TileRepositoryTile.id == tile_id)
@@ -90,7 +91,7 @@ async def patch_tile(
     body: TilePatch,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-) -> dict:
+) -> dict[str, Any]:
     tile = (
         await session.execute(
             select(TileRepositoryTile).where(TileRepositoryTile.id == tile_id)
@@ -112,7 +113,7 @@ async def patch_tile(
         tile.requirement = body.requirement.model_dump() if body.requirement else None
     if body.tags is not None:
         tile.tags = body.tags
-    tile.updated_at = datetime.now(timezone.utc)
+    tile.updated_at = datetime.now(UTC)
     await session.commit()
     return {"ok": True}
 
@@ -122,7 +123,7 @@ async def delete_tile(
     tile_id: int,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-) -> dict:
+) -> dict[str, Any]:
     tile = (
         await session.execute(
             select(TileRepositoryTile).where(TileRepositoryTile.id == tile_id)

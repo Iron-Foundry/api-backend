@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel
 from sqlalchemy import func, select
@@ -34,7 +35,7 @@ class PlayerProfileSchema(BaseModel):
     join_date: datetime | None
     stats_opt_out: bool
     accounts: list[AccountRankingSchema]
-    badges: list[dict]
+    badges: list[dict[str, Any]]
     latest_achievement: LatestAchievementSchema | None
     total_loot_value: int
     collection_log_slots: int
@@ -49,12 +50,12 @@ async def _load_linked_rsns(
     result = await session.execute(
         select(UserAccount.rsn).where(UserAccount.discord_user_id == discord_user_id)
     )
-    return [r for r in result.scalars().all()] or [fallback_rsn]
+    return list(result.scalars().all()) or [fallback_rsn]
 
 
 async def _load_badges_and_achievement(
     session: AsyncSession, discord_user_id: int, linked_rsns: list[str]
-) -> tuple[list[dict], LatestAchievementSchema | None]:
+) -> tuple[list[dict[str, Any]], LatestAchievementSchema | None]:
     badges_result = await session.execute(
         select(Badge)
         .join(UserBadge, UserBadge.badge_id == Badge.id)
@@ -117,7 +118,7 @@ async def get_player_profile(
         for r in rankings_result.scalars().all()
     ]
 
-    badges: list[dict] = []
+    badges: list[dict[str, Any]] = []
     latest_achievement: LatestAchievementSchema | None = None
     if discord_user_id is not None:
         badges, latest_achievement = await _load_badges_and_achievement(

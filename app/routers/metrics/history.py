@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, text
@@ -27,7 +28,7 @@ _SUM_KEYS = {
 }
 
 
-def _flatten_compact_metrics(metrics_agg: dict) -> dict:
+def _flatten_compact_metrics(metrics_agg: dict[str, Any]) -> dict[str, Any]:
     """Flatten compact {min,max,avg,sum,count} metrics to scalar values for frontend compatibility."""
     result = {}
     for key, val in metrics_agg.items():
@@ -42,9 +43,9 @@ def _flatten_compact_metrics(metrics_agg: dict) -> dict:
 async def metrics_bandwidth(
     service: str = Query(default="api-backend"),
     module: str = Query(default="endpoints"),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Return all-time total request and response bytes for a service/module pair."""
     await require_staff(current_user, session)
 
@@ -87,14 +88,14 @@ async def metrics_bandwidth(
 @router.get("/metrics/wom-rate-limit")
 async def wom_rate_limit_metrics(
     minutes: int = Query(default=60, ge=5, le=1440),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Return WOM rate-limit snapshots from DB (last N minutes) merged with in-memory."""
     await require_staff(current_user, session)
     from app.services.http.wom_queue import get_wom_queue
 
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=minutes)
+    cutoff = datetime.now(UTC) - timedelta(minutes=minutes)
     db_rows = (
         (
             await session.execute(
@@ -112,7 +113,7 @@ async def wom_rate_limit_metrics(
     )
 
     seen_ts: set[float] = set()
-    result: list[dict] = []
+    result: list[dict[str, Any]] = []
 
     for row in db_rows:
         ts = row.recorded_at.timestamp()
@@ -128,18 +129,18 @@ async def wom_rate_limit_metrics(
             }
         )
 
-    for s in get_wom_queue().snapshot_history():
-        if round(s.ts, 1) not in seen_ts:
-            result.append(
-                {
-                    "ts": s.ts,
-                    "remaining": s.remaining,
-                    "reservedUsed": s.reserved_used,
-                    "queueHigh": s.queue_high,
-                    "queueNormal": s.queue_normal,
-                    "queueLow": s.queue_low,
-                }
-            )
+    result.extend(
+        {
+            "ts": s.ts,
+            "remaining": s.remaining,
+            "reservedUsed": s.reserved_used,
+            "queueHigh": s.queue_high,
+            "queueNormal": s.queue_normal,
+            "queueLow": s.queue_low,
+        }
+        for s in get_wom_queue().snapshot_history()
+        if round(s.ts, 1) not in seen_ts
+    )
 
     result.sort(key=lambda r: r["ts"])
     return result
@@ -151,13 +152,13 @@ async def metrics_history(
     module: str = Query(...),
     from_: datetime = Query(
         alias="from",
-        default_factory=lambda: datetime.now(timezone.utc) - timedelta(days=7),
+        default_factory=lambda: datetime.now(UTC) - timedelta(days=7),
     ),
-    to: datetime = Query(default_factory=lambda: datetime.now(timezone.utc)),
+    to: datetime = Query(default_factory=lambda: datetime.now(UTC)),
     max_points: int = Query(default=300, ge=10, le=500),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     """Return merged raw + compact metric history for a service/module pair.
 
     Uses time-bucket sampling (DISTINCT ON) to return at most max_points evenly

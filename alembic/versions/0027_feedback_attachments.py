@@ -7,6 +7,7 @@ Create Date: 2026-06-02
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
+
 from alembic import op
 
 revision = "0027"

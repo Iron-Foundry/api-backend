@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
-from scalar_fastapi import get_scalar_api_reference
 from httpx import ASGITransport, AsyncClient
+from scalar_fastapi import get_scalar_api_reference
 
 from app.dependencies import (
     get_current_user,
@@ -26,7 +27,6 @@ from app.routers import (
     clan,
     config,
     content,
-    discord as discord_router,
     events,
     feedback,
     frenzy,
@@ -44,10 +44,13 @@ from app.routers import (
     ticket_config,
     tilerace,
 )
+from app.routers import (
+    discord as discord_router,
+)
 from app.tests._staff_patches import staff_permission_patches
-from app.tests._wom import mock_wom_instance as mock_wom_instance  # noqa: F401
+from app.tests._wom import mock_wom_instance as mock_wom_instance
 
-TEST_USER: dict = {
+TEST_USER: dict[str, Any] = {
     "sub": "111222333444555666",
     "username": "TestUser",
     "avatar": None,
@@ -114,7 +117,7 @@ def _build_app() -> FastAPI:
         )
 
     @app.get("/health")
-    async def _health() -> dict:
+    async def _health() -> dict[str, Any]:
         return {"status": "ok"}
 
     return app
@@ -157,8 +160,10 @@ def mock_valkey() -> AsyncMock:
     return v
 
 
-def _base_overrides(session: MagicMock, valkey: AsyncMock) -> dict:
-    async def _sess() -> AsyncGenerator:
+def _base_overrides(
+    session: MagicMock, valkey: AsyncMock
+) -> dict[Any, Callable[..., Any]]:
+    async def _sess() -> AsyncGenerator[MagicMock]:
         yield session
 
     return {
@@ -171,7 +176,7 @@ def _base_overrides(session: MagicMock, valkey: AsyncMock) -> dict:
 @pytest.fixture
 async def anon_client(
     mock_session: MagicMock, mock_valkey: AsyncMock
-) -> AsyncGenerator:
+) -> AsyncGenerator[AsyncClient]:
     _app.dependency_overrides = _base_overrides(mock_session, mock_valkey)
     async with AsyncClient(
         transport=ASGITransport(app=_app),
@@ -186,7 +191,7 @@ async def anon_client(
 @pytest.fixture
 async def auth_client(
     mock_session: MagicMock, mock_valkey: AsyncMock
-) -> AsyncGenerator:
+) -> AsyncGenerator[AsyncClient]:
     overrides = _base_overrides(mock_session, mock_valkey)
     overrides[get_current_user] = lambda: TEST_USER
     overrides[get_optional_user] = lambda: TEST_USER
@@ -203,7 +208,7 @@ async def auth_client(
 @pytest.fixture
 async def no_redirect_auth_client(
     mock_session: MagicMock, mock_valkey: AsyncMock
-) -> AsyncGenerator:
+) -> AsyncGenerator[AsyncClient]:
     overrides = _base_overrides(mock_session, mock_valkey)
     overrides[get_current_user] = lambda: TEST_USER
     overrides[get_optional_user] = lambda: TEST_USER
@@ -220,7 +225,7 @@ async def no_redirect_auth_client(
 @pytest.fixture
 async def staff_client(
     mock_session: MagicMock, mock_valkey: AsyncMock
-) -> AsyncGenerator:
+) -> AsyncGenerator[AsyncClient]:
     overrides = _base_overrides(mock_session, mock_valkey)
     overrides[get_current_user] = lambda: TEST_USER
     overrides[get_optional_user] = lambda: TEST_USER

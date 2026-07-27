@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from loguru import logger
 from sqlalchemy import select
@@ -13,6 +15,7 @@ from valkey.asyncio import Valkey
 
 from app.db.models import CompetitionSnapshot, Config
 from app.services.http import WiseOldManHandler, WomPriority
+
 from ._fetch import backfill_start_if_needed, fetch_metric_standings, load_ongoing_comps
 
 _WOM_API_KEY = os.getenv("WOM_API_KEY")
@@ -46,10 +49,8 @@ class CompetitionSnapshotService:
     async def stop(self) -> None:
         if self._task:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
         logger.info("CompetitionSnapshotService stopped")
 
     async def _poll_loop(self) -> None:
@@ -71,7 +72,7 @@ class CompetitionSnapshotService:
                     Config.key == _COMP_METRIC_MAP_KEY,
                 )
             )
-            metric_map: dict = result.scalar_one_or_none() or {}
+            metric_map: dict[str, Any] = result.scalar_one_or_none() or {}
 
         if not metric_map:
             logger.debug(
@@ -80,7 +81,7 @@ class CompetitionSnapshotService:
             return
 
         snapshots: list[CompetitionSnapshot] = []
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         async with WiseOldManHandler(
             api_key=_WOM_API_KEY,

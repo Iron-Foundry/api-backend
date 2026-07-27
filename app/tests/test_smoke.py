@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 from httpx import AsyncClient
 
-
 _GET_ROOTS: list[tuple[str, int]] = [
     ("/health", 200),
     ("/feedback/", 200),
@@ -35,7 +34,7 @@ async def test_root_get_no_redirect(
     which causes broken redirects behind a TLS-terminating proxy.
     """
     resp = await no_redirect_auth_client.get(path)
-    assert 300 > resp.status_code, (
+    assert resp.status_code < 300, (
         f"GET {path} returned redirect {resp.status_code} "
         f"-> {resp.headers.get('location', '?')} "
         f"(route registered with wrong path suffix)"

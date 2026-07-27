@@ -39,8 +39,8 @@ async def test_services_uptime(auth_client: AsyncClient) -> None:
 
 
 async def test_report_requires_key(auth_client: AsyncClient) -> None:
-    from app.tests.conftest import _app
     from app.dependencies import verify_metrics_key
+    from app.tests.conftest import _app
 
     original = _app.dependency_overrides.pop(verify_metrics_key, None)
     try:

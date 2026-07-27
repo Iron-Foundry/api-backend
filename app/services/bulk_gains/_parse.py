@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 _SKILL_SLUGS: frozenset[str] = frozenset(
     {
         "overall",
@@ -64,16 +66,18 @@ _COMPUTED_SLUGS: frozenset[str] = frozenset({"ehp", "ehb"})
 
 
 def parse_bulk_gains_data(
-    data: list[dict],
-) -> tuple[dict[str, dict], dict[str, dict], dict[str, dict]]:
+    data: list[dict[str, Any]],
+) -> tuple[
+    dict[str, dict[str, Any]], dict[str, dict[str, Any]], dict[str, dict[str, Any]]
+]:
     """Split a WOM bulk-gained data array into (skills, bosses, activities) dicts.
 
     Each value is {gained, start, end} from the WOM response. Computed metrics
     (ehp, ehb) are discarded.
     """
-    skills: dict[str, dict] = {}
-    bosses: dict[str, dict] = {}
-    activities: dict[str, dict] = {}
+    skills: dict[str, dict[str, Any]] = {}
+    bosses: dict[str, dict[str, Any]] = {}
+    activities: dict[str, dict[str, Any]] = {}
 
     for entry in data:
         metric: str = entry.get("metric", "")

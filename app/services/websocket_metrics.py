@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from loguru import logger
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -43,10 +45,8 @@ class WebSocketMetricsService:
     async def stop(self) -> None:
         if self._task:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
         logger.info("WebSocketMetricsService stopped")
 
     async def _poll_loop(self) -> None:
@@ -57,12 +57,12 @@ class WebSocketMetricsService:
     async def _flush(self) -> None:
         if not self._session_factory:
             return
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         connected_clients = self._cm.total_connections()
         active_guilds = self._cm.active_guild_count()
         messages_dispatched = self._cm.drain_messages_dispatched()
 
-        metrics: dict = {
+        metrics: dict[str, Any] = {
             "connected_clients": connected_clients,
             "active_guilds": active_guilds,
             "messages_dispatched": messages_dispatched,

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any
 
 from app.db.models import Asset, User
 
@@ -37,7 +38,7 @@ ALLOWED_EXTS = {
 }
 
 
-def serialize_asset(asset: Asset, uploader: User | None = None) -> dict:
+def serialize_asset(asset: Asset, uploader: User | None = None) -> dict[str, Any]:
     return {
         "id": str(asset.id),
         "filename": asset.filename,

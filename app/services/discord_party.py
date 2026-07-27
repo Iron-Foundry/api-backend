@@ -14,13 +14,13 @@ if TYPE_CHECKING:
     from app.db.models import PartyDB as Party
 
 
-async def post_party_embed(party: Party) -> str | None:  # noqa: ARG001
+async def post_party_embed(party: Party) -> str | None:
     return None
 
 
-async def edit_party_embed(party: Party) -> None:  # noqa: ARG001
+async def edit_party_embed(party: Party) -> None:
     return
 
 
-async def close_party_embed(party: Party) -> None:  # noqa: ARG001
+async def close_party_embed(party: Party) -> None:
     return

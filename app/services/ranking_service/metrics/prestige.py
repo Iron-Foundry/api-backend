@@ -13,7 +13,7 @@ class PrestigeMetric:
         return {"boss_name": self.boss_name, "multiplier": self.multiplier}
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "PrestigeMetric":
+    def from_dict(cls, d: dict[str, Any]) -> PrestigeMetric:
         return cls(
             boss_name=d["boss_name"],
             multiplier=float(d["multiplier"]),
@@ -27,7 +27,7 @@ class PrestigeMetricBuilder:
         self._boss_name = boss_name
         self._multiplier: float = 1.0
 
-    def multiplier(self, value: float) -> "PrestigeMetricBuilder":
+    def multiplier(self, value: float) -> PrestigeMetricBuilder:
         self._multiplier = value
         return self
 

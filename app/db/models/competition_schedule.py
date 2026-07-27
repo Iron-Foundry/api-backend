@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import (
+    TIMESTAMP,
     BigInteger,
     Boolean,
     Float,
@@ -10,7 +12,6 @@ from sqlalchemy import (
     Index,
     Integer,
     Text,
-    TIMESTAMP,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -32,7 +33,7 @@ class CompetitionSchedule(Base):
     poll_duration_hours: Mapped[float] = mapped_column(Float, nullable=False)
     competition_duration_hours: Mapped[float] = mapped_column(Float, nullable=False)
     recurrence_days: Mapped[float] = mapped_column(Float, nullable=False)
-    poll_options: Mapped[list] = mapped_column(
+    poll_options: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, nullable=False, server_default="[]"
     )
     title_template: Mapped[str] = mapped_column(
@@ -41,7 +42,7 @@ class CompetitionSchedule(Base):
     poll_version: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default="1"
     )
-    token_config_override: Mapped[dict | None] = mapped_column(JSONB)
+    token_config_override: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     next_poll_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     created_by: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(
@@ -73,7 +74,7 @@ class ScheduledCompetitionRun(Base):
     status: Mapped[str] = mapped_column(
         Text, nullable=False, server_default="pending_poll"
     )
-    poll_options_override: Mapped[list | None] = mapped_column(JSONB)
+    poll_options_override: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
     discord_poll_message_id: Mapped[int | None] = mapped_column(BigInteger)
     discord_poll_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     winning_metric: Mapped[str | None] = mapped_column(Text)

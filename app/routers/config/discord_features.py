@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from typing import Any
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -46,7 +47,7 @@ class JoinRolesFeatureConfig(BaseModel):
 )
 async def get_discord_roles_config(
     session: AsyncSession = Depends(get_session),
-) -> dict:
+) -> dict[str, Any]:
     data = await get_config_value(_DISCORD_ROLES_KEY, session)
     return {
         "staff_role_id": data.get("staff_role_id") or os.getenv("STAFF_ROLE_ID", ""),
@@ -63,7 +64,7 @@ async def get_discord_roles_config(
 )
 async def set_discord_roles_config(
     body: DiscordRolesConfig, session: AsyncSession = Depends(get_session)
-) -> dict:
+) -> dict[str, Any]:
     value = body.model_dump()
     await set_config_value(_DISCORD_ROLES_KEY, value, session)
     return value
@@ -73,7 +74,9 @@ async def set_discord_roles_config(
     "/discord-feature/action-log",
     dependencies=[Depends(require_page_permission("staff.discord-config", "read"))],
 )
-async def get_action_log_config(session: AsyncSession = Depends(get_session)) -> dict:
+async def get_action_log_config(
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
     data = await get_guild_config_value("action_log", session)
     return {
         "forum_channel_id": str(data.get("forum_channel_id", "") or ""),
@@ -87,7 +90,7 @@ async def get_action_log_config(session: AsyncSession = Depends(get_session)) ->
 )
 async def set_action_log_config(
     body: ActionLogFeatureConfig, session: AsyncSession = Depends(get_session)
-) -> dict:
+) -> dict[str, Any]:
     existing = await get_guild_config_value("action_log", session)
     existing.update(
         {"forum_channel_id": body.forum_channel_id, "enabled": body.enabled}
@@ -100,7 +103,9 @@ async def set_action_log_config(
     "/discord-feature/broadcast",
     dependencies=[Depends(require_page_permission("staff.discord-config", "read"))],
 )
-async def get_broadcast_config(session: AsyncSession = Depends(get_session)) -> dict:
+async def get_broadcast_config(
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
     data = await get_guild_config_value("broadcast", session)
     return {"role_id": str(data.get("role_id", "") or "")}
 
@@ -111,7 +116,7 @@ async def get_broadcast_config(session: AsyncSession = Depends(get_session)) -> 
 )
 async def set_broadcast_config(
     body: BroadcastFeatureConfig, session: AsyncSession = Depends(get_session)
-) -> dict:
+) -> dict[str, Any]:
     await set_guild_config_value("broadcast", {"role_id": body.role_id}, session)
     return {"role_id": body.role_id}
 
@@ -120,7 +125,9 @@ async def set_broadcast_config(
     "/discord-feature/join-roles",
     dependencies=[Depends(require_page_permission("staff.discord-config", "read"))],
 )
-async def get_join_roles_config(session: AsyncSession = Depends(get_session)) -> dict:
+async def get_join_roles_config(
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
     data = await get_guild_config_value("join_roles", session)
     return {"role_ids": [str(r) for r in data.get("role_ids", [])]}
 
@@ -131,7 +138,7 @@ async def get_join_roles_config(session: AsyncSession = Depends(get_session)) ->
 )
 async def set_join_roles_config(
     body: JoinRolesFeatureConfig, session: AsyncSession = Depends(get_session)
-) -> dict:
+) -> dict[str, Any]:
     await set_guild_config_value("join_roles", {"role_ids": body.role_ids}, session)
     return {"role_ids": body.role_ids}
 
@@ -140,7 +147,9 @@ async def set_join_roles_config(
     "/discord-feature/party-panel",
     dependencies=[Depends(require_page_permission("staff.discord-config", "read"))],
 )
-async def get_party_panel_config(session: AsyncSession = Depends(get_session)) -> dict:
+async def get_party_panel_config(
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
     """Read-only - party panel channel/message IDs are managed by the bot."""
     data = await get_guild_config_value("party_panel", session)
     return {

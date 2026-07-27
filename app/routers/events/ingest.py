@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends
 from loguru import logger
 from sqlalchemy import text
@@ -64,7 +66,10 @@ _BROADCAST_HANDLERS = {
 
 
 async def _handle_broadcast(
-    payload: ClanChatPayload, clan: dict, session: AsyncSession, valkey: Valkey
+    payload: ClanChatPayload,
+    clan: dict[str, Any],
+    session: AsyncSession,
+    valkey: Valkey,
 ) -> None:
     kind = parser.classify(payload.message)
     ccingest_collector.record(kind.value)
@@ -80,10 +85,10 @@ async def _handle_broadcast(
 @router.post("/ccingest")
 async def ingest_chat(
     payloads: list[ClanChatPayload],
-    clan: dict = Depends(verify_clan),
+    clan: dict[str, Any] = Depends(verify_clan),
     session: AsyncSession = Depends(get_session),
     valkey: Valkey = Depends(get_valkey),
-) -> dict:
+) -> dict[str, Any]:
     """Receive a batch of clan chat messages from the TrackScape Connector plugin."""
     for payload in payloads:
         if not clan_matches(payload.clan_name):

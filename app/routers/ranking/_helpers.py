@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from loguru import logger
 from pydantic import BaseModel
@@ -75,8 +76,8 @@ async def load_ranking_config(session: AsyncSession) -> RankingConfig:
         return _DEFAULT_CONFIG
 
 
-def compute_breakdown(players: list[dict]) -> dict:
-    rank_dist: dict[str, int] = {r: 0 for r in RANK_ORDER}
+def compute_breakdown(players: list[dict[str, Any]]) -> dict[str, Any]:
+    rank_dist: dict[str, int] = dict.fromkeys(RANK_ORDER, 0)
     boss_pcts: list[float] = []
 
     for p in players:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends
 from loguru import logger
@@ -56,7 +57,7 @@ async def _build_name_changes_cache(valkey: Valkey) -> None:
 async def group_name_changes(
     background_tasks: BackgroundTasks,
     valkey: Valkey = Depends(get_valkey),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Return recent approved WOM name changes. Stale-while-revalidate, 15 min fresh / 6 h stale."""
     fresh = await valkey.get(_NC_FRESH_KEY)
     if fresh:

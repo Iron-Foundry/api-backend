@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
@@ -21,7 +22,7 @@ _PERM = Depends(require_page_permission("frenzy", "edit"))
 @router.get("/templates")
 async def list_templates(
     session: AsyncSession = Depends(get_session), _perm: None = _PERM
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     rows = (
         (
             await session.execute(
@@ -49,9 +50,9 @@ async def create_template(
     body: TemplateBody,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-    current_user: dict = Depends(get_current_user),
-) -> dict:
-    now = datetime.now(timezone.utc)
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    now = datetime.now(UTC)
     uid = int(current_user["sub"])
     tmpl = FrenzyTemplate(
         name=body.name,
@@ -87,7 +88,7 @@ async def create_template(
 @router.get("/templates/{template_id}")
 async def get_template(
     template_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM
-) -> dict:
+) -> dict[str, Any]:
     tmpl = (
         await session.execute(
             select(FrenzyTemplate).where(FrenzyTemplate.id == template_id)
@@ -116,8 +117,8 @@ async def update_template(
     body: TemplateBody,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-    current_user: dict = Depends(get_current_user),
-) -> dict:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     tmpl = (
         await session.execute(
             select(FrenzyTemplate).where(FrenzyTemplate.id == template_id)
@@ -127,7 +128,7 @@ async def update_template(
         raise HTTPException(404, "Template not found.")
 
     uid = int(current_user["sub"])
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     max_ver = (
         await session.execute(
             select(func.max(FrenzyTemplateVersion.version_number)).where(
@@ -170,7 +171,7 @@ async def update_template(
 @router.delete("/templates/{template_id}")
 async def delete_template(
     template_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM
-) -> dict:
+) -> dict[str, Any]:
     event_count = (
         await session.execute(
             select(func.count(FrenzyEvent.id)).where(
@@ -196,7 +197,7 @@ async def delete_template(
 @router.get("/templates/{template_id}/versions")
 async def list_template_versions(
     template_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     result = await session.execute(
         select(FrenzyTemplateVersion, User)
         .join(
@@ -229,7 +230,7 @@ async def get_template_version(
     version_id: int,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-) -> dict:
+) -> dict[str, Any]:
     row = (
         await session.execute(
             select(FrenzyTemplateVersion, User)
@@ -272,8 +273,8 @@ async def revert_template_to_version(
     version_id: int,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-    current_user: dict = Depends(get_current_user),
-) -> dict:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     tmpl = (
         await session.execute(
             select(FrenzyTemplate).where(FrenzyTemplate.id == template_id)
@@ -294,7 +295,7 @@ async def revert_template_to_version(
         raise HTTPException(404, "Version not found.")
 
     uid = int(current_user["sub"])
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     max_ver = (
         await session.execute(
             select(func.max(FrenzyTemplateVersion.version_number)).where(
@@ -335,5 +336,5 @@ async def revert_template_to_version(
 async def calculate_points(
     body: CalculatePointsBody,
     _perm: None = _PERM,
-) -> dict:
+) -> dict[str, Any]:
     return {"tiers": _recalculate_tier_points(body.tiers, body.total_point_cap)}

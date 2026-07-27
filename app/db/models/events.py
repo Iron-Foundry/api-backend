@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, Text, TIMESTAMP
+from sqlalchemy import TIMESTAMP, BigInteger, Boolean, ForeignKey, Integer, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -23,7 +24,9 @@ class Event(Base):
         Boolean, nullable=False, server_default="false"
     )
     raw_message: Mapped[str | None] = mapped_column(Text)
-    data: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    data: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
     user_id: Mapped[int | None] = mapped_column(BigInteger, index=True)
     user_account_id: Mapped[int | None] = mapped_column(
         BigInteger,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
@@ -20,8 +21,8 @@ router = APIRouter()
 async def toggle_react(
     feedback_id: int,
     session: AsyncSession = Depends(get_session),
-    current_user: dict = Depends(get_current_user),
-) -> dict:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     discord_user_id = int(current_user["sub"])
     item = await session.get(Feedback, feedback_id)
     if not item:
@@ -44,7 +45,7 @@ async def toggle_react(
             FeedbackReaction(
                 feedback_id=feedback_id,
                 discord_user_id=discord_user_id,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
         )
         hearted = True
@@ -63,14 +64,14 @@ async def post_reply(
     feedback_id: int,
     body: PostReplyBody,
     session: AsyncSession = Depends(get_session),
-    current_user: dict = Depends(get_current_user),
-) -> dict:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     discord_user_id = int(current_user["sub"])
     item = await session.get(Feedback, feedback_id)
     if not item:
         raise HTTPException(404, "Feedback item not found")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     reply = FeedbackReply(
         feedback_id=feedback_id,
         discord_user_id=discord_user_id,
@@ -94,8 +95,8 @@ async def pin_reply(
     feedback_id: int,
     reply_id: int,
     session: AsyncSession = Depends(get_session),
-    current_user: dict = Depends(get_current_user),
-) -> dict:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     """Pin a reply (staff only). Unpins any previously pinned reply on this item."""
     discord_user_id = int(current_user["sub"])
     roles = await get_effective_roles(discord_user_id, session)
@@ -121,7 +122,7 @@ async def pin_reply(
         pinned.is_pinned = False
 
     reply.is_pinned = True
-    reply.updated_at = datetime.now(timezone.utc)
+    reply.updated_at = datetime.now(UTC)
     await session.commit()
     await session.refresh(reply)
 
@@ -134,8 +135,8 @@ async def unpin_reply(
     feedback_id: int,
     reply_id: int,
     session: AsyncSession = Depends(get_session),
-    current_user: dict = Depends(get_current_user),
-) -> dict:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     """Unpin a reply (staff only)."""
     discord_user_id = int(current_user["sub"])
     roles = await get_effective_roles(discord_user_id, session)
@@ -147,7 +148,7 @@ async def unpin_reply(
         raise HTTPException(404, "Reply not found")
 
     reply.is_pinned = False
-    reply.updated_at = datetime.now(timezone.utc)
+    reply.updated_at = datetime.now(UTC)
     await session.commit()
     await session.refresh(reply)
 
@@ -160,7 +161,7 @@ async def delete_reply(
     feedback_id: int,
     reply_id: int,
     session: AsyncSession = Depends(get_session),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
 ) -> None:
     discord_user_id = int(current_user["sub"])
     reply = await session.get(FeedbackReply, reply_id)

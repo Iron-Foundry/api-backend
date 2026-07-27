@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -21,9 +22,11 @@ router = APIRouter()
 _PERM = Depends(require_page_permission("tilerace.admin", "edit"))
 
 
-def _snake_draft(signups: list, team_ids: list[int]) -> dict[int, list]:
+def _snake_draft(
+    signups: list[TileRaceSignup], team_ids: list[int]
+) -> dict[int, list[TileRaceSignup]]:
     n = len(team_ids)
-    result: dict[int, list] = {tid: [] for tid in team_ids}
+    result: dict[int, list[TileRaceSignup]] = {tid: [] for tid in team_ids}
     if not n:
         return result
     sorted_sups = sorted(signups, key=lambda s: s.ranking_score, reverse=True)
@@ -41,7 +44,7 @@ async def add_team(
     body: TeamBody,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-) -> dict:
+) -> dict[str, Any]:
     event = (
         await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
     ).scalar_one_or_none()
@@ -56,7 +59,7 @@ async def add_team(
         color=body.color,
         position=0,
         members=[],
-        updated_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(UTC),
     )
     session.add(team)
     await session.commit()
@@ -70,7 +73,7 @@ async def patch_team(
     body: TeamPatch,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-) -> dict:
+) -> dict[str, Any]:
     team = (
         await session.execute(
             select(TileRaceTeam).where(
@@ -93,7 +96,7 @@ async def patch_team(
         team.color = body.color
     if body.position is not None:
         team.position = body.position
-    team.updated_at = datetime.now(timezone.utc)
+    team.updated_at = datetime.now(UTC)
     await session.commit()
     return {"ok": True}
 
@@ -104,7 +107,7 @@ async def delete_team(
     team_id: int,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-) -> dict:
+) -> dict[str, Any]:
     team = (
         await session.execute(
             select(TileRaceTeam).where(
@@ -125,7 +128,7 @@ async def scramble_teams(
     event_id: int,
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
-) -> dict:
+) -> dict[str, Any]:
     event = (
         await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
     ).scalar_one_or_none()
@@ -155,7 +158,7 @@ async def scramble_teams(
         raise HTTPException(400, "Need both teams and signups to scramble.")
     team_ids = [t.id for t in teams]
     assignments = _snake_draft(list(signups), team_ids)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     for team in teams:
         assigned = assignments.get(team.id, [])
         captain_idx = next(
