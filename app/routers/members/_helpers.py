@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import Any, cast
 
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import CursorResult
@@ -39,21 +39,21 @@ _CAP_MSG = (
 
 
 class PrivacyUpdate(BaseModel):
-    stats_opt_out: bool | None = None
-    hide_presence_notifications: bool | None = None
+    stats_opt_out: bool | None = Field(default=None, examples=[False])
+    hide_presence_notifications: bool | None = Field(default=None, examples=[False])
 
 
 class RsnUpdate(BaseModel):
-    rsn: str
+    rsn: str = Field(examples=["Iron Gim Bob"])
 
 
 class AddAccount(BaseModel):
-    rsn: str
+    rsn: str = Field(examples=["Iron Gim Bob"])
 
 
 class ReferralUpdate(BaseModel):
-    source: str
-    detail: str | None = None
+    source: str = Field(examples=sorted(_REFERRAL_SOURCES))
+    detail: str | None = Field(default=None, examples=["Found via the clan's YouTube"])
 
 
 async def _upsert_primary_account(

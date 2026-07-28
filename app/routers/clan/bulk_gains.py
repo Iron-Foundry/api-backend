@@ -34,6 +34,7 @@ async def fetch_bulk_gains(
     body: FetchBulkGainsBody,
     request: Request,
 ) -> dict[str, Any]:
+    """Fetch a gains snapshot for the whole clan over a date range and store it as a batch."""
     if not body.period and not (body.start_date and body.end_date):
         raise HTTPException(
             422, "Provide either period or both start_date and end_date"
@@ -49,6 +50,7 @@ async def fetch_bulk_gains(
 
 @router.get("/bulk-gains/batches")
 async def list_bulk_gains_batches(request: Request) -> list[dict[str, Any]]:
+    """List the stored bulk-gains batches, newest first."""
     svc = _get_service(request)
     batches = await svc.list_batches()
     return [
@@ -65,6 +67,7 @@ async def list_bulk_gains_batches(request: Request) -> list[dict[str, Any]]:
 
 @router.get("/bulk-gains/batches/{batch_id}")
 async def get_bulk_gains_batch(batch_id: int, request: Request) -> dict[str, Any]:
+    """Return every player's gains within one batch."""
     svc = _get_service(request)
     players = await svc.get_batch_players(batch_id)
     if not players:
@@ -90,6 +93,7 @@ async def get_bulk_gains_batch(batch_id: int, request: Request) -> dict[str, Any
 async def get_player_bulk_gains(
     batch_id: int, rsn: str, request: Request
 ) -> dict[str, Any]:
+    """Return one player's gains within one batch, by RSN."""
     svc = _get_service(request)
     row = await svc.get_player_gains(batch_id, rsn)
     if not row:

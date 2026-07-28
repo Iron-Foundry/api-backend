@@ -9,7 +9,11 @@ import httpx
 from fastapi import APIRouter, HTTPException, Path, Query
 from fastapi.responses import Response
 
-router = APIRouter(prefix="/osrs-cache", tags=["osrs-cache"])
+from app.docs import responses
+
+router = APIRouter(
+    prefix="/osrs-cache", tags=["osrs-cache"], responses=responses.PROXIED
+)
 
 OSRS_CACHE_SERVICE_URL = os.getenv(
     "OSRS_CACHE_SERVICE_URL", "http://osrs-cache-service:8100"
@@ -50,6 +54,7 @@ async def _proxy_json(path: str, params: dict[str, Any]) -> Any:
 
 @router.get("/meta")
 async def get_meta() -> dict[str, Any]:
+    """Report the ingested cache build and how many definitions it holds."""
     return await _proxy_json("/meta", {})
 
 
@@ -59,6 +64,7 @@ async def list_items(
     limit: LimitQuery = 50,
     offset: OffsetQuery = 0,
 ) -> list[Any]:
+    """Search item definitions by name, or page through all of them."""
     params: dict[str, Any] = {"limit": limit, "offset": offset}
     if search:
         params["search"] = search
@@ -67,16 +73,19 @@ async def list_items(
 
 @router.get("/items/names")
 async def list_item_names() -> dict[str, Any]:
+    """Return the full item id to name map, for bulk client-side lookups."""
     return await _proxy_json("/items/names", {})
 
 
 @router.get("/items/{item_id}")
 async def get_item(item_id: Annotated[int, Path(ge=0)]) -> dict[str, Any]:
+    """Return one item definition, including its 2D render recipe."""
     return await _proxy_json(f"/items/{item_id}", {})
 
 
 @router.get("/items/{item_id}/variants")
 async def get_item_variants(item_id: Annotated[int, Path(ge=0)]) -> list[Any]:
+    """List the noted, placeholder, and charged forms sharing this item's name."""
     return await _proxy_json(f"/items/{item_id}/variants", {})
 
 
@@ -86,6 +95,7 @@ async def list_npcs(
     limit: LimitQuery = 50,
     offset: OffsetQuery = 0,
 ) -> list[Any]:
+    """Search NPC definitions by name, or page through all of them."""
     params: dict[str, Any] = {"limit": limit, "offset": offset}
     if search:
         params["search"] = search
@@ -98,6 +108,7 @@ async def list_objects(
     limit: LimitQuery = 50,
     offset: OffsetQuery = 0,
 ) -> list[Any]:
+    """Search scenery object definitions by name, or page through all of them."""
     params: dict[str, Any] = {"limit": limit, "offset": offset}
     if search:
         params["search"] = search
@@ -106,6 +117,7 @@ async def list_objects(
 
 @router.get("/item-icons/{item_id}")
 async def get_item_icon(item_id: Annotated[int, Path(ge=0)]) -> Response:
+    """Serve the baked 512px item icon as lossless WebP, immutably cached."""
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
             resp = await client.get(f"{OSRS_CACHE_SERVICE_URL}/item-icons/{item_id}")
@@ -125,6 +137,11 @@ async def render_item_icon(
     item_id: Annotated[int, Path(ge=0)],
     size: Annotated[int, Query(ge=32, le=4096)] = 512,
 ) -> Response:
+    """Render the item icon at a custom size on demand.
+
+    Slower than the baked icon and cached for days rather than forever; prefer
+    `/item-icons/{item_id}` unless you need a specific size.
+    """
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
             resp = await client.get(
@@ -149,6 +166,7 @@ async def list_sprites(
     limit: LimitQuery = 100,
     offset: OffsetQuery = 0,
 ) -> list[Any]:
+    """Search UI sprites by name or category, or page through all of them."""
     params: dict[str, Any] = {"limit": limit, "offset": offset}
     if category:
         params["category"] = category
@@ -159,11 +177,13 @@ async def list_sprites(
 
 @router.get("/sprites/categories")
 async def list_sprite_categories() -> list[Any]:
+    """List the sprite category names, as grouped by RuneLite's SpriteID."""
     return await _proxy_json("/sprites/categories", {})
 
 
 @router.get("/sprites/{sprite_id}")
 async def get_sprite(sprite_id: Annotated[int, Path(ge=0)]) -> list[Any]:
+    """List the frames in a sprite group. Most groups hold exactly one."""
     return await _proxy_json(f"/sprites/{sprite_id}", {})
 
 
@@ -174,6 +194,7 @@ async def get_sprite_image(
     format: Annotated[str, Query(pattern="^(png|webp)$")] = "png",
     scale: Annotated[int | None, Query(ge=1, le=32)] = None,
 ) -> Response:
+    """Serve one sprite frame as PNG or WebP, optionally scaled up."""
     params: dict[str, Any] = {"format": format}
     if scale is not None:
         params["scale"] = scale
@@ -197,6 +218,11 @@ async def get_sprite_image(
 
 @router.get("/map/meta")
 async def get_map_meta() -> dict[str, Any]:
+    """Return the slippy-map manifest: zoom range, bounds, and coverage bitmap.
+
+    The relative `tileUrl` is rewritten onto the public tile host, so clients
+    can use it directly.
+    """
     manifest = await _proxy_json("/map/meta", {})
     if isinstance(manifest, dict) and MAP_TILES_BASE_URL and manifest.get("tileUrl"):
         manifest["tileUrl"] = f"{MAP_TILES_BASE_URL}{manifest['tileUrl']}"
@@ -205,6 +231,7 @@ async def get_map_meta() -> dict[str, Any]:
 
 @router.get("/map/regions/{region_id}")
 async def get_map_region(region_id: Annotated[int, Path(ge=0)]) -> dict[str, Any]:
+    """Return one map region's decoded terrain, keyed by region id."""
     return await _proxy_json(f"/map/regions/{region_id}", {})
 
 
@@ -218,6 +245,7 @@ async def get_map_locations(
     max_y: Annotated[int | None, Query(ge=0)] = None,
     limit: Annotated[int, Query(ge=1, le=10000)] = 1000,
 ) -> dict[str, Any]:
+    """Find placed scenery, either by object id or within a tile bounding box."""
     params: dict[str, Any] = {"limit": limit}
     params.update(
         {
@@ -240,6 +268,7 @@ async def get_map_locations(
 async def get_map_icons(
     plane: Annotated[int | None, Query(ge=0, le=4)] = None,
 ) -> dict[str, Any]:
+    """List the map icons placed on a plane, joined to their source object."""
     params = {"plane": plane} if plane is not None else {}
     return await _proxy_json("/map/icons", params)
 
@@ -248,10 +277,12 @@ async def get_map_icons(
 async def get_map_labels(
     plane: Annotated[int | None, Query(ge=0, le=3)] = None,
 ) -> dict[str, Any]:
+    """List named areas on a plane. Areas carry no polygon, so these are unplaced."""
     params = {"plane": plane} if plane is not None else {}
     return await _proxy_json("/map/labels", params)
 
 
 @router.get("/map/sections")
 async def get_map_sections() -> dict[str, Any]:
+    """List the named map sections used to jump the viewport to a landmark."""
     return await _proxy_json("/map/sections", {})

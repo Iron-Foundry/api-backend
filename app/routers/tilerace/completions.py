@@ -24,6 +24,7 @@ async def list_completions(
     session: AsyncSession = Depends(get_session),
     _current_user: dict[str, Any] = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
+    """List which board positions each team has completed."""
     event = (
         await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
     ).scalar_one_or_none()
@@ -53,6 +54,7 @@ async def set_completion(
     _perm: None = _PERM,
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
+    """Mark a board position complete or incomplete for a team."""
     team = (
         await session.execute(
             select(TileRaceTeam).where(

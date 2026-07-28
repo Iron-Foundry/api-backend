@@ -19,6 +19,7 @@ router = APIRouter()
 async def get_panel_config(
     session: AsyncSession = Depends(get_session),
 ) -> InfoPanelConfig:
+    """Return the layout of the Discord info panel."""
     data = await get_config_value(_PANEL_CONFIG_KEY, session)
     if not data:
         return InfoPanelConfig()
@@ -32,5 +33,6 @@ async def get_panel_config(
 async def set_panel_config(
     body: InfoPanelConfig, session: AsyncSession = Depends(get_session)
 ) -> InfoPanelConfig:
+    """Replace the layout of the Discord info panel."""
     await set_config_value(_PANEL_CONFIG_KEY, body.model_dump(), session)
     return body

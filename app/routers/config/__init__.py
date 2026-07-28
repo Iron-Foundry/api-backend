@@ -11,7 +11,9 @@ from .ticket_features import router as ticket_features_router
 
 __all__ = ["_ALL_SERVICE_KEYS", "get_service_toggles", "router"]
 
-router = APIRouter(prefix="/config", tags=["config"])
+from app.docs import responses
+
+router = APIRouter(prefix="/config", tags=["config"], responses=responses.STAFF)
 router.include_router(general_router)
 router.include_router(discord_features_router)
 router.include_router(ranking_router)

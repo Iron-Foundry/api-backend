@@ -70,6 +70,7 @@ class NotificationCategoriesBody(BaseModel):
 async def get_rank_mappings(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Return the mapping from in-game clan rank to Discord role."""
     data = await get_config_value(_RANK_MAPPINGS_KEY, session)
     return {"mappings": data.get("mappings", [])}
 
@@ -81,6 +82,7 @@ async def get_rank_mappings(
 async def set_rank_mappings(
     body: RankMappingsBody, session: AsyncSession = Depends(get_session)
 ) -> dict[str, Any]:
+    """Replace the clan rank to Discord role mapping."""
     mappings = [
         m.model_dump()
         for m in body.mappings
@@ -95,6 +97,7 @@ async def get_page_permissions(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Return which roles may read or edit each control-panel page."""
     data = await get_config_value(_PAGE_PERMISSIONS_KEY, session)
     bypass_roles = await get_admin_bypass_roles(session)
     return {"pages": data.get("pages", {}), "admin_bypass_roles": bypass_roles}
@@ -107,6 +110,7 @@ async def get_page_permissions(
 async def set_page_permissions(
     body: PagePermissionsBody, session: AsyncSession = Depends(get_session)
 ) -> dict[str, Any]:
+    """Replace the per-page read and edit role requirements."""
     pages = {k: v.model_dump() for k, v in body.pages.items()}
     await set_config_value(_PAGE_PERMISSIONS_KEY, {"pages": pages}, session)
     return {"pages": pages}
@@ -117,6 +121,7 @@ async def get_admin_bypass_roles_endpoint(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Return the roles that bypass every page permission check."""
     roles = await get_admin_bypass_roles(session)
     return {"roles": roles}
 
@@ -127,6 +132,7 @@ async def set_admin_bypass_roles(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Replace the roles that bypass every page permission check."""
     uid = int(current_user["sub"])
     caller_roles = await get_effective_roles(uid, session)
     bypass_roles = await get_admin_bypass_roles(session)
@@ -154,6 +160,7 @@ async def get_notification_categories(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Return the party notification categories members can subscribe to."""
     data = await get_config_value(_NOTIFICATION_CATEGORIES_KEY, session)
     return {"categories": data.get("categories", [])}
 
@@ -165,6 +172,7 @@ async def get_notification_categories(
 async def set_notification_categories(
     body: NotificationCategoriesBody, session: AsyncSession = Depends(get_session)
 ) -> dict[str, Any]:
+    """Replace the party notification categories."""
     categories = [
         c.model_dump() for c in body.categories if c.id.strip() and c.label.strip()
     ]

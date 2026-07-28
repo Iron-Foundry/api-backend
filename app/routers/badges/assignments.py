@@ -23,6 +23,7 @@ async def badge_members(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[dict[str, Any]]:
+    """List the members currently holding this badge."""
     await require_mentor(current_user, session)
     result = await session.execute(
         select(UserBadge, User.discord_username, User.rsn)
@@ -48,6 +49,7 @@ async def assign_badge(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Grant this badge to a member. Staff only."""
     await require_mentor(current_user, session)
     badge = (
         await session.execute(select(Badge).where(Badge.id == badge_id))
@@ -75,6 +77,7 @@ async def revoke_badge(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Revoke this badge from a member. Staff only."""
     await require_mentor(current_user, session)
     await session.execute(
         delete(UserBadge).where(
@@ -90,6 +93,7 @@ async def my_badges(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[dict[str, Any]]:
+    """List the badges held by the signed-in member."""
     uid = int(current_user["sub"])
     result = await session.execute(
         select(Badge, UserBadge.assigned_at)

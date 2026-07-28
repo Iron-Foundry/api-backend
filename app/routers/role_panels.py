@@ -13,9 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import RolePanel
 from app.dependencies import get_session
+from app.docs import responses
 from app.services.page_permissions import require_page_permission
 
-router = APIRouter(prefix="/role-panels", tags=["role-panels"])
+router = APIRouter(
+    prefix="/role-panels", tags=["role-panels"], responses=responses.STAFF_LOOKUP
+)
 
 _GUILD_ID = int(os.getenv("GUILD_ID", "0"))
 
@@ -91,6 +94,7 @@ async def get_role_panel(
     panel_id: str,
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Return one self-assign role panel with its buttons and roles."""
     result = await session.execute(
         select(RolePanel).where(
             RolePanel.panel_id == panel_id, RolePanel.guild_id == _GUILD_ID

@@ -22,6 +22,7 @@ async def update_privacy(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Set whether the member's stats are hidden from public leaderboards."""
     discord_user_id = int(current_user["sub"])
     values: dict[str, Any] = {"updated_at": datetime.now(UTC)}
     if body.stats_opt_out is not None:
@@ -43,6 +44,7 @@ async def get_me_stats(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Return the signed-in member's own tracked stats."""
     discord_user_id = int(current_user["sub"])
     user_result = await session.execute(
         select(
@@ -75,6 +77,7 @@ async def update_referral(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Record how the member found the clan."""
     if body.source not in _REFERRAL_SOURCES:
         raise HTTPException(status_code=422, detail="Invalid referral source.")
     detail = body.detail.strip() if body.detail else None

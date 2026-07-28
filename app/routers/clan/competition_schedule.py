@@ -175,6 +175,7 @@ async def _schedule_to_dict(
 async def list_schedules(
     session: AsyncSession = Depends(get_session),
 ) -> list[dict[str, Any]]:
+    """List every recurring competition schedule with its active run."""
     schedules = await get_all_schedules(session)
     return [await _schedule_to_dict(s, session) for s in schedules]
 
@@ -184,6 +185,7 @@ async def create_schedule(
     body: CreateScheduleBody,
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Create a recurring schedule that polls members, then opens the winning competition."""
     now = _now()
     sched = CompetitionSchedule(
         name=body.name,
@@ -215,6 +217,7 @@ async def get_schedule_endpoint(
     schedule_id: int,
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Return one schedule with its currently active run, if any."""
     sched = await get_schedule(session, schedule_id)
     if not sched:
         raise HTTPException(404, "Schedule not found")
@@ -227,6 +230,7 @@ async def patch_schedule(
     body: PatchScheduleBody,
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Update a schedule's recurrence, poll options, or announcement settings."""
     sched = await get_schedule(session, schedule_id)
     if not sched:
         raise HTTPException(404, "Schedule not found")
@@ -253,6 +257,7 @@ async def delete_schedule(
     schedule_id: int,
     session: AsyncSession = Depends(get_session),
 ) -> None:
+    """Delete a schedule and stop any further runs from being created."""
     sched = await get_schedule(session, schedule_id)
     if not sched:
         raise HTTPException(404, "Schedule not found")
@@ -268,6 +273,7 @@ async def pause_schedule(
     schedule_id: int,
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Stop the schedule from opening new polls, leaving existing runs alone."""
     sched = await get_schedule(session, schedule_id)
     if not sched:
         raise HTTPException(404, "Schedule not found")
@@ -282,6 +288,7 @@ async def resume_schedule(
     schedule_id: int,
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Resume a paused schedule from its next due poll."""
     sched = await get_schedule(session, schedule_id)
     if not sched:
         raise HTTPException(404, "Schedule not found")
@@ -298,6 +305,10 @@ async def skip_next(
     schedule_id: int,
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Cancel the active run and push the next poll out one full recurrence.
+
+    Refunds any ballot tokens the cancelled run had already spent.
+    """
     sched = await get_schedule(session, schedule_id)
     if not sched:
         raise HTTPException(404, "Schedule not found")
@@ -329,6 +340,10 @@ async def adjust_poll(
     session: AsyncSession = Depends(get_session),
     valkey: Valkey = Depends(get_valkey),
 ) -> dict[str, Any]:
+    """Shift the active poll's close time, and re-announce it to Discord.
+
+    Clamped to at least one minute out. Returns 409 when no poll is open.
+    """
     sched = await get_schedule(session, schedule_id)
     if not sched:
         raise HTTPException(404, "Schedule not found")
@@ -353,6 +368,10 @@ async def trigger_now(
     schedule_id: int,
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Bring the next poll forward so the scheduler opens it on its next tick.
+
+    Returns 409 if a poll is already pending or open; skip it first.
+    """
     sched = await get_schedule(session, schedule_id)
     if not sched:
         raise HTTPException(404, "Schedule not found")
@@ -379,6 +398,7 @@ async def set_next_poll_at(
     body: dict[str, Any],
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Set the schedule's next poll time to an explicit UTC timestamp."""
     sched = await get_schedule(session, schedule_id)
     if not sched:
         raise HTTPException(404, "Schedule not found")
@@ -406,6 +426,7 @@ async def override_options(
     body: OverrideOptionsBody,
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Replace the poll options for a run, creating and triggering one if needed."""
     sched = await get_schedule(session, schedule_id)
     if not sched:
         raise HTTPException(404, "Schedule not found")
@@ -453,6 +474,11 @@ async def patch_run(
     body: PatchRunBody,
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Correct a run's status, winning metric, or competition window.
+
+    Rejects marking a run active with an end time already in the past, which
+    would make the scheduler announce results immediately.
+    """
     sched = await get_schedule(session, schedule_id)
     if not sched:
         raise HTTPException(404, "Schedule not found")
@@ -485,6 +511,7 @@ async def list_runs(
     limit: int = 20,
     session: AsyncSession = Depends(get_session),
 ) -> list[dict[str, Any]]:
+    """List a schedule's past and present runs, newest first."""
     sched = await get_schedule(session, schedule_id)
     if not sched:
         raise HTTPException(404, "Schedule not found")

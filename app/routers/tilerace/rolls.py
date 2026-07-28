@@ -23,6 +23,7 @@ async def list_rolls(
     session: AsyncSession = Depends(get_session),
     _current_user: dict[str, Any] = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
+    """List an event's dice rolls, newest first."""
     event = (
         await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
     ).scalar_one_or_none()

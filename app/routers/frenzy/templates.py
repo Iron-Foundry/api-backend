@@ -23,6 +23,7 @@ _PERM = Depends(require_page_permission("frenzy", "edit"))
 async def list_templates(
     session: AsyncSession = Depends(get_session), _perm: None = _PERM
 ) -> list[dict[str, Any]]:
+    """List every frenzy template with its tier and scoring summary."""
     rows = (
         (
             await session.execute(
@@ -52,6 +53,7 @@ async def create_template(
     _perm: None = _PERM,
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
+    """Create a reusable frenzy template that events are built from."""
     now = datetime.now(UTC)
     uid = int(current_user["sub"])
     tmpl = FrenzyTemplate(
@@ -89,6 +91,7 @@ async def create_template(
 async def get_template(
     template_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM
 ) -> dict[str, Any]:
+    """Return one template with its full tier and task definition."""
     tmpl = (
         await session.execute(
             select(FrenzyTemplate).where(FrenzyTemplate.id == template_id)
@@ -119,6 +122,7 @@ async def update_template(
     _perm: None = _PERM,
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
+    """Replace a template's definition, snapshotting the previous version."""
     tmpl = (
         await session.execute(
             select(FrenzyTemplate).where(FrenzyTemplate.id == template_id)
@@ -172,6 +176,7 @@ async def update_template(
 async def delete_template(
     template_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM
 ) -> dict[str, Any]:
+    """Delete a template. Refused while events still reference it."""
     event_count = (
         await session.execute(
             select(func.count(FrenzyEvent.id)).where(
@@ -198,6 +203,7 @@ async def delete_template(
 async def list_template_versions(
     template_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM
 ) -> list[dict[str, Any]]:
+    """List a template's saved versions with who authored each."""
     result = await session.execute(
         select(FrenzyTemplateVersion, User)
         .join(
@@ -231,6 +237,7 @@ async def get_template_version(
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
+    """Return one archived version of a template in full."""
     row = (
         await session.execute(
             select(FrenzyTemplateVersion, User)
@@ -275,6 +282,7 @@ async def revert_template_to_version(
     _perm: None = _PERM,
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
+    """Restore an archived version as the template's current definition."""
     tmpl = (
         await session.execute(
             select(FrenzyTemplate).where(FrenzyTemplate.id == template_id)
@@ -337,4 +345,8 @@ async def calculate_points(
     body: CalculatePointsBody,
     _perm: None = _PERM,
 ) -> dict[str, Any]:
+    """Preview the per-tier point split for a tier set and total cap.
+
+    Pure calculation helper for the template editor; it persists nothing.
+    """
     return {"tiers": _recalculate_tier_points(body.tiers, body.total_point_cap)}

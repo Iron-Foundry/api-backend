@@ -1,18 +1,23 @@
 import os
 import time
 from contextlib import asynccontextmanager
-from typing import Any
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from loguru import logger
-from scalar_fastapi import get_scalar_api_reference
 from starlette.middleware.base import RequestResponseEndpoint
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from valkey.asyncio import Valkey
 
 from app.db import create_engine, create_session_factory
+from app.docs import (
+    DESCRIPTION,
+    SERVERS,
+    TAGS_METADATA,
+    install_openapi_customization,
+    render_reference,
+)
 from app.routers import (
     assets,
     auth,
@@ -26,6 +31,7 @@ from app.routers import (
     frenzy,
     ironclad,
     members,
+    meta,
     metrics,
     osrs_cache,
     parties,
@@ -64,6 +70,7 @@ from app.services.party_expiry import PartyExpiryService
 from app.services.ranking_service import RankingService
 from app.services.websocket_metrics import WebSocketMetricsService
 from app.services.wom_metrics import WomMetricsService
+from app.version import VERSION
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 VALKEY_URI = os.getenv("VALKEY_URI", "redis://localhost:6379")
@@ -219,10 +226,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="The Foundry API",
+    version=VERSION,
+    description=DESCRIPTION,
+    openapi_tags=TAGS_METADATA,
+    servers=SERVERS,
     lifespan=lifespan,
     docs_url=None,
     redoc_url=None,
 )
+install_openapi_customization(app)
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 _collector = EndpointMetricsCollector()
@@ -254,6 +266,7 @@ async def _request_metrics_middleware(
     return response
 
 
+app.include_router(meta.router)
 app.include_router(assets.router)
 app.include_router(auth.router)
 app.include_router(clan.router)
@@ -282,13 +295,4 @@ app.include_router(osrs_cache.router)
 
 @app.get("/docs", include_in_schema=False)
 async def scalar_docs() -> HTMLResponse:
-    return get_scalar_api_reference(
-        openapi_url=app.openapi_url or "/openapi.json",
-        title=app.title,
-        telemetry=False,
-    )
-
-
-@app.get("/health")
-async def health() -> dict[str, Any]:
-    return {"status": "ok"}
+    return render_reference(app.openapi_url or "/openapi.json", app.title)

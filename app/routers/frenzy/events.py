@@ -29,6 +29,7 @@ def _slugify(name: str) -> str:
 async def list_events(
     session: AsyncSession = Depends(get_session), _perm: None = _PERM
 ) -> list[dict[str, Any]]:
+    """List every frenzy event with its template and team summary."""
     rows = (
         (
             await session.execute(
@@ -60,6 +61,7 @@ async def create_event(
     _perm: None = _PERM,
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
+    """Create a frenzy event from a template."""
     tmpl = (
         await session.execute(
             select(FrenzyTemplate).where(FrenzyTemplate.id == body.template_id)
@@ -91,6 +93,7 @@ async def create_event(
 async def get_event(
     event_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM
 ) -> dict[str, Any]:
+    """Return one event with its teams, tasks, and current scores."""
     event = (
         await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))
     ).scalar_one_or_none()
@@ -141,6 +144,7 @@ async def patch_event(
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
+    """Update an event's schedule, settings, or linked WOM competition."""
     event = (
         await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))
     ).scalar_one_or_none()
@@ -168,6 +172,7 @@ async def patch_event(
 async def delete_event(
     event_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM
 ) -> dict[str, Any]:
+    """Delete an event along with its teams and submissions."""
     event = (
         await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))
     ).scalar_one_or_none()
@@ -182,6 +187,7 @@ async def delete_event(
 async def activate_event(
     event_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM
 ) -> dict[str, Any]:
+    """Make this the running event, deactivating any other."""
     event = (
         await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))
     ).scalar_one_or_none()
@@ -199,6 +205,7 @@ async def activate_event(
 async def deactivate_event(
     event_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM
 ) -> dict[str, Any]:
+    """Stop the running event without deleting its progress."""
     event = (
         await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))
     ).scalar_one_or_none()

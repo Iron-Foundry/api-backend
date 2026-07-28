@@ -48,6 +48,7 @@ class JoinRolesFeatureConfig(BaseModel):
 async def get_discord_roles_config(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Return the role ids the Discord services treat as staff, senior staff, and owner."""
     data = await get_config_value(_DISCORD_ROLES_KEY, session)
     return {
         "staff_role_id": data.get("staff_role_id") or os.getenv("STAFF_ROLE_ID", ""),
@@ -65,6 +66,7 @@ async def get_discord_roles_config(
 async def set_discord_roles_config(
     body: DiscordRolesConfig, session: AsyncSession = Depends(get_session)
 ) -> dict[str, Any]:
+    """Replace the staff, senior staff, and owner role bindings."""
     value = body.model_dump()
     await set_config_value(_DISCORD_ROLES_KEY, value, session)
     return value
@@ -77,6 +79,7 @@ async def set_discord_roles_config(
 async def get_action_log_config(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Return the action-log forum channel and whether logging is on."""
     data = await get_guild_config_value("action_log", session)
     return {
         "forum_channel_id": str(data.get("forum_channel_id", "") or ""),
@@ -91,6 +94,7 @@ async def get_action_log_config(
 async def set_action_log_config(
     body: ActionLogFeatureConfig, session: AsyncSession = Depends(get_session)
 ) -> dict[str, Any]:
+    """Set the action-log forum channel and toggle logging."""
     existing = await get_guild_config_value("action_log", session)
     existing.update(
         {"forum_channel_id": body.forum_channel_id, "enabled": body.enabled}
@@ -106,6 +110,7 @@ async def set_action_log_config(
 async def get_broadcast_config(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Return the role pinged by clan broadcast announcements."""
     data = await get_guild_config_value("broadcast", session)
     return {"role_id": str(data.get("role_id", "") or "")}
 
@@ -117,6 +122,7 @@ async def get_broadcast_config(
 async def set_broadcast_config(
     body: BroadcastFeatureConfig, session: AsyncSession = Depends(get_session)
 ) -> dict[str, Any]:
+    """Set the role pinged by clan broadcast announcements."""
     await set_guild_config_value("broadcast", {"role_id": body.role_id}, session)
     return {"role_id": body.role_id}
 
@@ -128,6 +134,7 @@ async def set_broadcast_config(
 async def get_join_roles_config(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Return the roles granted automatically when a member joins the guild."""
     data = await get_guild_config_value("join_roles", session)
     return {"role_ids": [str(r) for r in data.get("role_ids", [])]}
 
@@ -139,6 +146,7 @@ async def get_join_roles_config(
 async def set_join_roles_config(
     body: JoinRolesFeatureConfig, session: AsyncSession = Depends(get_session)
 ) -> dict[str, Any]:
+    """Replace the roles granted automatically on guild join."""
     await set_guild_config_value("join_roles", {"role_ids": body.role_ids}, session)
     return {"role_ids": body.role_ids}
 

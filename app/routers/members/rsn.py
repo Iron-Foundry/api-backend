@@ -29,6 +29,7 @@ async def update_rsn(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Change the member's primary RuneScape name."""
     rsn = body.rsn.strip()
     if not rsn:
         raise HTTPException(status_code=422, detail="RSN cannot be empty.")

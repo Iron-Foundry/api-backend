@@ -54,6 +54,10 @@ async def roll_dice(
     session: AsyncSession = Depends(get_session),
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
+    """Roll for a team and advance them along the board.
+
+    Applies whatever modifier the landed tile carries.
+    """
     try:
         team = (
             await session.execute(
@@ -151,6 +155,7 @@ async def set_fog_of_war(
     session: AsyncSession = Depends(get_session),
     _perm: None = _FOG_PERM,
 ) -> dict[str, Any]:
+    """Toggle whether teams can see board positions they have not reached."""
     event = (
         await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
     ).scalar_one_or_none()

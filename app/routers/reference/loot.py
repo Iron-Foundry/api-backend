@@ -12,7 +12,7 @@ from app.dependencies import get_session
 from ._helpers import drop_out, prices_for, source_out
 from ._schemas import ItemSourceOut, SourceDetailOut, SourceListOut
 
-router = APIRouter(prefix="/loot", tags=["reference"])
+router = APIRouter(prefix="/loot")
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
@@ -22,6 +22,7 @@ async def list_sources(
     session: SessionDep,
     category: Annotated[str | None, Query()] = None,
 ) -> list[SourceListOut]:
+    """List the loot sources scraped from the OSRS Wiki, filtered by category."""
     stmt = (
         select(LootSource, func.count(LootDrop.id))
         .outerjoin(LootDrop, LootDrop.source_slug == LootSource.slug)
@@ -39,6 +40,7 @@ async def list_sources(
 
 @router.get("/sources/{slug}")
 async def get_source(slug: str, session: SessionDep) -> SourceDetailOut:
+    """Return one loot source with its full drop table."""
     source = await session.get(LootSource, slug)
     if source is None:
         raise HTTPException(status_code=404, detail="Loot source not found")
@@ -64,6 +66,7 @@ async def get_source(slug: str, session: SessionDep) -> SourceDetailOut:
 async def sources_for_item(
     item_id: Annotated[int, Path(ge=0)], session: SessionDep
 ) -> list[ItemSourceOut]:
+    """Reverse lookup: list every source that drops this item, with rarities."""
     stmt = (
         select(LootDrop, LootSource)
         .join(LootSource, LootDrop.source_slug == LootSource.slug)

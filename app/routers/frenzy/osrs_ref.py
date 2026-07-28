@@ -24,6 +24,7 @@ async def search_osrs_items(
     q: str = Query("", min_length=0),
     valkey: Valkey = Depends(get_valkey),
 ) -> list[dict[str, Any]]:
+    """Search OSRS item names for the frenzy task editor. Cached in Valkey."""
     if not q or len(q) < 2:
         return []
     raw = await valkey.get(_ITEMS_KEY)
@@ -45,6 +46,7 @@ async def search_osrs_items(
 
 @router.get("/osrs/bosses")
 async def get_osrs_bosses(valkey: Valkey = Depends(get_valkey)) -> list[dict[str, Any]]:
+    """List the boss metrics a frenzy task can target. Cached in Valkey."""
     raw = await valkey.get(_BOSSES_KEY)
     if not raw:
         await _refresh_osrs_bosses(valkey)
@@ -56,6 +58,7 @@ async def get_osrs_bosses(valkey: Valkey = Depends(get_valkey)) -> list[dict[str
 async def get_osrs_activities(
     valkey: Valkey = Depends(get_valkey),
 ) -> list[dict[str, Any]]:
+    """List the activity metrics a frenzy task can target. Cached in Valkey."""
     raw = await valkey.get(_ACTIVITIES_KEY)
     if not raw:
         await _refresh_osrs_activities(valkey)

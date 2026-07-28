@@ -39,6 +39,7 @@ async def create_competition_endpoint(
     background_tasks: BackgroundTasks,
     valkey: Valkey = Depends(get_valkey),
 ) -> dict[str, Any]:
+    """Create a WiseOldMan competition for the clan and announce it."""
     if not _WOM_GROUP_KEY:
         raise HTTPException(503, "WOM group key not configured.")
     try:
@@ -65,6 +66,7 @@ async def edit_competition_endpoint(
     background_tasks: BackgroundTasks,
     valkey: Valkey = Depends(get_valkey),
 ) -> dict[str, Any]:
+    """Edit a WiseOldMan competition's title, metric, or window."""
     if not _WOM_GROUP_KEY:
         raise HTTPException(503, "WOM group key not configured.")
     try:
@@ -92,6 +94,7 @@ async def delete_competition_endpoint(
     background_tasks: BackgroundTasks,
     valkey: Valkey = Depends(get_valkey),
 ) -> None:
+    """Delete a WiseOldMan competition and its cached standings."""
     if not _WOM_GROUP_KEY:
         raise HTTPException(503, "WOM group key not configured.")
     try:

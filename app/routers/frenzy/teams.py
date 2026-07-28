@@ -28,6 +28,7 @@ async def add_team(
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
+    """Add a team to a frenzy event."""
     event = (
         await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))
     ).scalar_one_or_none()
@@ -72,6 +73,7 @@ async def patch_team(
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
+    """Rename a team or change its roster."""
     team = (
         await session.execute(
             select(FrenzyTeam).where(
@@ -106,6 +108,7 @@ async def delete_team(
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
+    """Remove a team along with its submissions and points."""
     team = (
         await session.execute(
             select(FrenzyTeam).where(
@@ -127,6 +130,7 @@ async def refresh_leaderboards(
     valkey: Valkey = Depends(get_valkey),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
+    """Recompute the cached frenzy leaderboards in the background."""
     await valkey.delete(_LB_FRESH_KEY)
     event = (
         await session.execute(

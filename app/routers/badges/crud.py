@@ -24,6 +24,7 @@ async def list_badges(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=50, le=200),
 ) -> list[dict[str, Any]]:
+    """Page through the badge catalog."""
     result = await session.execute(
         select(Badge).order_by(Badge.name).offset(skip).limit(limit)
     )
@@ -36,6 +37,7 @@ async def create_badge(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Create a badge. Staff only."""
     await require_mentor(current_user, session)
     badge = Badge(
         id=uuid.uuid4(),
@@ -59,6 +61,7 @@ async def update_badge(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Update a badge's name, artwork, or description. Staff only."""
     await require_mentor(current_user, session)
     result = await session.execute(select(Badge).where(Badge.id == badge_id))
     badge = result.scalar_one_or_none()
@@ -79,6 +82,7 @@ async def delete_badge(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Delete a badge and revoke it from every holder. Staff only."""
     await require_senior_mod(current_user, session)
     result = await session.execute(select(Badge).where(Badge.id == badge_id))
     badge = result.scalar_one_or_none()
@@ -95,6 +99,7 @@ async def get_badge(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Return one badge by id."""
     result = await session.execute(select(Badge).where(Badge.id == badge_id))
     badge = result.scalar_one_or_none()
     if not badge:

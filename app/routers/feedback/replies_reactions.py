@@ -23,6 +23,7 @@ async def toggle_react(
     session: AsyncSession = Depends(get_session),
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
+    """Add or remove the caller's reaction on a feedback thread."""
     discord_user_id = int(current_user["sub"])
     item = await session.get(Feedback, feedback_id)
     if not item:
@@ -66,6 +67,7 @@ async def post_reply(
     session: AsyncSession = Depends(get_session),
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
+    """Reply to a feedback thread."""
     discord_user_id = int(current_user["sub"])
     item = await session.get(Feedback, feedback_id)
     if not item:
@@ -163,6 +165,7 @@ async def delete_reply(
     session: AsyncSession = Depends(get_session),
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> None:
+    """Delete a reply. Restricted to its author or staff."""
     discord_user_id = int(current_user["sub"])
     reply = await session.get(FeedbackReply, reply_id)
     if not reply or reply.feedback_id != feedback_id:

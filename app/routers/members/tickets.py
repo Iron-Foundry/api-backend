@@ -17,6 +17,7 @@ async def member_tickets(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[dict[str, Any]]:
+    """List the support tickets the signed-in member has opened."""
     discord_user_id = int(current_user["sub"])
     result = await session.execute(
         select(Ticket)

@@ -31,6 +31,7 @@ class ServiceToggleBody(BaseModel):
 async def get_service_toggles_endpoint(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, bool]:
+    """Return which background services are enabled."""
     return await get_service_toggles(session)
 
 

@@ -10,7 +10,6 @@ import pytest
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from httpx import ASGITransport, AsyncClient
-from scalar_fastapi import get_scalar_api_reference
 
 from app.dependencies import (
     get_current_user,
@@ -18,6 +17,13 @@ from app.dependencies import (
     get_session,
     get_valkey,
     verify_metrics_key,
+)
+from app.docs import (
+    DESCRIPTION,
+    SERVERS,
+    TAGS_METADATA,
+    install_openapi_customization,
+    render_reference,
 )
 from app.routers import (
     assets,
@@ -32,6 +38,7 @@ from app.routers import (
     frenzy,
     ironclad,
     members,
+    meta,
     metrics,
     osrs_cache,
     parties,
@@ -49,6 +56,7 @@ from app.routers import (
 )
 from app.tests._staff_patches import staff_permission_patches
 from app.tests._wom import mock_wom_instance as mock_wom_instance
+from app.version import VERSION
 
 TEST_USER: dict[str, Any] = {
     "sub": "111222333444555666",
@@ -71,6 +79,7 @@ _ROUTERS = [
     frenzy.router,
     ironclad.router,
     members.router,
+    meta.router,
     metrics.router,
     osrs_cache.router,
     parties.router,
@@ -86,7 +95,16 @@ _ROUTERS = [
 
 
 def _build_app() -> FastAPI:
-    app = FastAPI(title="The Foundry API", docs_url=None, redoc_url=None)
+    app = FastAPI(
+        title="The Foundry API",
+        version=VERSION,
+        description=DESCRIPTION,
+        openapi_tags=TAGS_METADATA,
+        servers=SERVERS,
+        docs_url=None,
+        redoc_url=None,
+    )
+    install_openapi_customization(app)
     for router in _ROUTERS:
         app.include_router(router)
     ranking_svc = MagicMock()
@@ -110,15 +128,7 @@ def _build_app() -> FastAPI:
 
     @app.get("/docs", include_in_schema=False)
     async def _scalar_docs() -> HTMLResponse:
-        return get_scalar_api_reference(
-            openapi_url=app.openapi_url or "/openapi.json",
-            title=app.title,
-            telemetry=False,
-        )
-
-    @app.get("/health")
-    async def _health() -> dict[str, Any]:
-        return {"status": "ok"}
+        return render_reference(app.openapi_url or "/openapi.json", app.title)
 
     return app
 

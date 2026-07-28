@@ -170,6 +170,7 @@ async def member_feed(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[dict[str, Any]]:
+    """Return the member's own activity feed, newest first."""
     discord_user_id = int(current_user["sub"])
 
     accounts_result = await session.execute(

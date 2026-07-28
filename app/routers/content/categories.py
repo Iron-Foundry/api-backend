@@ -46,6 +46,7 @@ async def get_categories(
     page_type: str,
     session: AsyncSession = Depends(get_session),
 ) -> list[dict[str, Any]]:
+    """Return the category tree for a page type, with its published entries."""
     _validate_page_type(page_type)
 
     cats_result = await session.execute(
@@ -112,6 +113,7 @@ async def create_category(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Create a category in a page type's tree. Staff only."""
     _validate_page_type(page_type)
     await _require_mentor(current_user, session)
 
@@ -173,6 +175,7 @@ async def patch_category(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Rename, reorder, or re-parent a category. Staff only."""
     _validate_page_type(page_type)
     await _require_mentor(current_user, session)
 
@@ -230,6 +233,7 @@ async def delete_category(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Delete a category. Staff only."""
     _validate_page_type(page_type)
     await _require_senior_mod(current_user, session)
 

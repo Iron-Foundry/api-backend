@@ -24,6 +24,7 @@ async def list_entry_versions(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[dict[str, Any]]:
+    """List an entry's saved versions with who authored each."""
     _validate_page_type(page_type)
     await _require_mentor(current_user, session)
 
@@ -60,6 +61,7 @@ async def get_entry_version(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Return one archived version of an entry in full."""
     _validate_page_type(page_type)
     await _require_mentor(current_user, session)
 
@@ -100,6 +102,7 @@ async def revert_entry_to_version(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Restore an archived version as the entry's current content."""
     _validate_page_type(page_type)
     await _require_mentor(current_user, session)
 

@@ -10,10 +10,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 
 from app.dependencies import get_current_user
+from app.docs import responses
 from app.services.discord_api import DiscordApiService, group_channels
 from app.services.page_permissions import require_page_permission
 
-router = APIRouter(prefix="/discord", tags=["discord"])
+router = APIRouter(
+    prefix="/discord", tags=["discord"], responses=responses.AUTHENTICATED
+)
 
 _TOKEN = os.getenv("DISCORD_TOKEN", "")
 _GUILD_ID = os.getenv("GUILD_ID", "")

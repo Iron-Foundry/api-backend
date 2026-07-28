@@ -19,6 +19,7 @@ async def get_deprecated_entries(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[dict[str, Any]]:
+    """List entries flagged as outdated, for staff to revise or retire."""
     await _require_senior_mod(current_user, session)
 
     result = await session.execute(

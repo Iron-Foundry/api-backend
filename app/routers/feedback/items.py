@@ -82,6 +82,11 @@ async def list_feedback(
     session: AsyncSession = Depends(get_session),
     current_user: dict[str, Any] | None = Depends(get_optional_user),
 ) -> list[dict[str, Any]]:
+    """List feedback threads, optionally filtered by type.
+
+    Unauthenticated callers see the public view; signing in adds the caller's
+    own reactions and any staff-only fields their roles allow.
+    """
     current_user_id = int(current_user["sub"]) if current_user else None
     query = select(Feedback).order_by(Feedback.created_at.desc())
     if type is not None:
@@ -99,6 +104,7 @@ async def submit_feedback(
     session: AsyncSession = Depends(get_session),
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
+    """Open a new feedback thread."""
     discord_user_id = int(current_user["sub"])
     now = datetime.now(UTC)
     extra: dict[str, Any] = {}
@@ -128,6 +134,7 @@ async def get_feedback(
     session: AsyncSession = Depends(get_session),
     current_user: dict[str, Any] | None = Depends(get_optional_user),
 ) -> dict[str, Any]:
+    """Return one feedback thread with its replies and reactions."""
     current_user_id = int(current_user["sub"]) if current_user else None
     item = await session.get(Feedback, feedback_id)
     if not item:
@@ -142,6 +149,7 @@ async def edit_feedback(
     session: AsyncSession = Depends(get_session),
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
+    """Edit a feedback thread. Restricted to its author or staff."""
     discord_user_id = int(current_user["sub"])
     item = await session.get(Feedback, feedback_id)
     if not item:
@@ -177,6 +185,7 @@ async def update_status(
     session: AsyncSession = Depends(get_session),
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
+    """Move a feedback thread between states, e.g. planned or done. Staff only."""
     discord_user_id = int(current_user["sub"])
     roles = await get_effective_roles(discord_user_id, session)
     if not await check_page_permission("staff.feedback", "edit", roles, session):

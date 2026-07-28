@@ -2,7 +2,8 @@ import os
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from fastapi import Depends, Header, HTTPException, Request
+from fastapi import Depends, HTTPException, Request, Security
+from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +14,36 @@ from app.db.models import User
 JWT_SECRET = os.getenv("JWT_SECRET", "change-me")
 _ALGORITHM = "HS256"
 _METRICS_API_KEY = os.getenv("METRICS_API_KEY", "")
+
+bearer_scheme = HTTPBearer(
+    scheme_name="DiscordJWT",
+    description=(
+        "HS256 JWT issued by `GET /auth/callback` after Discord OAuth2, or by "
+        "`POST /auth/token` in exchange for a member API key. Send it as "
+        "`Authorization: Bearer <token>`."
+    ),
+    auto_error=False,
+)
+
+clan_key_scheme = APIKeyHeader(
+    name="verification-code",
+    scheme_name="MemberApiKey",
+    description=(
+        "Per-member API key from `GET /members/me/api-key`, used by the RuneLite "
+        "plugin. Revoked keys are rejected."
+    ),
+    auto_error=False,
+)
+
+metrics_key_scheme = APIKeyHeader(
+    name="verification-code",
+    scheme_name="MetricsApiKey",
+    description=(
+        "Shared service key (`METRICS_API_KEY`) for service-to-service reporting "
+        "from discord-server and discord-utils."
+    ),
+    auto_error=False,
+)
 
 
 def get_valkey(request: Request) -> Valkey:
@@ -25,48 +56,52 @@ async def get_session(request: Request) -> AsyncGenerator[AsyncSession]:
         yield session
 
 
-async def get_current_user(authorization: str = Header(...)) -> dict[str, Any]:
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
+) -> dict[str, Any]:
     """Decode a Bearer JWT and return its payload.
 
     Raises 401 if the header is missing, malformed, or the token is invalid.
     """
-    if not authorization.startswith("Bearer "):
+    if credentials is None or credentials.scheme.lower() != "bearer":
         raise HTTPException(status_code=401, detail="Missing Bearer token")
-    token = authorization[len("Bearer ") :]
     try:
-        return jwt.decode(token, JWT_SECRET, algorithms=[_ALGORITHM])
+        return jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[_ALGORITHM])
     except JWTError as exc:
         raise HTTPException(status_code=401, detail="Invalid token") from exc
 
 
 async def get_optional_user(
-    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> dict[str, Any] | None:
     """Decode a Bearer JWT if present; return None if no token provided."""
-    if not authorization or not authorization.startswith("Bearer "):
+    if credentials is None or credentials.scheme.lower() != "bearer":
         return None
-    token = authorization[len("Bearer ") :]
     try:
-        return jwt.decode(token, JWT_SECRET, algorithms=[_ALGORITHM])
+        return jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[_ALGORITHM])
     except JWTError:
         return None
 
 
-async def verify_metrics_key(verification_code: str = Header(...)) -> None:
+async def verify_metrics_key(
+    verification_code: str | None = Security(metrics_key_scheme),
+) -> None:
     """Validate the verification-code header against the METRICS_API_KEY env var."""
     if not _METRICS_API_KEY or verification_code != _METRICS_API_KEY:
         raise HTTPException(status_code=401, detail="Invalid metrics API key")
 
 
 async def verify_clan(
-    verification_code: str = Header(...),
+    verification_code: str | None = Security(clan_key_scheme),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """Resolve a verification-code header to the matching user row in PostgreSQL.
 
     Returns a dict with ``guild_id`` and ``discord_user_id``.
-    Raises 401 if the key does not exist or has been revoked.
+    Raises 401 if the key is absent, does not exist, or has been revoked.
     """
+    if not verification_code:
+        raise HTTPException(status_code=401, detail="Missing API key")
     result = await session.execute(
         select(User).where(
             User.api_key == verification_code,

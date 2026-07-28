@@ -6,33 +6,56 @@ from unittest.mock import MagicMock
 from httpx import AsyncClient
 
 
+def _authenticate(mock_session: MagicMock) -> None:
+    """Make verify_clan resolve the verification-code header to a clan member."""
+    mock_session.execute.return_value.scalar_one_or_none.return_value = SimpleNamespace(
+        guild_id=1, discord_user_id=2
+    )
+
+
 async def test_ccingest_missing_key_header(auth_client: AsyncClient) -> None:
-    """Missing required verification-code header → 401 or 422."""
-    from app.dependencies import verify_metrics_key
-    from app.tests.conftest import _app
-
-    original = _app.dependency_overrides.pop(verify_metrics_key, None)
-    try:
-        resp = await auth_client.post(
-            "/ccingest",
-            json={"type": "broadcast", "message": "test"},
-        )
-        assert resp.status_code in (401, 422)
-    finally:
-        if original is not None:
-            _app.dependency_overrides[verify_metrics_key] = original
+    """No verification-code header at all → 401, before any body validation."""
+    resp = await auth_client.post("/ccingest", json=[])
+    assert resp.status_code == 401
 
 
-async def test_ccingest_with_key(auth_client: AsyncClient) -> None:
+async def test_ccingest_unknown_key(
+    auth_client: AsyncClient, mock_session: MagicMock
+) -> None:
+    """A key that matches no active user → 401."""
+    mock_session.execute.return_value.scalar_one_or_none.return_value = None
+    resp = await auth_client.post(
+        "/ccingest", headers={"verification-code": "revoked-key"}, json=[]
+    )
+    assert resp.status_code == 401
+
+
+async def test_ccingest_with_key(
+    auth_client: AsyncClient, mock_session: MagicMock
+) -> None:
+    _authenticate(mock_session)
     resp = await auth_client.post(
         "/ccingest",
-        json={"type": "broadcast", "message": "test message", "player": "TestPlayer"},
+        headers={"verification-code": "test-key"},
+        json=[
+            {
+                "clan_name": "Iron\xa0Foundry",
+                "sender": "GimBob",
+                "message": "test message",
+                "rank": "Member",
+            }
+        ],
     )
-    assert resp.status_code in (200, 204, 422)
+    assert resp.status_code == 200, resp.text
 
 
-async def test_ccingest_missing_body(auth_client: AsyncClient) -> None:
-    resp = await auth_client.post("/ccingest")
+async def test_ccingest_missing_body(
+    auth_client: AsyncClient, mock_session: MagicMock
+) -> None:
+    _authenticate(mock_session)
+    resp = await auth_client.post(
+        "/ccingest", headers={"verification-code": "test-key"}
+    )
     assert resp.status_code == 422
 
 

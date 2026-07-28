@@ -22,6 +22,7 @@ async def list_accounts(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[dict[str, Any]]:
+    """List the RuneScape accounts linked to the signed-in member."""
     discord_user_id = int(current_user["sub"])
     result = await session.execute(
         select(UserAccount)
@@ -44,6 +45,7 @@ async def get_me_rankings(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[dict[str, Any]]:
+    """Return the member's rank position for each of their linked accounts."""
     discord_user_id = int(current_user["sub"])
     result = await session.execute(
         select(
@@ -79,6 +81,7 @@ async def add_account(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Link another RuneScape account to the signed-in member."""
     rsn = body.rsn.strip()
     if not rsn:
         raise HTTPException(status_code=422, detail="RSN cannot be empty.")
@@ -160,6 +163,7 @@ async def set_primary_account(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Make this linked account the member's primary, used for clan rank and stats."""
     discord_user_id = int(current_user["sub"])
     row_result = await session.execute(
         select(UserAccount).where(
@@ -199,6 +203,7 @@ async def delete_account(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> None:
+    """Unlink an alt account. The primary account cannot be removed this way."""
     discord_user_id = int(current_user["sub"])
     row_result = await session.execute(
         select(UserAccount).where(

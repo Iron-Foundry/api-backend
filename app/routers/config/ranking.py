@@ -21,6 +21,7 @@ router = APIRouter()
 async def get_ranking_config(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Return the point weights and thresholds the rank engine uses."""
     data = await get_config_value(_RANKING_CONFIG_KEY, session)
     if not data or data.get("version") != 2:
         return _DEFAULT_CONFIG.to_dict()
@@ -34,5 +35,6 @@ async def get_ranking_config(
 async def set_ranking_config(
     body: dict[str, Any], session: AsyncSession = Depends(get_session)
 ) -> dict[str, Any]:
+    """Replace the rank engine's point weights and thresholds."""
     await set_config_value(_RANKING_CONFIG_KEY, body, session)
     return body

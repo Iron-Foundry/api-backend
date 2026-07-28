@@ -17,6 +17,7 @@ async def get_my_ballot_tokens(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Return the signed-in member's ballot token balance."""
     discord_user_id = int(current_user["sub"])
 
     balance_result = await session.execute(

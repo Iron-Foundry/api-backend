@@ -28,8 +28,13 @@ _VIBE_LABEL = {"learning": "Learning", "chill": "Chill", "sweat": "Sweat"}
 
 
 class CreatePartyRequest(BaseModel):
-    activity: Annotated[str, Field(min_length=1, max_length=60)]
-    description: Annotated[str | None, Field(max_length=300)] = None
+    activity: Annotated[
+        str, Field(min_length=1, max_length=60, examples=["Chambers of Xeric"])
+    ]
+    description: Annotated[
+        str | None,
+        Field(max_length=300, examples=["Learner runs, bring your own supplies."]),
+    ] = None
     vibe: Vibe = "chill"
     max_size: Annotated[int, Field(ge=1, le=100)]
     scheduled_at: datetime | None = None

@@ -32,6 +32,7 @@ async def list_surveys(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[dict[str, Any]]:
+    """List the surveys open to the signed-in member."""
     discord_user_id = int(current_user["sub"])
     roles = await get_roles(current_user, session)
     return await list_templates("survey", roles, discord_user_id, session)
@@ -42,6 +43,7 @@ async def list_applications(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[dict[str, Any]]:
+    """List the clan application forms open to the signed-in member."""
     discord_user_id = int(current_user["sub"])
     roles = await get_roles(current_user, session)
     return await list_templates("application", roles, discord_user_id, session)
@@ -53,6 +55,7 @@ async def get_template(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Return one survey's questions, if the member may see it."""
     discord_user_id = int(current_user["sub"])
     roles = await get_roles(current_user, session)
     is_staff = await check_page_permission("staff.surveys", "read", roles, session)

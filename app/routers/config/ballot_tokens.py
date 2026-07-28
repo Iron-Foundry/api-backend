@@ -30,6 +30,7 @@ class BallotTokenConfigBody(BaseModel):
 async def get_ballot_token_config(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Return how ballot tokens are granted and what they cost to spend."""
     stored = await get_config_value(_BALLOT_TOKEN_CONFIG_KEY, session)
     merged = dict(DEFAULT_TOKEN_CONFIG)
     merged.update({k: v for k, v in stored.items() if k in DEFAULT_TOKEN_CONFIG})
@@ -43,6 +44,7 @@ async def get_ballot_token_config(
 async def set_ballot_token_config(
     body: BallotTokenConfigBody, session: AsyncSession = Depends(get_session)
 ) -> dict[str, Any]:
+    """Replace the ballot token grant and spend rules."""
     value = body.model_dump()
     await set_config_value(_BALLOT_TOKEN_CONFIG_KEY, value, session)
     return value

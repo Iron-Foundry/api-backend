@@ -27,6 +27,7 @@ async def list_configs(
     session: AsyncSession = Depends(get_session),
     type: str | None = Query(default=None),
 ) -> list[dict[str, Any]]:
+    """List the shared RuneLite config profiles, optionally filtered by type."""
     query = select(RuneLiteConfig).order_by(RuneLiteConfig.name)
     if type is not None:
         query = query.where(RuneLiteConfig.type == type)
@@ -40,6 +41,7 @@ async def create_config(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Publish a new shared RuneLite config profile. Staff only."""
     await require_permission(current_user, "create", session)
     validate_config_data(body.type, body.data)
     now = datetime.now(UTC)
@@ -67,6 +69,7 @@ async def update_config(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Replace a shared RuneLite config profile. Staff only."""
     await require_permission(current_user, "edit", session)
     validate_config_data(body.type, body.data)
     result = await session.execute(
@@ -91,6 +94,7 @@ async def delete_config(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Delete a shared RuneLite config profile. Staff only."""
     await require_permission(current_user, "delete", session)
     result = await session.execute(
         select(RuneLiteConfig).where(RuneLiteConfig.id == config_id)
@@ -108,6 +112,7 @@ async def get_config(
     config_id: UUID,
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Return one shared RuneLite config profile with its payload."""
     result = await session.execute(
         select(RuneLiteConfig).where(RuneLiteConfig.id == config_id)
     )

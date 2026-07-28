@@ -59,6 +59,7 @@ async def _full_event(event: TileRaceEvent, session: AsyncSession) -> dict[str, 
 async def get_active_event(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Return the running tile race with its teams and board. Public."""
     event = (
         await session.execute(
             select(TileRaceEvent).where(TileRaceEvent.is_active.is_(True))
@@ -82,6 +83,7 @@ async def get_active_event(
 async def list_events(
     session: AsyncSession = Depends(get_session), _perm: None = _PERM
 ) -> list[dict[str, Any]]:
+    """List every tile race event, past and present."""
     rows = (
         (
             await session.execute(
@@ -101,6 +103,7 @@ async def create_event(
     _perm: None = _PERM,
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
+    """Create a tile race event from a board of repository tiles."""
     now = datetime.now(UTC)
     event = TileRaceEvent(
         name=body.name,
@@ -129,6 +132,7 @@ async def get_event(
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
+    """Return one event with its teams, board, and progress."""
     event = (
         await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
     ).scalar_one_or_none()
@@ -144,6 +148,7 @@ async def patch_event(
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
+    """Update an event's board, settings, or schedule."""
     event = (
         await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
     ).scalar_one_or_none()
@@ -191,6 +196,7 @@ async def delete_event(
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
+    """Delete an event along with its teams, rolls, and completions."""
     event = (
         await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
     ).scalar_one_or_none()
@@ -207,6 +213,7 @@ async def activate_event(
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
+    """Make this the running event, deactivating any other."""
     event = (
         await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
     ).scalar_one_or_none()
@@ -228,6 +235,7 @@ async def deactivate_event(
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
+    """Stop the running event without deleting its progress."""
     event = (
         await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
     ).scalar_one_or_none()

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Asset, User
 from app.dependencies import get_current_user, get_session
+from app.docs import responses
 from app.services.asset_thumbnails import purge_thumbnails
 from app.services.page_permissions import check_page_permission
 from app.services.rank_mappings import get_effective_roles
@@ -25,7 +26,9 @@ from ._shared import (
     serialize_asset,
 )
 
-router = APIRouter(prefix="/assets", tags=["assets"])
+router = APIRouter(
+    prefix="/assets", tags=["assets"], responses=responses.AUTHENTICATED_LOOKUP
+)
 
 
 @router.get("")
@@ -33,6 +36,7 @@ async def list_assets(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[dict[str, Any]]:
+    """List uploaded assets with their filenames and content types."""
     result = await session.execute(
         select(Asset, User)
         .join(User, Asset.uploaded_by == User.discord_user_id, isouter=True)
@@ -47,6 +51,7 @@ async def upload_asset(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Upload a file and return the URL it is served from."""
     uid = int(current_user["sub"])
     roles = await get_effective_roles(uid, session)
     if not await check_page_permission("resources", "create", roles, session):
@@ -96,6 +101,7 @@ async def delete_asset(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Delete an uploaded asset and its cached thumbnails."""
     uid = int(current_user["sub"])
     roles = await get_effective_roles(uid, session)
     is_senior_mod = await check_page_permission("resources", "delete", roles, session)

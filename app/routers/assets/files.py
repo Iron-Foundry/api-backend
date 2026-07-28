@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Asset
 from app.dependencies import get_session
+from app.docs import responses
 from app.services.asset_thumbnails import (
     THUMBNAIL_WIDTHS,
     ensure_thumbnail,
@@ -16,7 +17,7 @@ from app.services.asset_thumbnails import (
 
 from ._shared import IMMUTABLE_CACHE_HEADERS, UPLOAD_DIR
 
-router = APIRouter(prefix="/assets", tags=["assets"])
+router = APIRouter(prefix="/assets", tags=["assets"], responses=responses.PUBLIC_LOOKUP)
 
 
 @router.get("/file/{filename}")

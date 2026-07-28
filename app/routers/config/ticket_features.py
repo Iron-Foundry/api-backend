@@ -23,6 +23,7 @@ class TicketFeaturesConfig(BaseModel):
 async def get_ticket_features(
     session: AsyncSession = Depends(get_session),
 ) -> TicketFeaturesConfig:
+    """Return the optional behaviours enabled on the ticket system."""
     data = await get_config_value(_TICKET_FEATURES_KEY, session)
     return TicketFeaturesConfig(
         rank_pull_set_primary=bool(data.get("rank_pull_set_primary", False))
@@ -36,5 +37,6 @@ async def get_ticket_features(
 async def set_ticket_features(
     body: TicketFeaturesConfig, session: AsyncSession = Depends(get_session)
 ) -> TicketFeaturesConfig:
+    """Toggle the optional behaviours on the ticket system."""
     await set_config_value(_TICKET_FEATURES_KEY, body.model_dump(), session)
     return body

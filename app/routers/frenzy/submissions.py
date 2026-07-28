@@ -65,6 +65,7 @@ async def list_submissions(
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
+    """List an event's task submissions, filtered by team or review status."""
     event = (
         await session.execute(select(FrenzyEvent).where(FrenzyEvent.id == event_id))
     ).scalar_one_or_none()
@@ -159,6 +160,7 @@ async def create_submission(
     _perm: None = _PERM,
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
+    """Submit a completed task with its proof for review."""
     if body.source not in _VALID_SOURCES:
         raise HTTPException(400, f"Invalid source. Must be one of: {_VALID_SOURCES}")
     if body.submission_type not in _VALID_SUBMISSION_TYPES:
@@ -222,6 +224,7 @@ async def patch_submission(
     _perm: None = _PERM,
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
+    """Approve, reject, or amend a submission. Rescores the team."""
     if body.status not in _VALID_STATUSES:
         raise HTTPException(400, f"Invalid status. Must be one of: {_VALID_STATUSES}")
 
@@ -261,6 +264,7 @@ async def delete_submission(
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
+    """Delete a submission and remove its points from the team's score."""
     sub = (
         await session.execute(
             select(FrenzySubmission).where(

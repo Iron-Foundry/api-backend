@@ -45,6 +45,7 @@ async def add_team(
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
+    """Add a team to a tile race event."""
     event = (
         await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
     ).scalar_one_or_none()
@@ -74,6 +75,7 @@ async def patch_team(
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
+    """Rename a team or change its roster."""
     team = (
         await session.execute(
             select(TileRaceTeam).where(
@@ -108,6 +110,7 @@ async def delete_team(
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
+    """Remove a team along with its rolls and completions."""
     team = (
         await session.execute(
             select(TileRaceTeam).where(
@@ -129,6 +132,7 @@ async def scramble_teams(
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
+    """Randomly redistribute the signed-up players across the event's teams."""
     event = (
         await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
     ).scalar_one_or_none()

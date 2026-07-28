@@ -37,6 +37,7 @@ async def sabotage(
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
+    """Spend a sabotage against a rival team, applying its penalty."""
     actor = await _team(session, event_id, team_id)
     target = await _team(session, event_id, body.target_team_id)
     if actor is None or target is None:

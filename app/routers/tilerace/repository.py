@@ -25,6 +25,7 @@ async def list_tiles(
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
 ) -> list[dict[str, Any]]:
+    """Search the reusable tile repository by text or tag."""
     rows = (
         (
             await session.execute(
@@ -51,6 +52,7 @@ async def create_tile(
     _perm: None = _PERM,
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
+    """Add a tile to the repository for future events to draw on."""
     now = datetime.now(UTC)
     tile = TileRepositoryTile(
         title=body.title,
@@ -75,6 +77,7 @@ async def get_tile(
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
+    """Return one repository tile with its requirements and modifiers."""
     tile = (
         await session.execute(
             select(TileRepositoryTile).where(TileRepositoryTile.id == tile_id)
@@ -92,6 +95,7 @@ async def patch_tile(
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
+    """Update a repository tile's text, requirements, or modifiers."""
     tile = (
         await session.execute(
             select(TileRepositoryTile).where(TileRepositoryTile.id == tile_id)
@@ -124,6 +128,7 @@ async def delete_tile(
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
+    """Delete a repository tile. Boards already built from it are unaffected."""
     tile = (
         await session.execute(
             select(TileRepositoryTile).where(TileRepositoryTile.id == tile_id)

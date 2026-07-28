@@ -42,6 +42,7 @@ async def get_entry_by_slug(
     session: AsyncSession = Depends(get_session),
     current_user: dict[str, Any] | None = Depends(get_optional_user),
 ) -> dict[str, Any]:
+    """Return a published entry by its URL slug. This is what the public site reads."""
     _validate_page_type(page_type)
 
     result = await session.execute(
@@ -145,6 +146,7 @@ async def get_entry(
     entry_id: UUID,
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Return one entry by id, including drafts for callers allowed to see them."""
     _validate_page_type(page_type)
 
     result = await session.execute(
@@ -205,6 +207,7 @@ async def create_entry(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Create an entry inside a category. Staff only."""
     _validate_page_type(page_type)
     await _require_mentor(current_user, session)
 

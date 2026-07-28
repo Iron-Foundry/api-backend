@@ -11,7 +11,7 @@ from app.dependencies import get_session
 
 from ._schemas import RateOut
 
-router = APIRouter(prefix="/rates", tags=["reference"])
+router = APIRouter(prefix="/rates")
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
@@ -21,6 +21,7 @@ async def list_rates(
     session: SessionDep,
     kind: Annotated[str | None, Query(pattern="^(ehp|ehb)$")] = None,
 ) -> list[RateOut]:
+    """List WiseOldMan efficiency rates, filtered to EHP or EHB."""
     stmt = select(EfficiencyRate).order_by(EfficiencyRate.metric)
     if kind:
         stmt = stmt.where(EfficiencyRate.kind == kind)

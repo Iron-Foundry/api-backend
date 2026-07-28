@@ -40,6 +40,7 @@ async def update_entry(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Replace an entry's content, snapshotting the previous version first."""
     _validate_page_type(page_type)
     await _require_mentor(current_user, session)
 
@@ -167,6 +168,7 @@ async def restore_entry(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Bring a soft-deleted entry back into its category."""
     _validate_page_type(page_type)
     await _require_mentor(current_user, session)
 
@@ -190,6 +192,7 @@ async def permanent_delete_entry(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Erase a soft-deleted entry and its version history. Cannot be undone."""
     _validate_page_type(page_type)
     await _require_senior_mod(current_user, session, page_type)
 

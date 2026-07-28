@@ -20,6 +20,7 @@ async def get_api_key(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Return the member's personal API key, creating one on first request."""
     discord_user_id = int(current_user["sub"])
     result = await session.execute(
         select(User.api_key, User.key_is_active, User.key_created_at).where(
@@ -41,6 +42,7 @@ async def rotate_api_key(
     current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Issue a new API key and immediately revoke the old one."""
     discord_user_id = int(current_user["sub"])
     new_key = secrets.token_urlsafe(32)
     now = datetime.now(UTC)

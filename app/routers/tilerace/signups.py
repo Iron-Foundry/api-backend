@@ -67,6 +67,7 @@ async def sign_up(
     session: AsyncSession = Depends(get_session),
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
+    """Sign the member up for an event, seeded by their ranking score."""
     event = (
         await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
     ).scalar_one_or_none()
@@ -100,6 +101,7 @@ async def change_signup(
     session: AsyncSession = Depends(get_session),
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
+    """Change which of the member's accounts their signup uses."""
     user_id = int(current_user["sub"])
     signup = await _get_signup(session, event_id, user_id)
     if signup is None:
@@ -121,6 +123,7 @@ async def cancel_signup(
     session: AsyncSession = Depends(get_session),
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
+    """Withdraw the member's signup from an event."""
     user_id = int(current_user["sub"])
     signup = await _get_signup(session, event_id, user_id)
     if signup is None:

@@ -10,6 +10,13 @@ COPY . .
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --compile-bytecode
 
+# Build provenance for GET /version. Declared after the dependency layers so a
+# new commit sha only invalidates this final layer, not the uv sync cache.
+ARG GIT_SHA=""
+ARG BUILD_TIME=""
+ENV GIT_SHA=${GIT_SHA} \
+    BUILD_TIME=${BUILD_TIME}
+
 EXPOSE 8000
 
 # Apply pending Alembic migrations before booting so the schema always matches

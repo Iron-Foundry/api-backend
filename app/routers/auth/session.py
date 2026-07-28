@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,7 +18,7 @@ router = APIRouter()
 
 
 class ApiKeyRequest(BaseModel):
-    api_key: str
+    api_key: str = Field(examples=["b7f3c1e2-4a6d-4f18-9c05-2ab8d4e17f90"])
 
 
 @router.post("/token")

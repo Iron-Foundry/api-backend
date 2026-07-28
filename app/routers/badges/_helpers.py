@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Badge
@@ -12,11 +12,11 @@ from app.services.rank_mappings import get_effective_roles
 
 
 class BadgeBody(BaseModel):
-    name: str
-    description: str = ""
-    icon: str | None = None
-    color: str = "#6366f1"
-    text_color: str = "#ffffff"
+    name: str = Field(examples=["Inferno"])
+    description: str = Field(default="", examples=["Awarded for a first Inferno cape."])
+    icon: str | None = Field(default=None, examples=["fire"])
+    color: str = Field(default="#6366f1", examples=["#6366f1"])
+    text_color: str = Field(default="#ffffff", examples=["#ffffff"])
 
 
 class AssignBody(BaseModel):

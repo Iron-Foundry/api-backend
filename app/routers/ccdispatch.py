@@ -64,6 +64,12 @@ def split_message(text: str, max_len: int = 78) -> list[str]:
 
 @router.websocket("/ccdispatch")
 async def clan_chat_dispatch(websocket: WebSocket) -> None:
+    """Clan chat bridge for the RuneLite plugin.
+
+    A WebSocket, not an HTTP endpoint. Connect with a `verification-code`
+    header; the socket closes with 1008 if the key is unknown or revoked.
+    Messages relayed from Discord arrive over Valkey pubsub.
+    """
     await websocket.accept()
     session_factory = websocket.app.state.session_factory
     verification_code = websocket.headers.get("verification-code")
@@ -135,6 +141,10 @@ async def dispatch_to_clan(
     conn_id: UUID | None = Query(default=None),
     clan: dict[str, Any] = Depends(verify_clan),
 ) -> dict[str, Any]:
+    """Push a Discord message out to the connected in-game clients.
+
+    Long messages are split into chunks the game chat box accepts.
+    """
     guild_id: int = clan["guild_id"]
     for part in split_message(payload.message):
         msg = _wrap(payload.sender, part, payload.rank)

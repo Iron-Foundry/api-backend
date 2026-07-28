@@ -36,6 +36,11 @@ router = APIRouter()
 
 @router.get("/login")
 async def login() -> RedirectResponse:
+    """Redirect to Discord's OAuth2 consent screen.
+
+    A browser redirect, not a JSON endpoint. The signed `state` parameter
+    expires after five minutes.
+    """
     state = jwt.encode(
         {
             "nonce": uuid4().hex,
@@ -55,6 +60,13 @@ async def callback(
     error: str | None = None,
     session: AsyncSession = Depends(get_session),
 ) -> RedirectResponse:
+    """Complete the OAuth2 exchange and hand the browser a JWT.
+
+    Verifies the caller is in the clan's guild, upserts their user record with
+    their current Discord roles, then redirects to the frontend with the token
+    in the query string. Failures redirect back with an `error` parameter
+    rather than returning a status code.
+    """
     if error or not code or not state:
         return RedirectResponse(f"{FRONTEND_URL}?error=oauth_cancelled")
 

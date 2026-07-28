@@ -34,6 +34,7 @@ router = APIRouter()
 async def list_ticket_configs(
     session: AsyncSession = Depends(get_session),
 ) -> list[TicketTypeConfigOut]:
+    """List every ticket type with its prompts, roles, and images."""
     row = await get_ticket_row(session)
     return [build_response(t, row) for t in _KNOWN_TYPES]
 
@@ -42,6 +43,7 @@ async def list_ticket_configs(
 async def get_panel_config(
     session: AsyncSession = Depends(get_session),
 ) -> PanelConfigOut:
+    """Return the layout of the Discord panel members open tickets from."""
     row = await get_ticket_row(session)
     return PanelConfigOut(images=get_images("panel", row))
 
@@ -50,6 +52,7 @@ async def get_panel_config(
 async def get_ticket_config(
     type_id: str, session: AsyncSession = Depends(get_session)
 ) -> TicketTypeConfigOut:
+    """Return one ticket type's configuration."""
     if type_id not in _KNOWN_TYPES:
         raise HTTPException(404, f"Unknown ticket type: {type_id}")
     row = await get_ticket_row(session)
@@ -66,6 +69,7 @@ async def patch_ticket_config(
     session: AsyncSession = Depends(get_session),
     valkey: Valkey = Depends(get_valkey),
 ) -> TicketTypeConfigOut:
+    """Update one ticket type's prompts, handling roles, or transcript settings."""
     if type_id not in _KNOWN_TYPES:
         raise HTTPException(404, f"Unknown ticket type: {type_id}")
     row = await get_ticket_row(session)
@@ -92,6 +96,7 @@ async def upload_ticket_image(
     session: AsyncSession = Depends(get_session),
     valkey: Valkey = Depends(get_valkey),
 ) -> ImageInfo:
+    """Attach a named image to a ticket type, for use in its Discord embed."""
     if type_id not in _IMAGE_ALLOWED_TYPES:
         raise HTTPException(404, f"Unknown ticket type: {type_id}")
     if file.content_type not in {"image/jpeg", "image/png", "image/webp", "image/gif"}:
@@ -122,6 +127,7 @@ async def delete_ticket_image(
     session: AsyncSession = Depends(get_session),
     valkey: Valkey = Depends(get_valkey),
 ) -> None:
+    """Remove a named image from a ticket type."""
     if type_id not in _IMAGE_ALLOWED_TYPES:
         raise HTTPException(404, f"Unknown ticket type: {type_id}")
     row = await get_ticket_row(session)
