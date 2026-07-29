@@ -11,7 +11,7 @@ prerelease, `stable` to drop the tag). A MAJOR bump is the maintainer's call
 and is never made automatically. The bump happens once, when the accumulated
 work is about to be pushed - not per component.
 
-## [Unreleased]
+## [1.2.0] - 2026-07-29
 
 ### Added
 
