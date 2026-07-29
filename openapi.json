@@ -67,6 +67,41 @@
         "title": "ActionLogFeatureConfig",
         "type": "object"
       },
+      "ActivityOut": {
+        "description": "One recorded interaction with a session.",
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "actor_id": {
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "actor_name": {
+            "default": "",
+            "title": "Actor Name",
+            "type": "string"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "detail": {
+            "default": "",
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "actor_id",
+          "action"
+        ],
+        "title": "ActivityOut",
+        "type": "object"
+      },
       "AddAccount": {
         "properties": {
           "rsn": {
@@ -470,6 +505,212 @@
         "title": "ClanChatPayload",
         "type": "object"
       },
+      "ClanStatsOut": {
+        "description": "What the clan listened to over a window, and how it splits by source.\n\n`sources` counts where the audio actually came from rather than where it\nwas asked for, which is the only reason `played_source` is tracked at all -\na Spotify request that streamed from YouTube counts as YouTube.",
+        "properties": {
+          "days": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/DayOut"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "days_requested": {
+            "title": "Days Requested",
+            "type": "integer"
+          },
+          "ms_listened": {
+            "default": 0,
+            "title": "Ms Listened",
+            "type": "integer"
+          },
+          "sessions": {
+            "default": 0,
+            "title": "Sessions",
+            "type": "integer"
+          },
+          "skips": {
+            "default": 0,
+            "title": "Skips",
+            "type": "integer"
+          },
+          "sources": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "default": {},
+            "title": "Sources",
+            "type": "object"
+          },
+          "tracks_played": {
+            "default": 0,
+            "title": "Tracks Played",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "days_requested"
+        ],
+        "title": "ClanStatsOut",
+        "type": "object"
+      },
+      "CommandAccepted": {
+        "description": "A command was published. Whether it changed anything arrives over the socket.",
+        "properties": {
+          "accepted": {
+            "default": true,
+            "title": "Accepted",
+            "type": "boolean"
+          },
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "delivered_to": {
+            "title": "Delivered To",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "delivered_to"
+        ],
+        "title": "CommandAccepted",
+        "type": "object"
+      },
+      "CommandRequest": {
+        "description": "A control the website is asking for.\n\nOne body for every action rather than a route each: the fields a given\naction needs are validated by the router, and the whole thing travels to\ndiscord-utils as published JSON either way.",
+        "properties": {
+          "action": {
+            "enum": [
+              "pause",
+              "resume",
+              "skip",
+              "stop",
+              "shuffle",
+              "seek",
+              "volume",
+              "loop",
+              "add",
+              "remove",
+              "move",
+              "jump",
+              "load_playlist"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "destination": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination"
+          },
+          "index": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Index"
+          },
+          "loop": {
+            "anyOf": [
+              {
+                "enum": [
+                  "off",
+                  "track",
+                  "queue"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loop"
+          },
+          "playlist_id": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Playlist Id"
+          },
+          "position_ms": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position Ms"
+          },
+          "shuffle": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shuffle"
+          },
+          "tracks": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TrackIn"
+                },
+                "maxItems": 500,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tracks"
+          },
+          "volume": {
+            "anyOf": [
+              {
+                "maximum": 150.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "CommandRequest",
+        "type": "object"
+      },
       "CompetitionMetricMapBody": {
         "properties": {
           "competition_id": {
@@ -749,6 +990,34 @@
         "title": "CreatePartyRequest",
         "type": "object"
       },
+      "CreatePlaylistRequest": {
+        "properties": {
+          "is_public": {
+            "default": false,
+            "title": "Is Public",
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "tracks": {
+            "items": {
+              "$ref": "#/components/schemas/TrackIn"
+            },
+            "maxItems": 500,
+            "title": "Tracks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "CreatePlaylistRequest",
+        "type": "object"
+      },
       "CreateScheduleBody": {
         "properties": {
           "competition_duration_hours": {
@@ -843,6 +1112,41 @@
           "next_poll_at"
         ],
         "title": "CreateScheduleBody",
+        "type": "object"
+      },
+      "DayOut": {
+        "description": "One day's totals, for the shape of a graph.",
+        "properties": {
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "ms_listened": {
+            "default": 0,
+            "title": "Ms Listened",
+            "type": "integer"
+          },
+          "sessions": {
+            "default": 0,
+            "title": "Sessions",
+            "type": "integer"
+          },
+          "skips": {
+            "default": 0,
+            "title": "Skips",
+            "type": "integer"
+          },
+          "tracks_played": {
+            "default": 0,
+            "title": "Tracks Played",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day"
+        ],
+        "title": "DayOut",
         "type": "object"
       },
       "DiscordMessage": {
@@ -1274,6 +1578,30 @@
         "title": "HeaderImageSection",
         "type": "object"
       },
+      "HistoryOut": {
+        "description": "One track that already finished, and how it ended.\n\nThe whole track comes back rather than a rendered line, because the two\ncontrols on it - queue it again, save it to a playlist - both need the\nmetadata. `event` is \"played\" or \"skipped\".",
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "event": {
+            "title": "Event",
+            "type": "string"
+          },
+          "track": {
+            "$ref": "#/components/schemas/SessionTrack"
+          }
+        },
+        "required": [
+          "at",
+          "event",
+          "track"
+        ],
+        "title": "HistoryOut",
+        "type": "object"
+      },
       "ImageInfo": {
         "properties": {
           "filename": {
@@ -1290,6 +1618,40 @@
           "filename"
         ],
         "title": "ImageInfo",
+        "type": "object"
+      },
+      "ImportPlaylistRequest": {
+        "description": "A link to pull in, and optionally what to call the result.",
+        "properties": {
+          "is_public": {
+            "default": false,
+            "title": "Is Public",
+            "type": "boolean"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "url": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "ImportPlaylistRequest",
         "type": "object"
       },
       "InfoPanelConfig": {
@@ -2350,6 +2712,104 @@
         "title": "PlayerPublicSchema",
         "type": "object"
       },
+      "PlaylistDetailOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "is_public": {
+            "title": "Is Public",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "owner_discord_id": {
+            "title": "Owner Discord Id",
+            "type": "string"
+          },
+          "track_count": {
+            "title": "Track Count",
+            "type": "integer"
+          },
+          "tracks": {
+            "items": {
+              "$ref": "#/components/schemas/TrackOut"
+            },
+            "title": "Tracks",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "owner_discord_id",
+          "name",
+          "is_public",
+          "track_count",
+          "created_at",
+          "updated_at",
+          "tracks"
+        ],
+        "title": "PlaylistDetailOut",
+        "type": "object"
+      },
+      "PlaylistOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "is_public": {
+            "title": "Is Public",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "owner_discord_id": {
+            "title": "Owner Discord Id",
+            "type": "string"
+          },
+          "track_count": {
+            "title": "Track Count",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "owner_discord_id",
+          "name",
+          "is_public",
+          "track_count",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "PlaylistOut",
+        "type": "object"
+      },
       "PollOptionBody": {
         "properties": {
           "label": {
@@ -2668,6 +3128,86 @@
         "title": "SabotageModifier",
         "type": "object"
       },
+      "SearchResult": {
+        "description": "One thing a search found.\n\nExtends the shape a playlist is saved with, so a result can be sent straight\nback to either destination - the queue or a playlist - without the browser\nreshaping it. `encoded` is absent on purpose: the audio is resolved at play\ntime, and a browser has no use for a playable handle.",
+        "properties": {
+          "artwork": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artwork"
+          },
+          "author": {
+            "maxLength": 300,
+            "title": "Author",
+            "type": "string"
+          },
+          "duration_ms": {
+            "minimum": 0.0,
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "identifier": {
+            "maxLength": 256,
+            "title": "Identifier",
+            "type": "string"
+          },
+          "is_stream": {
+            "default": false,
+            "title": "Is Stream",
+            "type": "boolean"
+          },
+          "isrc": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Isrc"
+          },
+          "source": {
+            "maxLength": 40,
+            "title": "Source",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 300,
+            "title": "Title",
+            "type": "string"
+          },
+          "uri": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uri"
+          }
+        },
+        "required": [
+          "source",
+          "identifier",
+          "title",
+          "author",
+          "duration_ms"
+        ],
+        "title": "SearchResult",
+        "type": "object"
+      },
       "SelectableRole": {
         "properties": {
           "description": {
@@ -2740,6 +3280,217 @@
           "enabled"
         ],
         "title": "ServiceToggleBody",
+        "type": "object"
+      },
+      "SessionOut": {
+        "description": "One live playback session, as the website renders it.\n\n`position_ms` is paired with `updated_at` rather than being kept current:\nthe browser extrapolates from the two while the track is not paused, so a\nprogress bar costs no polling and no server-side timer.",
+        "properties": {
+          "bot_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bot Index"
+          },
+          "channel_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Name"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SessionTrack"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "guild_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Guild Id"
+          },
+          "listener_count": {
+            "default": 0,
+            "title": "Listener Count",
+            "type": "integer"
+          },
+          "loop": {
+            "default": "off",
+            "title": "Loop",
+            "type": "string"
+          },
+          "nickname": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nickname"
+          },
+          "paused": {
+            "default": false,
+            "title": "Paused",
+            "type": "boolean"
+          },
+          "position_ms": {
+            "default": 0,
+            "title": "Position Ms",
+            "type": "integer"
+          },
+          "queue_length": {
+            "default": 0,
+            "title": "Queue Length",
+            "type": "integer"
+          },
+          "remaining_ms": {
+            "default": 0,
+            "title": "Remaining Ms",
+            "type": "integer"
+          },
+          "shuffle": {
+            "default": false,
+            "title": "Shuffle",
+            "type": "boolean"
+          },
+          "updated_at": {
+            "default": 0.0,
+            "title": "Updated At",
+            "type": "number"
+          },
+          "voice_channel_id": {
+            "title": "Voice Channel Id",
+            "type": "string"
+          },
+          "volume": {
+            "default": 0,
+            "title": "Volume",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "voice_channel_id"
+        ],
+        "title": "SessionOut",
+        "type": "object"
+      },
+      "SessionTrack": {
+        "description": "A track as discord-utils stores it, minus what the web cannot use.\n\nThe stored row also carries the encoded Lavalink audio and its raw payload.\nNeither is named here, so pydantic drops them: they are large, they are of\nno use to a browser, and echoing them would put playable audio handles into\na page.",
+        "properties": {
+          "artwork": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artwork"
+          },
+          "author": {
+            "title": "Author",
+            "type": "string"
+          },
+          "identifier": {
+            "title": "Identifier",
+            "type": "string"
+          },
+          "is_stream": {
+            "title": "Is Stream",
+            "type": "boolean"
+          },
+          "isrc": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Isrc"
+          },
+          "length_ms": {
+            "title": "Length Ms",
+            "type": "integer"
+          },
+          "played_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Played Source"
+          },
+          "requested_source": {
+            "title": "Requested Source",
+            "type": "string"
+          },
+          "requester_id": {
+            "title": "Requester Id",
+            "type": "string"
+          },
+          "requester_name": {
+            "default": "",
+            "title": "Requester Name",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "uri": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uri"
+          }
+        },
+        "required": [
+          "identifier",
+          "title",
+          "author",
+          "length_ms",
+          "is_stream",
+          "source",
+          "requested_source",
+          "requester_id"
+        ],
+        "title": "SessionTrack",
         "type": "object"
       },
       "SignupBody": {
@@ -3558,6 +4309,228 @@
         "title": "TilePatch",
         "type": "object"
       },
+      "TopTrackOut": {
+        "description": "One recording and how often it has been played.\n\n`has_isrc` is exposed because it says how much to trust the row: an ISRC is\na real identity, while the fallback key is a digest of the metadata and can\nsplit one recording that two sources title differently.",
+        "properties": {
+          "author": {
+            "title": "Author",
+            "type": "string"
+          },
+          "has_isrc": {
+            "title": "Has Isrc",
+            "type": "boolean"
+          },
+          "last_played_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Played At"
+          },
+          "play_count": {
+            "title": "Play Count",
+            "type": "integer"
+          },
+          "skip_count": {
+            "title": "Skip Count",
+            "type": "integer"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "track_key": {
+            "title": "Track Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_key",
+          "has_isrc",
+          "title",
+          "author",
+          "play_count",
+          "skip_count"
+        ],
+        "title": "TopTrackOut",
+        "type": "object"
+      },
+      "TrackIn": {
+        "description": "One track being saved into a playlist, or queued into a live session.\n\n`artwork` is carried rather than looked up again. A track only re-resolves\nits audio at play time, and the resolved result is a mirror on another\nsource whose own cover art is not the one the user picked from, so a cover\ndropped here is gone for good.",
+        "properties": {
+          "artwork": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artwork"
+          },
+          "author": {
+            "maxLength": 300,
+            "title": "Author",
+            "type": "string"
+          },
+          "duration_ms": {
+            "minimum": 0.0,
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "identifier": {
+            "maxLength": 256,
+            "title": "Identifier",
+            "type": "string"
+          },
+          "isrc": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Isrc"
+          },
+          "source": {
+            "maxLength": 40,
+            "title": "Source",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 300,
+            "title": "Title",
+            "type": "string"
+          },
+          "uri": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uri"
+          }
+        },
+        "required": [
+          "source",
+          "identifier",
+          "title",
+          "author",
+          "duration_ms"
+        ],
+        "title": "TrackIn",
+        "type": "object"
+      },
+      "TrackOut": {
+        "properties": {
+          "artwork": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artwork"
+          },
+          "author": {
+            "maxLength": 300,
+            "title": "Author",
+            "type": "string"
+          },
+          "duration_ms": {
+            "minimum": 0.0,
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "identifier": {
+            "maxLength": 256,
+            "title": "Identifier",
+            "type": "string"
+          },
+          "isrc": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Isrc"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          },
+          "source": {
+            "maxLength": 40,
+            "title": "Source",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 300,
+            "title": "Title",
+            "type": "string"
+          },
+          "uri": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uri"
+          }
+        },
+        "required": [
+          "source",
+          "identifier",
+          "title",
+          "author",
+          "duration_ms",
+          "position"
+        ],
+        "title": "TrackOut",
+        "type": "object"
+      },
+      "TracksRequest": {
+        "properties": {
+          "tracks": {
+            "items": {
+              "$ref": "#/components/schemas/TrackIn"
+            },
+            "maxItems": 500,
+            "title": "Tracks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tracks"
+        ],
+        "title": "TracksRequest",
+        "type": "object"
+      },
       "UpdateEntryBody": {
         "properties": {
           "body": {
@@ -3718,6 +4691,37 @@
           }
         },
         "title": "UpdatePartyRequest",
+        "type": "object"
+      },
+      "UpdatePlaylistRequest": {
+        "description": "Only the fields present are changed.",
+        "properties": {
+          "is_public": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Public"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "UpdatePlaylistRequest",
         "type": "object"
       },
       "UpdateStatusBody": {
@@ -4605,7 +5609,7 @@
   "info": {
     "description": "The backend for **The Iron Foundry**, an Old School RuneScape clan. It serves the\ncommunity site at [ironfoundry.cc](https://ironfoundry.cc), the clan's Discord\nbots, and the in-game RuneLite plugin from one PostgreSQL + Valkey stack.\n\n## Authentication\n\nThree credentials exist, each for a different caller.\n\n**`DiscordJWT`** - the browser session. `GET /auth/login` redirects to Discord\nOAuth2; `GET /auth/callback` verifies guild membership, upserts the user, and\nredirects back to the frontend with an HS256 JWT in the query string. Send it as\n`Authorization: Bearer <token>` on every member or staff endpoint. `GET /auth/me`\nreturns the decoded profile with Discord roles, refreshed when stale.\n\n**`MemberApiKey`** - the RuneLite plugin. Each member holds a personal key from\n`GET /members/me/api-key` (rotate with `POST /members/me/api-key/rotate`), sent as\na `verification-code` header. `POST /auth/token` trades the same key for a JWT\nwhen a plugin needs member-scoped web endpoints. Revoked keys are rejected.\n\n**`MetricsApiKey`** - service-to-service. A shared secret the Discord services\npresent, also as `verification-code`, to report telemetry and dispatch clan chat.\n\nMissing or invalid credentials return `401`. A valid token whose roles do not\nsatisfy an endpoint's permission returns `403`.\n\n## Conventions\n\nTimestamps are UTC ISO-8601. Request and response bodies are JSON unless an\nendpoint serves a binary asset. Collections large enough to page take `limit` and\n`offset` query parameters; the rest return the full set. Validation failures\nreturn `422` with FastAPI's error array, naming the offending field in `loc`.\n\n## Realtime\n\n`WS /ccdispatch` is the clan-chat bridge: the RuneLite plugin connects with its\n`verification-code` header and receives messages relayed from Discord over Valkey\npubsub, while `POST /ccingest` carries in-game chat the other way. Party chat\npolls over plain HTTP instead.\n\n## Related services\n\n`/osrs-cache/*` proxies an internal service that decodes the live OSRS game cache\ninto items, NPCs, objects, sprites, rendered item icons, and map tiles.\n`/reference/*` serves loot tables scraped from the OSRS Wiki and EHP/EHB\nefficiency rates from WiseOldMan. Both refresh on a schedule; neither needs\nauthentication.",
     "title": "The Foundry API",
-    "version": "1.0.0"
+    "version": "1.1.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -13987,6 +14991,1471 @@
         ]
       }
     },
+    "/music/bot/{discord_user_id}/playlists": {
+      "get": {
+        "description": "Playlists this Discord user can load: their own, plus the public ones.",
+        "operationId": "playlists_for_user_music_bot__discord_user_id__playlists_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "discord_user_id",
+            "required": true,
+            "schema": {
+              "title": "Discord User Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mine_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Mine Only",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PlaylistOut"
+                  },
+                  "title": "Response Playlists For User Music Bot  Discord User Id  Playlists Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Credentials are missing, malformed, expired, or have been revoked."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "MetricsApiKey": []
+          }
+        ],
+        "summary": "Playlists For User",
+        "tags": [
+          "music"
+        ]
+      }
+    },
+    "/music/bot/{discord_user_id}/playlists/{playlist_id}": {
+      "get": {
+        "description": "One playlist with its tracks, if this user is allowed to see it.",
+        "operationId": "playlist_for_user_music_bot__discord_user_id__playlists__playlist_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "discord_user_id",
+            "required": true,
+            "schema": {
+              "title": "Discord User Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "playlist_id",
+            "required": true,
+            "schema": {
+              "title": "Playlist Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Credentials are missing, malformed, expired, or have been revoked."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "MetricsApiKey": []
+          }
+        ],
+        "summary": "Playlist For User",
+        "tags": [
+          "music"
+        ]
+      }
+    },
+    "/music/playlists": {
+      "get": {
+        "description": "List playlists: your own, the public ones, or both.",
+        "operationId": "list_playlists_music_playlists_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "mine",
+                "public",
+                "all"
+              ],
+              "title": "Scope",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PlaylistOut"
+                  },
+                  "title": "Response List Playlists Music Playlists Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Credentials are missing, malformed, expired, or have been revoked."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "List Playlists",
+        "tags": [
+          "music"
+        ]
+      },
+      "post": {
+        "description": "Create a playlist, optionally with its tracks in one call.",
+        "operationId": "create_playlist_music_playlists_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePlaylistRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Credentials are missing, malformed, expired, or have been revoked."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Create Playlist",
+        "tags": [
+          "music"
+        ]
+      }
+    },
+    "/music/playlists/import": {
+      "post": {
+        "description": "Save every track behind a playlist link as a new playlist.\n\nA link to a single track imports that one track, so a mistyped link makes a\none-track playlist rather than an error nobody can act on.",
+        "operationId": "import_playlist_music_playlists_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportPlaylistRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Credentials are missing, malformed, expired, or have been revoked."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Import Playlist",
+        "tags": [
+          "music"
+        ]
+      }
+    },
+    "/music/playlists/{playlist_id}": {
+      "delete": {
+        "description": "Delete a playlist and its tracks. Owner only.",
+        "operationId": "delete_playlist_music_playlists__playlist_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "playlist_id",
+            "required": true,
+            "schema": {
+              "title": "Playlist Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Credentials are missing, malformed, expired, or have been revoked."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Delete Playlist",
+        "tags": [
+          "music"
+        ]
+      },
+      "get": {
+        "description": "A playlist and its tracks. Public ones are readable by anyone.",
+        "operationId": "get_playlist_music_playlists__playlist_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "playlist_id",
+            "required": true,
+            "schema": {
+              "title": "Playlist Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Credentials are missing, malformed, expired, or have been revoked."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Get Playlist",
+        "tags": [
+          "music"
+        ]
+      },
+      "patch": {
+        "description": "Rename a playlist or change whether it is public. Owner only.",
+        "operationId": "update_playlist_music_playlists__playlist_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "playlist_id",
+            "required": true,
+            "schema": {
+              "title": "Playlist Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePlaylistRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Credentials are missing, malformed, expired, or have been revoked."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Update Playlist",
+        "tags": [
+          "music"
+        ]
+      }
+    },
+    "/music/playlists/{playlist_id}/tracks": {
+      "post": {
+        "description": "Add tracks to the end of a playlist. Owner only.",
+        "operationId": "append_tracks_music_playlists__playlist_id__tracks_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "playlist_id",
+            "required": true,
+            "schema": {
+              "title": "Playlist Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TracksRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Credentials are missing, malformed, expired, or have been revoked."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Append Tracks",
+        "tags": [
+          "music"
+        ]
+      },
+      "put": {
+        "description": "Replace the whole track list. Owner only.\n\nA whole-list replace rather than per-track edits, because that is what\nsaving a queue or reordering one actually is, and it keeps positions\ncontiguous without a renumbering pass.",
+        "operationId": "replace_tracks_music_playlists__playlist_id__tracks_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "playlist_id",
+            "required": true,
+            "schema": {
+              "title": "Playlist Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TracksRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Credentials are missing, malformed, expired, or have been revoked."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Replace Tracks",
+        "tags": [
+          "music"
+        ]
+      }
+    },
+    "/music/search": {
+      "get": {
+        "description": "Resolve a query, or a link, into tracks that can be queued or saved.\n\nA link is loaded as itself; anything else is searched on the named source.\nA link to a playlist comes back as all of its tracks.",
+        "operationId": "search_tracks_music_search_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "maxLength": 300,
+              "minLength": 1,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "default": "spotify",
+              "title": "Source",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SearchResult"
+                  },
+                  "title": "Response Search Tracks Music Search Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Credentials are missing, malformed, expired, or have been revoked."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Search Tracks",
+        "tags": [
+          "music"
+        ]
+      }
+    },
+    "/music/sessions": {
+      "get": {
+        "description": "Every live session, so the website can offer a channel to watch.",
+        "operationId": "list_sessions_music_sessions_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SessionOut"
+                  },
+                  "title": "Response List Sessions Music Sessions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Credentials are missing, malformed, expired, or have been revoked."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "List Sessions",
+        "tags": [
+          "music"
+        ]
+      }
+    },
+    "/music/sessions/{voice_channel_id}": {
+      "get": {
+        "description": "One session, or 404 once its bot has left the channel.",
+        "operationId": "get_session_music_sessions__voice_channel_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "voice_channel_id",
+            "required": true,
+            "schema": {
+              "title": "Voice Channel Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Credentials are missing, malformed, expired, or have been revoked."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Get Session",
+        "tags": [
+          "music"
+        ]
+      }
+    },
+    "/music/sessions/{voice_channel_id}/activity": {
+      "get": {
+        "description": "Who did what to this session, newest first.",
+        "operationId": "get_activity_music_sessions__voice_channel_id__activity_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "voice_channel_id",
+            "required": true,
+            "schema": {
+              "title": "Voice Channel Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 25,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ActivityOut"
+                  },
+                  "title": "Response Get Activity Music Sessions  Voice Channel Id  Activity Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Credentials are missing, malformed, expired, or have been revoked."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Get Activity",
+        "tags": [
+          "music"
+        ]
+      }
+    },
+    "/music/sessions/{voice_channel_id}/commands": {
+      "post": {
+        "description": "Ask the bot serving this channel to do one thing.",
+        "operationId": "send_command_music_sessions__voice_channel_id__commands_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "voice_channel_id",
+            "required": true,
+            "schema": {
+              "title": "Voice Channel Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAccepted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Credentials are missing, malformed, expired, or have been revoked."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Send Command",
+        "tags": [
+          "music"
+        ]
+      }
+    },
+    "/music/sessions/{voice_channel_id}/control": {
+      "get": {
+        "description": "Whether the caller may drive this session.\n\nIts own endpoint rather than a field on the session: the session payload is\nbroadcast to every watcher over the socket, and this answer differs per\nviewer.",
+        "operationId": "get_control_music_sessions__voice_channel_id__control_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "voice_channel_id",
+            "required": true,
+            "schema": {
+              "title": "Voice Channel Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Get Control Music Sessions  Voice Channel Id  Control Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Credentials are missing, malformed, expired, or have been revoked."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Get Control",
+        "tags": [
+          "music"
+        ]
+      }
+    },
+    "/music/sessions/{voice_channel_id}/history": {
+      "get": {
+        "description": "What has already played here, newest first.\n\nThe panel shows the last ten; this returns everything the bot still keeps,\nwhich is what the website's re-queue and save-to-playlist controls act on.",
+        "operationId": "get_history_music_sessions__voice_channel_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "voice_channel_id",
+            "required": true,
+            "schema": {
+              "title": "Voice Channel Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HistoryOut"
+                  },
+                  "title": "Response Get History Music Sessions  Voice Channel Id  History Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Credentials are missing, malformed, expired, or have been revoked."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Get History",
+        "tags": [
+          "music"
+        ]
+      }
+    },
+    "/music/sessions/{voice_channel_id}/queue": {
+      "get": {
+        "description": "The pending tracks in play order.",
+        "operationId": "get_queue_music_sessions__voice_channel_id__queue_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "voice_channel_id",
+            "required": true,
+            "schema": {
+              "title": "Voice Channel Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SessionTrack"
+                  },
+                  "title": "Response Get Queue Music Sessions  Voice Channel Id  Queue Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Credentials are missing, malformed, expired, or have been revoked."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Get Queue",
+        "tags": [
+          "music"
+        ]
+      }
+    },
+    "/music/stats": {
+      "get": {
+        "description": "Clan totals over a window, plus the per-day series behind them.",
+        "operationId": "get_clan_stats_music_stats_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 365,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClanStatsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Credentials are missing, malformed, expired, or have been revoked."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Get Clan Stats",
+        "tags": [
+          "music"
+        ]
+      }
+    },
+    "/music/stats/top-tracks": {
+      "get": {
+        "description": "The most-played recordings, keyed on identity rather than on source.",
+        "operationId": "get_top_tracks_music_stats_top_tracks_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TopTrackOut"
+                  },
+                  "title": "Response Get Top Tracks Music Stats Top Tracks Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "Credentials are missing, malformed, expired, or have been revoked."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Get Top Tracks",
+        "tags": [
+          "music"
+        ]
+      }
+    },
     "/osrs-cache/item-icons/{item_id}": {
       "get": {
         "description": "Serve the baked 512px item icon as lossless WebP, immutably cached.",
@@ -20852,6 +23321,10 @@
       "name": "parties"
     },
     {
+      "description": "Saved playlists for the Discord music bots. A playlist is private to its owner unless it is marked public, and a public one can be browsed and loaded by anyone but changed only by its owner. Live playback state is not here: it is ephemeral and never persisted.",
+      "name": "music"
+    },
+    {
       "description": "Member-submitted suggestions and reports, with threaded replies, reactions, pinning, status transitions, and image attachments.",
       "name": "feedback"
     },
@@ -20941,6 +23414,7 @@
         "members",
         "badges",
         "parties",
+        "music",
         "feedback",
         "content",
         "surveys",

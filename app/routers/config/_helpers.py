@@ -31,6 +31,8 @@ _ALL_SERVICE_KEYS: list[str] = [
     "competition_schedule",
     "metric_compaction",
     "discord_chat",
+    "music_state",
+    "music_stats",
     "party_expiry",
     "efficiency_rates",
     "loot_tables",

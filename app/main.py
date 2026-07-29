@@ -33,6 +33,7 @@ from app.routers import (
     members,
     meta,
     metrics,
+    music,
     osrs_cache,
     parties,
     ranking,
@@ -63,6 +64,8 @@ from app.services.endpoint_metrics import (
 from app.services.http.wom_queue import init_wom_queue
 from app.services.loot_tables import LootTablesService
 from app.services.metric_compaction import MetricCompactionService
+from app.services.music_live import MusicStateService
+from app.services.music_stats import MusicStatsService
 from app.services.name_change import WomNameChangeService
 from app.services.outbound_metrics import _collector as _outbound_collector
 from app.services.outbound_metrics.service import OutboundMetricsService
@@ -116,6 +119,8 @@ async def lifespan(app: FastAPI):
 
     # Build all service instances
     discord_chat_svc = DiscordChatService(VALKEY_URI, app.state.session_factory)
+    music_state_svc = MusicStateService(VALKEY_URI, app.state.valkey)
+    music_stats_svc = MusicStatsService(VALKEY_URI, app.state.session_factory)
     party_expiry_svc = PartyExpiryService(app.state.session_factory)
     compaction_service = MetricCompactionService(app.state.session_factory)
 
@@ -176,6 +181,8 @@ async def lifespan(app: FastAPI):
     )
     app.state.service_registry = {
         "discord_chat": discord_chat_svc,
+        "music_state": music_state_svc,
+        "music_stats": music_stats_svc,
         "party_expiry": party_expiry_svc,
         "metric_compaction": compaction_service,
         "wom_name_change": wom_service,
@@ -276,6 +283,7 @@ app.include_router(discord_router.router)
 app.include_router(events.router)
 app.include_router(ccdispatch.router)
 app.include_router(members.router)
+app.include_router(music.router)
 app.include_router(parties.router)
 app.include_router(ranking.router)
 app.include_router(reference.router)

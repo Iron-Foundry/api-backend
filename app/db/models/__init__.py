@@ -34,6 +34,12 @@ from .frenzy import (
 )
 from .gains import BulkGainsBatch, PlayerBulkGains
 from .goals import MemberGoals
+from .music import (
+    MusicCounter,
+    MusicTrackPlay,
+    Playlist,
+    PlaylistTrack,
+)
 from .parties import (
     PartyChatMessageDB,
     PartyDB,
@@ -92,6 +98,8 @@ __all__ = [
     "Metric",
     "MetricRecord",
     "MetricRecordCompact",
+    "MusicCounter",
+    "MusicTrackPlay",
     "PartyChatMessageDB",
     "PartyDB",
     "PartyMemberDB",
@@ -99,6 +107,8 @@ __all__ = [
     "PlayerBulkGains",
     "PlayerRanking",
     "PlayerSnapshot",
+    "Playlist",
+    "PlaylistTrack",
     "RolePanel",
     "RuneLiteConfig",
     "ScheduledCompetitionRun",

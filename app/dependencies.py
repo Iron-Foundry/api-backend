@@ -83,6 +83,19 @@ async def get_optional_user(
         return None
 
 
+def decode_token(token: str) -> dict[str, Any] | None:
+    """Decode a JWT outside the dependency chain, for WebSocket handshakes.
+
+    A browser cannot set an Authorization header on a WebSocket, so the socket
+    authenticates with a first frame instead and needs the check as a plain
+    function rather than a `Security` dependency.
+    """
+    try:
+        return jwt.decode(token, JWT_SECRET, algorithms=[_ALGORITHM])
+    except JWTError:
+        return None
+
+
 async def verify_metrics_key(
     verification_code: str | None = Security(metrics_key_scheme),
 ) -> None:

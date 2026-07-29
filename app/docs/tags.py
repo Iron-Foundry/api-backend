@@ -49,6 +49,15 @@ TAGS_METADATA: list[dict[str, Any]] = [
         ),
     },
     {
+        "name": "music",
+        "description": (
+            "Saved playlists for the Discord music bots. A playlist is private "
+            "to its owner unless it is marked public, and a public one can be "
+            "browsed and loaded by anyone but changed only by its owner. Live "
+            "playback state is not here: it is ephemeral and never persisted."
+        ),
+    },
+    {
         "name": "feedback",
         "description": (
             "Member-submitted suggestions and reports, with threaded replies, "
@@ -199,6 +208,7 @@ TAG_GROUPS: list[dict[str, Any]] = [
             "members",
             "badges",
             "parties",
+            "music",
             "feedback",
             "content",
             "surveys",
