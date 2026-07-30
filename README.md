@@ -6,8 +6,9 @@ REST API backend for the Iron Foundry platform. Built with FastAPI and served by
 
 ## Requirements
 
-- Python 3.13+
+- Python 3.14+
 - [uv](https://docs.astral.sh/uv/) (package manager)
+- A running PostgreSQL instance and a running Valkey/Redis instance
 
 ---
 
@@ -29,12 +30,25 @@ uv run uvicorn app.main:app --reload
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `MONGO_URI` | Yes | `mongodb://localhost:27017` | MongoDB connection URI |
-| `MONGO_DB` | No | `foundry` | MongoDB database name |
+| `DATABASE_URL` | Yes | - | PostgreSQL connection URI (`postgresql+asyncpg://...`) |
 | `VALKEY_URI` | Yes | `redis://localhost:6379` | Valkey/Redis connection URI |
+| `JWT_SECRET` | Yes | `change-me` | HS256 signing secret for issued tokens |
+| `DISCORD_CLIENT_ID` | Yes | - | Discord OAuth2 application ID |
+| `DISCORD_CLIENT_SECRET` | Yes | - | Discord OAuth2 application secret |
+| `DISCORD_TOKEN` | Yes | - | Bot token used for guild lookups |
+| `GUILD_ID` | Yes | - | The ID of the Discord server |
+| `FRONTEND_URL` | No | `https://ironfoundry.cc` | Allowed CORS origins, comma-separated |
+| `STAFF_ROLE_ID` / `SENIOR_STAFF_ROLE_ID` / `OWNER_ROLE_ID` / `MENTOR_ROLE_ID` | Yes | - | Permission tier role IDs |
+| `UPLOAD_DIR` | No | `/app/uploads` | Asset storage directory |
+| `OSRS_CACHE_SERVICE_URL` | No | `http://osrs-cache-service:8100` | Internal osrs-cache-service base URL |
+| `MAP_TILES_BASE_URL` | No | - | Public base URL of the `cache-tiles` nginx sidecar |
+| `METRICS_API_KEY` | No | - | Shared service key accepted on metrics ingest |
+| `LAVALINK_URI` / `LAVALINK_PASSWORD` | No | - | Lavalink node, for the music bridge |
+| `IRONCLAD_WEBHOOK_URL` | No | - | Discord webhook for Ironclad death posts |
 | `WOM_GROUP_ID` | No | - | Wise Old Man group ID - enables RSN name change tracking when set |
 | `WOM_GROUP_KEY` | No | - | WOM group token (private groups only) |
-| `WOM_CLAN_NAME` | No | `Iron Foundry` | Must match `clan_name` in stat collections |
+| `WOM_API_KEY` | No | - | WOM API key |
+| `WOM_CLAN_NAME` | No | `Iron Foundry` | Must match `clan_name` in stat records |
 
 ---
 
@@ -42,57 +56,57 @@ uv run uvicorn app.main:app --reload
 
 ```
 app/
-  main.py          - FastAPI application entry point, background services
+  main.py          - FastAPI application entry point, lifespan, background tasks
   dependencies.py  - Shared dependency injection
-  routers/         - Route handlers (one module per resource)
+  version.py       - Build metadata (GIT_SHA / BUILD_TIME)
+  routers/         - Route handlers (one package or module per resource)
   services/        - Background services and business logic
-    rsn_cascade.py   - Cascades RSN renames across stat collections
-    name_change.py   - Polls Wise Old Man API for approved name changes
+    name_change.py        - Polls the Wise Old Man API for approved name changes
+    clan_stats.py         - Clan stat aggregation
+    ranking_service/      - Rank calculation and rebuilds
     connection_manager.py - WebSocket connection management
-  internal/        - Internal utilities
+    music_*.py            - Music bridge, live state, and stats
+  db/models/       - SQLAlchemy models
+  models/          - Pydantic request/response schemas
+  party_store/     - Party state persistence
+  docs/            - Scalar API reference assets
   tests/           - Test suite
+alembic/versions/  - Database migrations
+```
+
+The OpenAPI document is generated, not hand-written:
+
+```bash
+uv run python scripts/generate_openapi.py   # regenerates openapi.json
 ```
 
 ---
 
 ## Testing
 
-No running database or external services required. Tests use mocked dependencies.
+The default run needs no database or external services - `addopts = "-m 'not integration'"`
+deselects the real-infra tests and everything else uses mocked dependencies.
 
 ```bash
-uv run pytest                          # full suite
-uv run pytest -q                       # quiet (dots only)
-uv run pytest -v                       # verbose (test names)
+uv run pytest                          # default suite (integration deselected)
+uv run pytest -m integration           # real-infra tests (Postgres + Valkey containers)
 uv run pytest app/tests/test_auth.py   # single file
 uv run pytest -k "staff"               # tests matching a keyword
 uv run pytest --tb=short               # short tracebacks on failure
 ```
 
-Test files live in `app/tests/`. Each maps to a router:
+Test files live in `app/tests/`, one per router (`test_<resource>.py` covers
+`/<resource>/*` - `test_auth.py` for `/auth/*`, `test_parties.py` for `/parties/*`, and
+so on). Every endpoint has a test; a new router ships with its test file in the same
+change. Alongside those:
 
 | File | Covers |
 |---|---|
-| `test_auth.py` | `/auth/*` - login, OAuth callback, JWT token |
-| `test_assets.py` | `/assets/*` - file upload/serve/delete |
-| `test_badges.py` | `/badges/*` - badge CRUD and assignments |
-| `test_clan.py` | `/clan/*` - stats, leaderboards, name changes |
-| `test_clan_competitions.py` | `/clan/competitions/*` - competition CRUD |
-| `test_clan_schedules.py` | `/clan/competition-schedules/*` |
-| `test_config.py` | `/config/*` - all config GET/PUT pairs |
-| `test_content.py` | `/content/*` - categories, entries, versions, reactions |
-| `test_discord_routes.py` | `/discord/*` - channels, roles, emojis, members |
-| `test_events.py` | `/ccingest` - clan chat ingest webhook |
-| `test_feedback.py` | `/feedback/*` - feedback items and replies |
-| `test_frenzy.py` | `/frenzy/*` - events, templates, submissions |
-| `test_health.py` | `/health` |
-| `test_members.py` | `/members/me/*` - accounts, API keys, feed |
-| `test_metrics.py` | `/metrics/*`, `/services/*` |
-| `test_parties.py` | `/parties/*` - party CRUD, membership, chat |
-| `test_ranking.py` | `/ranking/*` - player lookup, admin rebuild |
-| `test_role_panels.py` | `/role-panels/*` |
-| `test_staff.py` | `/staff/*` - member/ticket overview |
-| `test_surveys.py` | `/surveys/*` - survey CRUD, responses |
-| `test_tickets.py` | `/tickets/config/*` |
+| `test_openapi_contract.py` / `test_openapi_metadata.py` | `openapi.json` matches the live app |
+| `test_inbound_contracts.py` | payloads the discord bots post to this API |
+| `test_outbound_metrics.py` | metrics this API reports onward |
+| `test_smoke.py` / `test_health.py` | app boot and `/health` |
+| `app/tests/integration/` | real Postgres/Valkey journeys, marked `integration` |
 
 ### Test fixtures
 
@@ -107,6 +121,11 @@ Three HTTP client fixtures cover the main permission tiers:
 ## Development
 
 ```bash
-uv run ruff check .
 uv run ruff format .
+uv run ruff check . --fix
+uv run pyright
 ```
+
+Pre-commit hooks (`.pre-commit-config.yaml`) run Ruff lint and format on commit.
+From the monorepo root, `./run-tests.sh {lint|fast|integration|e2e|all}` runs this
+module alongside the other services.
