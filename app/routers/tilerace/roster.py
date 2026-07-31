@@ -7,12 +7,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from valkey.asyncio import Valkey
 
 from app.db.models import TileRaceSignup, User
-from app.dependencies import get_session
+from app.dependencies import get_session, get_valkey
 from app.services.page_permissions import require_page_permission
 
-from ._helpers import _serialize_signup, raids_kc_map
+from ._discord_payload import sync_if_provisioned
+from ._helpers import raids_kc_map
 from ._roster_helpers import (
     clear_captain,
     entry_or_404,
@@ -22,6 +24,7 @@ from ._roster_helpers import (
     ranking_score,
     validate_team,
 )
+from ._serializers import _serialize_signup
 from .schemas import RosterAddBody, RosterPatch
 
 router = APIRouter()
@@ -67,6 +70,7 @@ async def add_roster_member(
     event_id: int,
     body: RosterAddBody,
     session: AsyncSession = Depends(get_session),
+    valkey: Valkey = Depends(get_valkey),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
     """Place a member on the roster on their behalf, signed up or not."""
@@ -93,6 +97,7 @@ async def add_roster_member(
     )
     session.add(entry)
     await session.commit()
+    await sync_if_provisioned(session, valkey, event_id)
     return _serialize_signup(entry, await raids_kc_map(session, [entry]))
 
 
@@ -102,6 +107,7 @@ async def patch_roster_member(
     discord_user_id: int,
     body: RosterPatch,
     session: AsyncSession = Depends(get_session),
+    valkey: Valkey = Depends(get_valkey),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
     """Move a member between teams, unassign them, or set them as captain.
@@ -129,6 +135,7 @@ async def patch_roster_member(
     except IntegrityError as exc:
         await session.rollback()
         raise HTTPException(409, "That team already has a captain.") from exc
+    await sync_if_provisioned(session, valkey, event_id)
     return _serialize_signup(entry, await raids_kc_map(session, [entry]))
 
 
@@ -137,10 +144,12 @@ async def remove_roster_member(
     event_id: int,
     discord_user_id: int,
     session: AsyncSession = Depends(get_session),
+    valkey: Valkey = Depends(get_valkey),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
     """Drop a member from the event entirely, team assignment and all."""
     entry = await entry_or_404(session, event_id, discord_user_id)
     await session.delete(entry)
     await session.commit()
+    await sync_if_provisioned(session, valkey, event_id)
     return {"ok": True}

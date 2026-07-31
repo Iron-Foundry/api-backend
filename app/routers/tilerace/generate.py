@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from valkey.asyncio import Valkey
 
 from app.db.models import (
     TileRaceCompletion,
@@ -14,16 +15,18 @@ from app.db.models import (
     TileRaceSignup,
     TileRaceTeam,
 )
-from app.dependencies import get_session
+from app.dependencies import get_session, get_valkey
 from app.services.page_permissions import require_page_permission
 
+from ._discord_payload import sync_if_provisioned
 from ._draft import (
     balance_raiders,
     greedy_draft,
     pick_captain,
     target_sizes,
 )
-from ._helpers import _serialize_team, raids_kc_map
+from ._helpers import raids_kc_map
+from ._serializers import _serialize_team
 from ._teams_shape import reconcile_teams
 from .schemas import GenerateTeamsBody
 
@@ -100,6 +103,7 @@ async def generate_teams(
     event_id: int,
     body: GenerateTeamsBody,
     session: AsyncSession = Depends(get_session),
+    valkey: Valkey = Depends(get_valkey),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
     """Build teams from the signup pool at the given team size and draft them.
@@ -137,6 +141,7 @@ async def generate_teams(
     event.team_size = body.team_size
     event.updated_at = now
     await session.commit()
+    await sync_if_provisioned(session, valkey, event_id)
     rosters = {tid: list(members) for tid, members in assignments.items()}
     return {
         "ok": True,
@@ -148,6 +153,7 @@ async def generate_teams(
 async def reset_teams(
     event_id: int,
     session: AsyncSession = Depends(get_session),
+    valkey: Valkey = Depends(get_valkey),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
     """Return the event to bare signups: every member is unassigned, teams stay."""
@@ -163,4 +169,5 @@ async def reset_teams(
     )
     event.updated_at = datetime.now(UTC)
     await session.commit()
+    await sync_if_provisioned(session, valkey, event_id)
     return {"ok": True}

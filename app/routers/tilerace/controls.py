@@ -92,6 +92,8 @@ async def roll_dice(
         raise HTTPException(404, "Event not found.")
     if event.is_finished:
         raise HTTPException(409, "Game over.")
+    if event.rolls_paused:
+        raise HTTPException(409, "Rolling is paused.")
     rolled_by = int(current_user["sub"])
     await _require_member(session, team, rolled_by)
     now = datetime.now(UTC)

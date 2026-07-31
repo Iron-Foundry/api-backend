@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import TileRaceEvent, TileRaceRoll
 from app.dependencies import get_current_user, get_session
 
-from ._helpers import _serialize_roll
+from ._serializers import _serialize_roll
 
 router = APIRouter()
 

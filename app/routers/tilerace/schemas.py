@@ -96,6 +96,7 @@ class EventPatch(BaseModel):
     background_url: str | None = None
     fog_of_war: bool | None = None
     is_finished: bool | None = None
+    rolls_paused: bool | None = None
     signups_open: bool | None = None
     cells: list[Any] | None = None
     start_pad: Pad | None = None

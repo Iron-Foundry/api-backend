@@ -11,7 +11,7 @@ from app.db.models import TileRaceCompletion, TileRaceEvent, TileRaceTeam
 from app.dependencies import get_current_user, get_session
 from app.services.page_permissions import require_page_permission
 
-from ._helpers import _serialize_completion
+from ._serializers import _serialize_completion
 from .schemas import CompletionBody
 
 router = APIRouter()

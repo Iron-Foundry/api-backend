@@ -11,6 +11,34 @@ prerelease, `stable` to drop the tag). A MAJOR bump is the maintainer's call
 and is never made automatically. The bump happens once, when the accumulated
 work is about to be pushed - not per component.
 
+## [1.5.0] - 2026-07-31
+
+### Added
+
+- Tile race rolling can be paused. `rolls_paused` on the event blocks every
+  team's roll with a 409 without ending the game, so a board can be fixed or a
+  dispute settled without resorting to finishing the event. It is checked after
+  the game-over gate, so a finished event still reports "Game over".
+- Tile race Discord provisioning: `POST .../discord/setup`, `.../discord/sync`
+  and `.../discord/teardown` publish a command on `foundry:tilerace_discord`
+  for discord-server to act on, and `POST .../discord/result` is the
+  service-key callback it reports the created (or cleared) ids back through.
+  The command always carries the full desired shape rather than a diff, so an
+  extra sync is harmless. Role, channel and category ids are stored on the
+  event and team rows; the seam is pinned by `fixtures/tilerace_discord.json`.
+- Anything that changes a roster or a team name now pushes to Discord when the
+  event is provisioned - team rename, roster add, move, captain change, remove,
+  team generation and reset. Without it a member dropped from a roster on the
+  site kept the role and the channel access that came with it. Deleting a team
+  emits a targeted `teardown_team` so its role and channels go with it instead
+  of lingering in the guild with nothing pointing at them.
+
+### Changed
+
+- `_helpers.py` is split: the pure serializers move to `_serializers.py`,
+  leaving the session-bound helpers behind. Both files were over the size limit
+  with the new fields added.
+
 ## [1.4.0] - 2026-07-31
 
 ### Changed

@@ -11,14 +11,8 @@ from app.db.models import TileRaceEvent, TileRaceSignup, TileRaceTeam
 from app.dependencies import get_current_user, get_session
 from app.services.page_permissions import require_page_permission
 
-from ._helpers import (
-    _embed_cells,
-    _serialize_signup,
-    _serialize_summary,
-    _serialize_team,
-    group_by_team,
-    raids_kc_map,
-)
+from ._helpers import _embed_cells, group_by_team, raids_kc_map
+from ._serializers import _serialize_signup, _serialize_summary, _serialize_team
 from .schemas import EventBody, EventPatch
 
 router = APIRouter()
@@ -181,6 +175,8 @@ async def patch_event(
         event.signups_open = body.signups_open
     if body.fog_of_war is not None:
         event.fog_of_war = body.fog_of_war
+    if body.rolls_paused is not None:
+        event.rolls_paused = body.rolls_paused
     if body.is_finished is not None:
         event.is_finished = body.is_finished
         if not body.is_finished:

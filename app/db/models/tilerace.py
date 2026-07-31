@@ -61,7 +61,13 @@ class TileRaceEvent(Base):
     is_finished: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="false"
     )
+    rolls_paused: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
     winner_team_id: Mapped[int | None] = mapped_column(BigInteger)
+    discord_category_id: Mapped[int | None] = mapped_column(BigInteger)
+    discord_captains_role_id: Mapped[int | None] = mapped_column(BigInteger)
+    discord_captains_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     grid_cols: Mapped[int] = mapped_column(Integer, nullable=False, server_default="10")
     grid_rows: Mapped[int] = mapped_column(Integer, nullable=False, server_default="5")
     dice_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
@@ -102,6 +108,9 @@ class TileRaceTeam(Base):
     icon_url: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
     color: Mapped[str] = mapped_column(Text, nullable=False, server_default="#888888")
     position: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    discord_role_id: Mapped[int | None] = mapped_column(BigInteger)
+    discord_text_channel_id: Mapped[int | None] = mapped_column(BigInteger)
+    discord_voice_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     pending_effects: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default="{}"
     )

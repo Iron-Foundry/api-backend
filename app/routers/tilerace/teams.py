@@ -6,11 +6,13 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from valkey.asyncio import Valkey
 
 from app.db.models import TileRaceEvent, TileRaceTeam
-from app.dependencies import get_session
+from app.dependencies import get_session, get_valkey
 from app.services.page_permissions import require_page_permission
 
+from ._discord_payload import remove_team_objects, sync_if_provisioned
 from .schemas import TeamBody, TeamPatch
 
 router = APIRouter()
@@ -67,10 +69,16 @@ async def patch_team(
     team_id: int,
     body: TeamPatch,
     session: AsyncSession = Depends(get_session),
+    valkey: Valkey = Depends(get_valkey),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
-    """Rename a team or restyle it. Rosters are edited through /roster."""
+    """Rename a team or restyle it. Rosters are edited through /roster.
+
+    A name change is pushed straight to Discord when the event is provisioned,
+    so the role and channels can never drift from the name shown on the site.
+    """
     team = await _team_or_404(session, event_id, team_id)
+    renamed = body.name is not None and body.name != team.name
     if body.name is not None:
         team.name = body.name
     if body.slug is not None:
@@ -85,6 +93,8 @@ async def patch_team(
         team.position = body.position
     team.updated_at = datetime.now(UTC)
     await session.commit()
+    if renamed:
+        await sync_if_provisioned(session, valkey, event_id)
     return {"ok": True}
 
 
@@ -93,10 +103,23 @@ async def delete_team(
     event_id: int,
     team_id: int,
     session: AsyncSession = Depends(get_session),
+    valkey: Valkey = Depends(get_valkey),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
-    """Remove a team; its members fall back to the unassigned signup pool."""
+    """Remove a team; its members fall back to the unassigned signup pool.
+
+    Its Discord role and channels go with it, or they would sit in the guild
+    with nothing left to point at them.
+    """
     team = await _team_or_404(session, event_id, team_id)
+    event = (
+        await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
+    ).scalar_one_or_none()
+    removed = (
+        await remove_team_objects(valkey, event, team) if event is not None else False
+    )
     await session.delete(team)
     await session.commit()
+    if removed:
+        await sync_if_provisioned(session, valkey, event_id)
     return {"ok": True}
