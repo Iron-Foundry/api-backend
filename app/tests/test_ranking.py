@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from httpx import AsyncClient
 
 from app.services.ranking_service import _DEFAULT_CONFIG
+from app.services.ranking_service._parse import build_snapshot_rows
 from app.services.ranking_service.scoring import (
     rank_from_snapshots,
     rank_player_breakdown,
@@ -143,3 +146,58 @@ def test_scoring_config_round_trip() -> None:
     assert len(restored.skills) == len(_DEFAULT_CONFIG.skills)
     assert len(restored.prestige) == len(_DEFAULT_CONFIG.prestige)
     assert restored.rank_thresholds == _DEFAULT_CONFIG.rank_thresholds
+
+
+def test_snapshot_rows_keep_overall_and_efficiency() -> None:
+    entry = {
+        "player": {
+            "username": "Some Player",
+            "type": "ironman",
+            "ehp": 1104.7,
+            "ehb": 946.2,
+        },
+        "data": {
+            "data": {
+                "skills": {
+                    "overall": {
+                        "metric": "overall",
+                        "experience": 346368,
+                        "level": 243,
+                    },
+                    "slayer": {"metric": "slayer", "experience": 40},
+                },
+                "bosses": {"zulrah": {"metric": "zulrah", "kills": -1}},
+                "activities": {"clue_scrolls_all": {"score": 12}},
+            }
+        },
+    }
+    now = datetime(2026, 7, 31, tzinfo=UTC)
+
+    ranking_inputs, snapshot_rows = build_snapshot_rows([entry], {"slayer"}, now)
+
+    assert ranking_inputs[0]["skills"] == {"slayer": 40.0}
+    assert "overall" not in ranking_inputs[0]["skills"]
+    row = snapshot_rows[0]
+    assert row["rsn"] == "some player"
+    assert row["skills"] == {"slayer": 40.0, "overall": 346368.0}
+    assert row["bosses"] == {"zulrah": -1}
+    assert row["activities"] == {"clue_scrolls_all": 12}
+    assert row["ehp"] == 1104.7
+    assert row["ehb"] == 946.2
+    assert row["fetched_at"] == now
+
+
+def test_snapshot_rows_skip_unusable_entries() -> None:
+    entries = [
+        {"player": {"username": ""}, "data": {"data": {}}},
+        {"player": {"username": "no snapshot"}, "data": None},
+        {"player": {"username": "no efficiency"}, "data": {"data": {"skills": {}}}},
+    ]
+
+    ranking_inputs, snapshot_rows = build_snapshot_rows(
+        entries, set(), datetime.now(UTC)
+    )
+
+    assert [r["rsn"] for r in ranking_inputs] == ["no efficiency"]
+    assert snapshot_rows[0]["ehp"] is None and snapshot_rows[0]["ehb"] is None
+    assert snapshot_rows[0]["skills"] == {"overall": 0.0}

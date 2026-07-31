@@ -12,6 +12,18 @@ from app.dependencies import get_current_user, get_session
 router = APIRouter()
 
 
+def _empty_snapshot(rsn: str | None) -> dict[str, Any]:
+    return {
+        "rsn": rsn,
+        "skills": {},
+        "bosses": {},
+        "activities": {},
+        "ehp": None,
+        "ehb": None,
+        "fetched_at": None,
+    }
+
+
 @router.get("/me/snapshot")
 async def get_me_snapshot(
     rsn: str | None = Query(None),
@@ -42,36 +54,28 @@ async def get_me_snapshot(
         rsn = rsn_result.scalar_one_or_none()
 
     if not rsn:
-        return {
-            "rsn": None,
-            "skills": {},
-            "bosses": {},
-            "activities": {},
-            "fetched_at": None,
-        }
+        return _empty_snapshot(None)
 
     snap_result = await session.execute(
         select(
             PlayerSnapshot.skills,
             PlayerSnapshot.bosses,
             PlayerSnapshot.activities,
+            PlayerSnapshot.ehp,
+            PlayerSnapshot.ehb,
             PlayerSnapshot.fetched_at,
         ).where(func.lower(PlayerSnapshot.rsn) == rsn.lower())
     )
     row = snap_result.one_or_none()
     if not row:
-        return {
-            "rsn": rsn,
-            "skills": {},
-            "bosses": {},
-            "activities": {},
-            "fetched_at": None,
-        }
+        return _empty_snapshot(rsn)
 
     return {
         "rsn": rsn,
         "skills": row.skills or {},
         "bosses": row.bosses or {},
         "activities": row.activities or {},
+        "ehp": row.ehp,
+        "ehb": row.ehb,
         "fetched_at": row.fetched_at.isoformat() if row.fetched_at else None,
     }

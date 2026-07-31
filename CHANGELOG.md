@@ -11,6 +11,16 @@ prerelease, `stable` to drop the tag). A MAJOR bump is the maintainer's call
 and is never made automatically. The bump happens once, when the accumulated
 work is about to be pushed - not per component.
 
+## [Unreleased]
+
+### Added
+
+- `GET /members/me/snapshot` returns `ehp` and `ehb`, and its `skills` map now
+  carries `overall`. Migration `0059` adds the two columns to
+  `player_snapshots`; the ranking service reads the values WOM already computes
+  per account type off the bulk-hiscores `player` object. The ranking input
+  stays filtered to the configured skills, so scoring is unchanged.
+
 ## [1.2.0] - 2026-07-29
 
 ### Added

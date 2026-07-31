@@ -99,6 +99,8 @@ async def test_snapshot(auth_client: AsyncClient) -> None:
     assert "skills" in data
     assert "bosses" in data
     assert "activities" in data
+    assert "ehp" in data
+    assert "ehb" in data
     assert "fetched_at" in data
 
 

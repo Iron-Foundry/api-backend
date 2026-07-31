@@ -3,7 +3,15 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import TIMESTAMP, BigInteger, Index, Integer, Text, UniqueConstraint
+from sqlalchemy import (
+    TIMESTAMP,
+    BigInteger,
+    Float,
+    Index,
+    Integer,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -45,6 +53,8 @@ class PlayerSnapshot(Base):
     activities: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default="{}"
     )
+    ehp: Mapped[float | None] = mapped_column(Float)
+    ehb: Mapped[float | None] = mapped_column(Float)
     fetched_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False
     )

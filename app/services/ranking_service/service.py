@@ -16,6 +16,7 @@ from app.db.models import Config, PlayerRanking, PlayerSnapshot, UserAccount
 from app.services.http.wom import WiseOldManHandler
 from app.services.http.wom_queue import WomPriority
 
+from ._parse import build_snapshot_rows
 from .config import (
     _DEFAULT_CONFIG,
     _GLOBAL_GUILD_ID,
@@ -132,42 +133,9 @@ class RankingService:
         )
 
         now = datetime.now(UTC)
-        cleaned: list[dict[str, Any]] = []
-        snapshot_rows = []
-        skill_names = {m.name for m in config.skills}
-
-        for entry in bulk:
-            player = entry.get("player", {})
-            rsn = player.get("username", "").lower()
-            if not rsn:
-                continue
-            snapshot_data = entry.get("data")
-            if not snapshot_data:
-                continue
-            data = snapshot_data.get("data", {})
-            skills = {
-                n: float(info.get("experience", 0) if isinstance(info, dict) else info)
-                for n, info in data.get("skills", {}).items()
-                if n in skill_names
-            }
-            bosses = {
-                n: int(info.get("kills", 0) if isinstance(info, dict) else info)
-                for n, info in data.get("bosses", {}).items()
-            }
-            activities = {
-                n: int(info.get("score", 0) if isinstance(info, dict) else info)
-                for n, info in data.get("activities", {}).items()
-            }
-            cleaned.append({"rsn": rsn, "skills": skills, "bosses": bosses})
-            snapshot_rows.append(
-                {
-                    "rsn": rsn,
-                    "skills": skills,
-                    "bosses": bosses,
-                    "activities": activities,
-                    "fetched_at": now,
-                }
-            )
+        cleaned, snapshot_rows = build_snapshot_rows(
+            bulk, {m.name for m in config.skills}, now
+        )
 
         ranked = rank_from_snapshots(cleaned, config)
 
@@ -188,6 +156,8 @@ class RankingService:
                             "skills": snap_stmt.excluded.skills,
                             "bosses": snap_stmt.excluded.bosses,
                             "activities": snap_stmt.excluded.activities,
+                            "ehp": snap_stmt.excluded.ehp,
+                            "ehb": snap_stmt.excluded.ehb,
                             "fetched_at": snap_stmt.excluded.fetched_at,
                         },
                     )
