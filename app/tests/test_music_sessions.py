@@ -21,6 +21,11 @@ from app.routers.music._live_schemas import SessionOut
 
 _FIXTURES = Path(__file__).resolve().parents[3] / "fixtures"
 
+pytestmark = pytest.mark.skipif(
+    not _FIXTURES.exists(),
+    reason="root fixtures/ not present (submodule-only checkout)",
+)
+
 CHANNEL_ID = 555000111
 BASE = f"/music/sessions/{CHANNEL_ID}"
 

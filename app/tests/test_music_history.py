@@ -13,11 +13,17 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock
 
+import pytest
 from httpx import AsyncClient
 
 from app.routers.music.sessions import HISTORY_LIMIT
 
 _FIXTURES = Path(__file__).resolve().parents[3] / "fixtures"
+
+pytestmark = pytest.mark.skipif(
+    not _FIXTURES.exists(),
+    reason="root fixtures/ not present (submodule-only checkout)",
+)
 
 CHANNEL_ID = 555000111
 BASE = f"/music/sessions/{CHANNEL_ID}"

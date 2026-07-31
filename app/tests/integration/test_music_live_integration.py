@@ -28,9 +28,15 @@ from app.routers.music._live_keys import (
 from app.services.music_live import MusicStateService, music_hub
 from app.tests.conftest import TEST_USER
 
-pytestmark = pytest.mark.integration
-
 _FIXTURES = Path(__file__).resolve().parents[4] / "fixtures"
+
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        not _FIXTURES.exists(),
+        reason="root fixtures/ not present (submodule-only checkout)",
+    ),
+]
 
 CHANNEL_ID = 555000111
 BASE = f"/music/sessions/{CHANNEL_ID}"
