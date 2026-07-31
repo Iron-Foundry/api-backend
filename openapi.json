@@ -1531,6 +1531,27 @@
         "title": "FreeTextSection",
         "type": "object"
       },
+      "GenerateTeamsBody": {
+        "properties": {
+          "balance_raids_kc": {
+            "default": false,
+            "title": "Balance Raids Kc",
+            "type": "boolean"
+          },
+          "raids_kc_threshold": {
+            "default": 1,
+            "title": "Raids Kc Threshold",
+            "type": "integer"
+          },
+          "team_size": {
+            "default": 5,
+            "title": "Team Size",
+            "type": "integer"
+          }
+        },
+        "title": "GenerateTeamsBody",
+        "type": "object"
+      },
       "GoalsSaveRequest": {
         "properties": {
           "goals": {
@@ -3030,6 +3051,80 @@
           "title"
         ],
         "title": "RolePanelUpdate",
+        "type": "object"
+      },
+      "RosterAddBody": {
+        "properties": {
+          "discord_user_id": {
+            "title": "Discord User Id",
+            "type": "string"
+          },
+          "rsn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rsn"
+          },
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id"
+          }
+        },
+        "required": [
+          "discord_user_id"
+        ],
+        "title": "RosterAddBody",
+        "type": "object"
+      },
+      "RosterPatch": {
+        "properties": {
+          "is_captain": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Captain"
+          },
+          "rsn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rsn"
+          },
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id"
+          }
+        },
+        "title": "RosterPatch",
         "type": "object"
       },
       "RsnUpdate": {
@@ -5311,6 +5406,11 @@
               }
             ],
             "title": "Starts At"
+          },
+          "team_size": {
+            "default": 5,
+            "title": "Team Size",
+            "type": "integer"
           }
         },
         "required": [
@@ -5475,6 +5575,17 @@
               }
             ],
             "title": "Starts At"
+          },
+          "team_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Size"
           }
         },
         "title": "EventPatch",
@@ -5609,7 +5720,7 @@
   "info": {
     "description": "The backend for **The Iron Foundry**, an Old School RuneScape clan. It serves the\ncommunity site at [ironfoundry.cc](https://ironfoundry.cc), the clan's Discord\nbots, and the in-game RuneLite plugin from one PostgreSQL + Valkey stack.\n\n## Authentication\n\nThree credentials exist, each for a different caller.\n\n**`DiscordJWT`** - the browser session. `GET /auth/login` redirects to Discord\nOAuth2; `GET /auth/callback` verifies guild membership, upserts the user, and\nredirects back to the frontend with an HS256 JWT in the query string. Send it as\n`Authorization: Bearer <token>` on every member or staff endpoint. `GET /auth/me`\nreturns the decoded profile with Discord roles, refreshed when stale.\n\n**`MemberApiKey`** - the RuneLite plugin. Each member holds a personal key from\n`GET /members/me/api-key` (rotate with `POST /members/me/api-key/rotate`), sent as\na `verification-code` header. `POST /auth/token` trades the same key for a JWT\nwhen a plugin needs member-scoped web endpoints. Revoked keys are rejected.\n\n**`MetricsApiKey`** - service-to-service. A shared secret the Discord services\npresent, also as `verification-code`, to report telemetry and dispatch clan chat.\n\nMissing or invalid credentials return `401`. A valid token whose roles do not\nsatisfy an endpoint's permission returns `403`.\n\n## Conventions\n\nTimestamps are UTC ISO-8601. Request and response bodies are JSON unless an\nendpoint serves a binary asset. Collections large enough to page take `limit` and\n`offset` query parameters; the rest return the full set. Validation failures\nreturn `422` with FastAPI's error array, naming the offending field in `loc`.\n\n## Realtime\n\n`WS /ccdispatch` is the clan-chat bridge: the RuneLite plugin connects with its\n`verification-code` header and receives messages relayed from Discord over Valkey\npubsub, while `POST /ccingest` carries in-game chat the other way. Party chat\npolls over plain HTTP instead.\n\n## Related services\n\n`/osrs-cache/*` proxies an internal service that decodes the live OSRS game cache\ninto items, NPCs, objects, sprites, rendered item icons, and map tiles.\n`/reference/*` serves loot tables scraped from the OSRS Wiki and EHP/EHB\nefficiency rates from WiseOldMan. Both refresh on a schedule; neither needs\nauthentication.",
     "title": "The Foundry API",
-    "version": "1.2.0"
+    "version": "1.3.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -22340,6 +22451,273 @@
         ]
       }
     },
+    "/tilerace/events/{event_id}/roster": {
+      "post": {
+        "description": "Place a member on the roster on their behalf, signed up or not.",
+        "operationId": "add_roster_member_tilerace_events__event_id__roster_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RosterAddBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Add Roster Member Tilerace Events  Event Id  Roster Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Add Roster Member",
+        "tags": [
+          "tilerace"
+        ]
+      }
+    },
+    "/tilerace/events/{event_id}/roster/candidates": {
+      "get": {
+        "description": "Clan members not on this event's roster yet, for the add picker.",
+        "operationId": "list_candidates_tilerace_events__event_id__roster_candidates_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Candidates Tilerace Events  Event Id  Roster Candidates Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "List Candidates",
+        "tags": [
+          "tilerace"
+        ]
+      }
+    },
+    "/tilerace/events/{event_id}/roster/{discord_user_id}": {
+      "delete": {
+        "description": "Drop a member from the event entirely, team assignment and all.",
+        "operationId": "remove_roster_member_tilerace_events__event_id__roster__discord_user_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "discord_user_id",
+            "required": true,
+            "schema": {
+              "title": "Discord User Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Remove Roster Member Tilerace Events  Event Id  Roster  Discord User Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Remove Roster Member",
+        "tags": [
+          "tilerace"
+        ]
+      },
+      "patch": {
+        "description": "Move a member between teams, unassign them, or set them as captain.\n\nA team holds at most one captain: moving a captain to another team drops the\nbadge unless the same request re-appoints them, and appointing a captain\ndemotes whoever held it.",
+        "operationId": "patch_roster_member_tilerace_events__event_id__roster__discord_user_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "discord_user_id",
+            "required": true,
+            "schema": {
+              "title": "Discord User Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RosterPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Patch Roster Member Tilerace Events  Event Id  Roster  Discord User Id  Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Patch Roster Member",
+        "tags": [
+          "tilerace"
+        ]
+      }
+    },
     "/tilerace/events/{event_id}/signup": {
       "delete": {
         "description": "Withdraw the member's signup from an event.",
@@ -22565,10 +22943,10 @@
         ]
       }
     },
-    "/tilerace/events/{event_id}/teams/scramble": {
+    "/tilerace/events/{event_id}/teams/generate": {
       "post": {
-        "description": "Randomly redistribute the signed-up players across the event's teams.",
-        "operationId": "scramble_teams_tilerace_events__event_id__teams_scramble_post",
+        "description": "Build teams from the signup pool at the given team size and draft them.\n\nTeams are sized so none exceeds `team_size`; existing teams keep their name,\ncolour and icon, surplus teams are removed. Signups are never deleted, so\n`POST .../teams/reset` returns the event to bare signups.",
+        "operationId": "generate_teams_tilerace_events__event_id__teams_generate_post",
         "parameters": [
           {
             "in": "path",
@@ -22580,13 +22958,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateTeamsBody"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Scramble Teams Tilerace Events  Event Id  Teams Scramble Post",
+                  "title": "Response Generate Teams Tilerace Events  Event Id  Teams Generate Post",
                   "type": "object"
                 }
               }
@@ -22609,7 +22997,57 @@
             "DiscordJWT": []
           }
         ],
-        "summary": "Scramble Teams",
+        "summary": "Generate Teams",
+        "tags": [
+          "tilerace"
+        ]
+      }
+    },
+    "/tilerace/events/{event_id}/teams/reset": {
+      "post": {
+        "description": "Return the event to bare signups: every member is unassigned, teams stay.",
+        "operationId": "reset_teams_tilerace_events__event_id__teams_reset_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Reset Teams Tilerace Events  Event Id  Teams Reset Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Reset Teams",
         "tags": [
           "tilerace"
         ]
@@ -22617,7 +23055,7 @@
     },
     "/tilerace/events/{event_id}/teams/{team_id}": {
       "delete": {
-        "description": "Remove a team along with its rolls and completions.",
+        "description": "Remove a team; its members fall back to the unassigned signup pool.",
         "operationId": "delete_team_tilerace_events__event_id__teams__team_id__delete",
         "parameters": [
           {
@@ -22674,7 +23112,7 @@
         ]
       },
       "patch": {
-        "description": "Rename a team or change its roster.",
+        "description": "Rename a team or restyle it. Rosters are edited through /roster.",
         "operationId": "patch_team_tilerace_events__event_id__teams__team_id__patch",
         "parameters": [
           {

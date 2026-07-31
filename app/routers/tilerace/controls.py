@@ -8,7 +8,13 @@ from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import TileRaceCompletion, TileRaceEvent, TileRaceRoll, TileRaceTeam
+from app.db.models import (
+    TileRaceCompletion,
+    TileRaceEvent,
+    TileRaceRoll,
+    TileRaceSignup,
+    TileRaceTeam,
+)
 from app.dependencies import get_current_user, get_session
 from app.services.page_permissions import require_page_permission
 
@@ -26,11 +32,17 @@ router = APIRouter()
 _FOG_PERM = Depends(require_page_permission("tilerace.admin", "edit"))
 
 
-def _require_member(team: TileRaceTeam, user_id: str) -> None:
-    member = next(
-        (m for m in (team.members or []) if str(m.get("discord_user_id")) == user_id),
-        None,
-    )
+async def _require_member(
+    session: AsyncSession, team: TileRaceTeam, user_id: int
+) -> None:
+    member = (
+        await session.execute(
+            select(TileRaceSignup.id).where(
+                TileRaceSignup.team_id == team.id,
+                TileRaceSignup.discord_user_id == user_id,
+            )
+        )
+    ).first()
     if member is None:
         raise HTTPException(403, "Only team members may roll.")
 
@@ -80,8 +92,8 @@ async def roll_dice(
         raise HTTPException(404, "Event not found.")
     if event.is_finished:
         raise HTTPException(409, "Game over.")
-    _require_member(team, str(current_user["sub"]))
     rolled_by = int(current_user["sub"])
+    await _require_member(session, team, rolled_by)
     now = datetime.now(UTC)
 
     effects = dict(team.pending_effects or {})

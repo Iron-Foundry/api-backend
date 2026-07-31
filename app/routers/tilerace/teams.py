@@ -7,35 +7,30 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import (
-    TileRaceEvent,
-    TileRaceSignup,
-    TileRaceTeam,
-)
+from app.db.models import TileRaceEvent, TileRaceTeam
 from app.dependencies import get_session
 from app.services.page_permissions import require_page_permission
 
-from ._helpers import _serialize_team
 from .schemas import TeamBody, TeamPatch
 
 router = APIRouter()
 _PERM = Depends(require_page_permission("tilerace.admin", "edit"))
 
 
-def _snake_draft(
-    signups: list[TileRaceSignup], team_ids: list[int]
-) -> dict[int, list[TileRaceSignup]]:
-    n = len(team_ids)
-    result: dict[int, list[TileRaceSignup]] = {tid: [] for tid in team_ids}
-    if not n:
-        return result
-    sorted_sups = sorted(signups, key=lambda s: s.ranking_score, reverse=True)
-    for i, sup in enumerate(sorted_sups):
-        chunk = i // n
-        pos = i % n
-        idx = pos if chunk % 2 == 0 else n - 1 - pos
-        result[team_ids[idx]].append(sup)
-    return result
+async def _team_or_404(
+    session: AsyncSession, event_id: int, team_id: int
+) -> TileRaceTeam:
+    team = (
+        await session.execute(
+            select(TileRaceTeam).where(
+                TileRaceTeam.id == team_id,
+                TileRaceTeam.event_id == event_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if team is None:
+        raise HTTPException(404, "Team not found.")
+    return team
 
 
 @router.post("/events/{event_id}/teams", status_code=201)
@@ -59,7 +54,6 @@ async def add_team(
         icon_url=body.icon_url,
         color=body.color,
         position=0,
-        members=[],
         updated_at=datetime.now(UTC),
     )
     session.add(team)
@@ -75,17 +69,8 @@ async def patch_team(
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
-    """Rename a team or change its roster."""
-    team = (
-        await session.execute(
-            select(TileRaceTeam).where(
-                TileRaceTeam.id == team_id,
-                TileRaceTeam.event_id == event_id,
-            )
-        )
-    ).scalar_one_or_none()
-    if team is None:
-        raise HTTPException(404, "Team not found.")
+    """Rename a team or restyle it. Rosters are edited through /roster."""
+    team = await _team_or_404(session, event_id, team_id)
     if body.name is not None:
         team.name = body.name
     if body.slug is not None:
@@ -110,76 +95,8 @@ async def delete_team(
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
-    """Remove a team along with its rolls and completions."""
-    team = (
-        await session.execute(
-            select(TileRaceTeam).where(
-                TileRaceTeam.id == team_id,
-                TileRaceTeam.event_id == event_id,
-            )
-        )
-    ).scalar_one_or_none()
-    if team is None:
-        raise HTTPException(404, "Team not found.")
+    """Remove a team; its members fall back to the unassigned signup pool."""
+    team = await _team_or_404(session, event_id, team_id)
     await session.delete(team)
     await session.commit()
     return {"ok": True}
-
-
-@router.post("/events/{event_id}/teams/scramble")
-async def scramble_teams(
-    event_id: int,
-    session: AsyncSession = Depends(get_session),
-    _perm: None = _PERM,
-) -> dict[str, Any]:
-    """Randomly redistribute the signed-up players across the event's teams."""
-    event = (
-        await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
-    ).scalar_one_or_none()
-    if event is None:
-        raise HTTPException(404, "Event not found.")
-    teams = (
-        (
-            await session.execute(
-                select(TileRaceTeam)
-                .where(TileRaceTeam.event_id == event_id)
-                .order_by(TileRaceTeam.id)
-            )
-        )
-        .scalars()
-        .all()
-    )
-    signups = (
-        (
-            await session.execute(
-                select(TileRaceSignup).where(TileRaceSignup.event_id == event_id)
-            )
-        )
-        .scalars()
-        .all()
-    )
-    if not teams or not signups:
-        raise HTTPException(400, "Need both teams and signups to scramble.")
-    team_ids = [t.id for t in teams]
-    assignments = _snake_draft(list(signups), team_ids)
-    now = datetime.now(UTC)
-    for team in teams:
-        assigned = assignments.get(team.id, [])
-        captain_idx = next(
-            (i for i, s in enumerate(assigned) if s.wants_captain),
-            0 if assigned else None,
-        )
-        team.members = [
-            {
-                "discord_user_id": str(s.discord_user_id),
-                "rsn": s.rsn,
-                "ranking_score": s.ranking_score,
-                "is_captain": i == captain_idx,
-            }
-            for i, s in enumerate(assigned)
-        ]
-        team.updated_at = now
-    for signup in signups:
-        await session.delete(signup)
-    await session.commit()
-    return {"ok": True, "teams": [_serialize_team(t) for t in teams]}

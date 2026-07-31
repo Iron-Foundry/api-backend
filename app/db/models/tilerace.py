@@ -8,9 +8,11 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     ForeignKey,
+    Index,
     Integer,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -64,6 +66,7 @@ class TileRaceEvent(Base):
     grid_rows: Mapped[int] = mapped_column(Integer, nullable=False, server_default="5")
     dice_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
     dice_sides: Mapped[int] = mapped_column(Integer, nullable=False, server_default="6")
+    team_size: Mapped[int] = mapped_column(Integer, nullable=False, server_default="5")
     background_url: Mapped[str | None] = mapped_column(Text)
     cells: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, nullable=False, server_default="[]"
@@ -99,9 +102,6 @@ class TileRaceTeam(Base):
     icon_url: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
     color: Mapped[str] = mapped_column(Text, nullable=False, server_default="#888888")
     position: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
-    members: Mapped[list[dict[str, Any]]] = mapped_column(
-        JSONB, nullable=False, server_default="[]"
-    )
     pending_effects: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default="{}"
     )
@@ -164,6 +164,12 @@ class TileRaceSignup(Base):
     __tablename__ = "tilerace_signups"
     __table_args__ = (
         UniqueConstraint("event_id", "discord_user_id", name="uq_tilerace_signup"),
+        Index(
+            "uq_tilerace_team_captain",
+            "team_id",
+            unique=True,
+            postgresql_where=text("is_captain AND team_id IS NOT NULL"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -171,6 +177,9 @@ class TileRaceSignup(Base):
         BigInteger,
         ForeignKey("tilerace_events.id", ondelete="CASCADE"),
         nullable=False,
+    )
+    team_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("tilerace_teams.id", ondelete="SET NULL")
     )
     discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     account_id: Mapped[int | None] = mapped_column(
@@ -181,6 +190,12 @@ class TileRaceSignup(Base):
         Integer, nullable=False, server_default="0"
     )
     wants_captain: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+    is_captain: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+    added_by_staff: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="false"
     )
     signed_up_at: Mapped[datetime] = mapped_column(

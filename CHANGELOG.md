@@ -11,15 +11,55 @@ prerelease, `stable` to drop the tag). A MAJOR bump is the maintainer's call
 and is never made automatically. The bump happens once, when the accumulated
 work is about to be pushed - not per component.
 
-## [Unreleased]
+## [1.3.0] - 2026-07-31
 
 ### Added
 
+- Tile race team generation: `POST /tilerace/events/{id}/teams/generate` takes
+  `{team_size, balance_raids_kc, raids_kc_threshold}` and builds the teams from
+  the signup pool, so teams no longer have to be created by hand first.
+  `team_size` is a hard maximum - `ceil(n / size)` teams, the last one taking
+  the remainder - and existing teams keep their name, colour and icon.
+  `balance_raids_kc` swaps members between teams until every team holds someone
+  whose highest CoX/ToB/ToA kill count meets the threshold, where the supply of
+  raiders allows.
+- `POST /tilerace/events/{id}/teams/reset` returns an event to bare signups by
+  unassigning every member, and staff roster management arrives alongside it:
+  `GET /tilerace/events/{id}/roster/candidates`, `POST .../roster`,
+  `PATCH .../roster/{discord_user_id}` (move team, set captain, correct RSN) and
+  `DELETE .../roster/{discord_user_id}`. Staff can place a member who never
+  signed up, which is how replacements get added.
+- A tile race team holds at most one captain, enforced by a partial unique index
+  on `tilerace_signups (team_id) WHERE is_captain`. Appointing a captain via
+  `PATCH .../roster/{discord_user_id}` demotes whoever held it, moving a captain
+  to another team drops the badge unless the same request re-appoints them, and
+  a losing race returns 409 rather than a 500. Any member of a team can be
+  appointed - the signup-time `wants_captain` flag only seeds the first pick
+  during generation.
+- Team and signup payloads carry `raids_kc` (highest single-raid KC from
+  `player_snapshots`); signups also carry `team_id`, `is_captain` and
+  `added_by_staff`, and events carry `team_size`.
 - `GET /members/me/snapshot` returns `ehp` and `ehb`, and its `skills` map now
   carries `overall`. Migration `0059` adds the two columns to
   `player_snapshots`; the ranking service reads the values WOM already computes
   per account type off the bulk-hiscores `player` object. The ranking input
   stays filtered to the configured skills, so scoring is unchanged.
+
+### Changed
+
+- Tile race rosters now live on `tilerace_signups` (`team_id` FK with
+  `ON DELETE SET NULL`, plus `is_captain` and `added_by_staff`); migration `0060`
+  backfills rows from the `tilerace_teams.members` JSONB and drops that column.
+  Team rosters are derived from signups at serialize time, so team operations
+  are reversible: deleting a team returns its members to the unassigned pool
+  instead of destroying them.
+
+### Removed
+
+- `POST /tilerace/events/{id}/teams/scramble`, replaced by `.../teams/generate`.
+  Scramble deleted every signup row after assigning teams, which made the
+  transition to teams a one-way door - there was no way back to bare signups and
+  no way to inspect or adjust the pool afterwards.
 
 ## [1.2.0] - 2026-07-29
 

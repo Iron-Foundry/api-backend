@@ -16,6 +16,8 @@ from ._helpers import (
     _serialize_signup,
     _serialize_summary,
     _serialize_team,
+    group_by_team,
+    raids_kc_map,
 )
 from .schemas import EventBody, EventPatch
 
@@ -47,11 +49,13 @@ async def _full_event(event: TileRaceEvent, session: AsyncSession) -> dict[str, 
         .all()
     )
     cells = await _embed_cells(event.cells or [], session)
+    rosters = group_by_team(list(signups))
+    kc_map = await raids_kc_map(session, list(signups))
     return {
         **_serialize_summary(event),
         "cells": cells,
-        "teams": [_serialize_team(t) for t in teams],
-        "signups": [_serialize_signup(s) for s in signups],
+        "teams": [_serialize_team(t, rosters.get(t.id, []), kc_map) for t in teams],
+        "signups": [_serialize_signup(s, kc_map) for s in signups],
     }
 
 
@@ -165,6 +169,8 @@ async def patch_event(
         event.dice_count = body.dice_count
     if body.dice_sides is not None:
         event.dice_sides = body.dice_sides
+    if body.team_size is not None:
+        event.team_size = body.team_size
     if "start_pad" in fields:
         event.start_pad = body.start_pad.model_dump() if body.start_pad else None
     if "end_pad" in fields:

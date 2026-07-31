@@ -174,8 +174,87 @@ async def test_delete_team_not_found(staff_client: AsyncClient) -> None:
     assert resp.status_code == 404
 
 
-async def test_scramble_not_found(staff_client: AsyncClient) -> None:
-    resp = await staff_client.post("/tilerace/events/9999/teams/scramble")
+async def test_generate_requires_auth(anon_client: AsyncClient) -> None:
+    resp = await anon_client.post(
+        "/tilerace/events/9999/teams/generate", json={"team_size": 5}
+    )
+    assert resp.status_code == 401
+
+
+async def test_generate_not_found(staff_client: AsyncClient) -> None:
+    resp = await staff_client.post(
+        "/tilerace/events/9999/teams/generate", json={"team_size": 5}
+    )
+    assert resp.status_code == 404
+
+
+async def test_generate_rejects_bad_team_size(staff_client: AsyncClient) -> None:
+    resp = await staff_client.post(
+        "/tilerace/events/9999/teams/generate", json={"team_size": "big"}
+    )
+    assert resp.status_code == 422
+
+
+async def test_reset_teams_requires_auth(anon_client: AsyncClient) -> None:
+    resp = await anon_client.post("/tilerace/events/9999/teams/reset")
+    assert resp.status_code == 401
+
+
+async def test_reset_teams_not_found(staff_client: AsyncClient) -> None:
+    resp = await staff_client.post("/tilerace/events/9999/teams/reset")
+    assert resp.status_code == 404
+
+
+async def test_roster_candidates_requires_auth(anon_client: AsyncClient) -> None:
+    resp = await anon_client.get("/tilerace/events/9999/roster/candidates")
+    assert resp.status_code == 401
+
+
+async def test_roster_candidates_not_found(staff_client: AsyncClient) -> None:
+    resp = await staff_client.get("/tilerace/events/9999/roster/candidates")
+    assert resp.status_code == 404
+
+
+async def test_add_roster_member_requires_auth(anon_client: AsyncClient) -> None:
+    resp = await anon_client.post(
+        "/tilerace/events/9999/roster", json={"discord_user_id": "1"}
+    )
+    assert resp.status_code == 401
+
+
+async def test_add_roster_member_not_found(staff_client: AsyncClient) -> None:
+    resp = await staff_client.post(
+        "/tilerace/events/9999/roster", json={"discord_user_id": "1"}
+    )
+    assert resp.status_code == 404
+
+
+async def test_add_roster_member_requires_user_id(staff_client: AsyncClient) -> None:
+    resp = await staff_client.post("/tilerace/events/9999/roster", json={})
+    assert resp.status_code == 422
+
+
+async def test_patch_roster_member_requires_auth(anon_client: AsyncClient) -> None:
+    resp = await anon_client.patch(
+        "/tilerace/events/9999/roster/1", json={"team_id": None}
+    )
+    assert resp.status_code == 401
+
+
+async def test_patch_roster_member_not_found(staff_client: AsyncClient) -> None:
+    resp = await staff_client.patch(
+        "/tilerace/events/9999/roster/1", json={"team_id": None}
+    )
+    assert resp.status_code == 404
+
+
+async def test_remove_roster_member_requires_auth(anon_client: AsyncClient) -> None:
+    resp = await anon_client.delete("/tilerace/events/9999/roster/1")
+    assert resp.status_code == 401
+
+
+async def test_remove_roster_member_not_found(staff_client: AsyncClient) -> None:
+    resp = await staff_client.delete("/tilerace/events/9999/roster/1")
     assert resp.status_code == 404
 
 

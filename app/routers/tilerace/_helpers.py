@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
+    PlayerSnapshot,
     TileRaceCompletion,
     TileRaceEvent,
     TileRaceRoll,
@@ -14,6 +15,7 @@ from app.db.models import (
     TileRepositoryTile,
 )
 
+from ._draft import raids_kc
 from .requirement_schema import requirement_from_items
 
 
@@ -73,6 +75,7 @@ def _serialize_summary(e: TileRaceEvent) -> dict[str, Any]:
         "grid_rows": e.grid_rows,
         "dice_count": e.dice_count,
         "dice_sides": e.dice_sides,
+        "team_size": e.team_size,
         "start_pad": e.start_pad,
         "end_pad": e.end_pad,
         "is_finished": e.is_finished,
@@ -84,7 +87,48 @@ def _serialize_summary(e: TileRaceEvent) -> dict[str, Any]:
     }
 
 
-def _serialize_team(t: TileRaceTeam) -> dict[str, Any]:
+async def raids_kc_map(
+    session: AsyncSession, signups: list[TileRaceSignup]
+) -> dict[str, int]:
+    """Highest single-raid KC per RSN, for every member on the roster."""
+    names = {s.rsn.lower() for s in signups if s.rsn}
+    if not names:
+        return {}
+    rows = (
+        (
+            await session.execute(
+                select(PlayerSnapshot).where(PlayerSnapshot.rsn.in_(names))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return {r.rsn.lower(): raids_kc(r.bosses) for r in rows}
+
+
+def _kc(s: TileRaceSignup, kc_map: dict[str, int]) -> int:
+    return kc_map.get(s.rsn.lower(), 0) if s.rsn else 0
+
+
+def _serialize_member(s: TileRaceSignup, kc_map: dict[str, int]) -> dict[str, Any]:
+    return {
+        "discord_user_id": str(s.discord_user_id),
+        "rsn": s.rsn,
+        "ranking_score": s.ranking_score,
+        "raids_kc": _kc(s, kc_map),
+        "is_captain": s.is_captain,
+    }
+
+
+def _serialize_team(
+    t: TileRaceTeam,
+    members: list[TileRaceSignup] | None = None,
+    kc_map: dict[str, int] | None = None,
+) -> dict[str, Any]:
+    roster = sorted(
+        members or [], key=lambda s: (not s.is_captain, -s.ranking_score, s.rsn.lower())
+    )
+    kc_map = kc_map or {}
     return {
         "id": str(t.id),
         "name": t.name,
@@ -93,20 +137,36 @@ def _serialize_team(t: TileRaceTeam) -> dict[str, Any]:
         "icon_url": t.icon_url,
         "color": t.color,
         "position": t.position,
-        "members": t.members or [],
+        "members": [_serialize_member(s, kc_map) for s in roster],
         "pending_effects": t.pending_effects or {},
     }
 
 
-def _serialize_signup(s: TileRaceSignup) -> dict[str, Any]:
+def _serialize_signup(
+    s: TileRaceSignup, kc_map: dict[str, int] | None = None
+) -> dict[str, Any]:
     return {
         "discord_user_id": str(s.discord_user_id),
+        "team_id": str(s.team_id) if s.team_id else None,
         "account_id": s.account_id,
         "rsn": s.rsn,
         "ranking_score": s.ranking_score,
+        "raids_kc": _kc(s, kc_map or {}),
         "wants_captain": s.wants_captain,
+        "is_captain": s.is_captain,
+        "added_by_staff": s.added_by_staff,
         "signed_up_at": s.signed_up_at.isoformat(),
     }
+
+
+def group_by_team(
+    signups: list[TileRaceSignup],
+) -> dict[int, list[TileRaceSignup]]:
+    grouped: dict[int, list[TileRaceSignup]] = {}
+    for signup in signups:
+        if signup.team_id is not None:
+            grouped.setdefault(signup.team_id, []).append(signup)
+    return grouped
 
 
 def _serialize_roll(r: TileRaceRoll) -> dict[str, Any]:

@@ -53,6 +53,7 @@ class EventBody(BaseModel):
     grid_rows: int = 5
     dice_count: int = 1
     dice_sides: int = 6
+    team_size: int = 5
     background_url: str | None = None
     start_pad: Pad | None = None
     end_pad: Pad | None = None
@@ -79,6 +80,11 @@ class EventBody(BaseModel):
     def _dice_sides(cls, v: int) -> int:
         return _clamp(v, 1, 20)
 
+    @field_validator("team_size")
+    @classmethod
+    def _team_size(cls, v: int) -> int:
+        return _clamp(v, 1, 50)
+
 
 class EventPatch(BaseModel):
     name: str | None = None
@@ -86,6 +92,7 @@ class EventPatch(BaseModel):
     grid_rows: int | None = None
     dice_count: int | None = None
     dice_sides: int | None = None
+    team_size: int | None = None
     background_url: str | None = None
     fog_of_war: bool | None = None
     is_finished: bool | None = None
@@ -116,6 +123,11 @@ class EventPatch(BaseModel):
     def _dice_sides(cls, v: int | None) -> int | None:
         return None if v is None else _clamp(v, 1, 20)
 
+    @field_validator("team_size")
+    @classmethod
+    def _team_size(cls, v: int | None) -> int | None:
+        return None if v is None else _clamp(v, 1, 50)
+
 
 class SignupBody(BaseModel):
     account_id: int | None = None
@@ -133,6 +145,34 @@ class TeamBody(BaseModel):
     icon_type: str = "item"
     icon_url: str = ""
     color: str = "#888888"
+
+
+class GenerateTeamsBody(BaseModel):
+    team_size: int = 5
+    balance_raids_kc: bool = False
+    raids_kc_threshold: int = 1
+
+    @field_validator("team_size")
+    @classmethod
+    def _team_size(cls, v: int) -> int:
+        return _clamp(v, 1, 50)
+
+    @field_validator("raids_kc_threshold")
+    @classmethod
+    def _threshold(cls, v: int) -> int:
+        return _clamp(v, 1, 10000)
+
+
+class RosterAddBody(BaseModel):
+    discord_user_id: str
+    rsn: str | None = None
+    team_id: int | None = None
+
+
+class RosterPatch(BaseModel):
+    team_id: int | None = None
+    is_captain: bool | None = None
+    rsn: str | None = None
 
 
 class TeamPatch(BaseModel):
