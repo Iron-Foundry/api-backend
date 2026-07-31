@@ -4,9 +4,12 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
-    runs-on: codeberg-small
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -31,7 +34,7 @@ jobs:
     # in pyproject.toml, which is the single source /version and the OpenAPI
     # info block both read. Docs- and CI-only changes are exempt.
     if: github.event_name == 'pull_request'
-    runs-on: codeberg-small
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -48,7 +51,7 @@ jobs:
             echo "No file changes."
             exit 0
           fi
-          if ! printf '%s\n' "$changed" | grep -qvE '^(\.forgejo/|.*\.md)$'; then
+          if ! printf '%s\n' "$changed" | grep -qvE '^(\.github/|.*\.md)$'; then
             echo "Only docs and CI changed - version bump not required."
             exit 0
           fi
