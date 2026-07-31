@@ -4,9 +4,9 @@ from dataclasses import dataclass
 
 from app.routers.tilerace._draft import (
     balance_raiders,
+    greedy_draft,
     pick_captain,
     raids_kc,
-    snake_draft,
     target_sizes,
     team_count_for,
 )
@@ -26,11 +26,28 @@ def _pool(count: int) -> list[FakeSignup]:
     ]
 
 
+def _skewed_pool(count: int) -> list[FakeSignup]:
+    """A ranking curve shaped like the real one: top-heavy, with a long flat tail."""
+    return [
+        FakeSignup(id=i, rsn=f"p{i:02d}", ranking_score=int(300_000 * 0.93**i) + 30_000)
+        for i in range(count)
+    ]
+
+
 def test_team_size_is_a_hard_maximum() -> None:
-    assert target_sizes(23, 5) == [5, 5, 5, 5, 3]
-    assert target_sizes(22, 5) == [5, 5, 5, 5, 2]
-    assert target_sizes(13, 4) == [4, 4, 4, 1]
+    assert target_sizes(23, 5) == [5, 5, 5, 4, 4]
+    assert target_sizes(22, 5) == [5, 5, 4, 4, 4]
+    assert target_sizes(13, 4) == [4, 3, 3, 3]
     assert target_sizes(20, 5) == [5, 5, 5, 5]
+
+
+def test_sizes_never_leave_a_runt_team() -> None:
+    for count in range(1, 200):
+        for size in range(1, 9):
+            sizes = target_sizes(count, size)
+            assert sum(sizes) == count
+            assert max(sizes) <= size
+            assert max(sizes) - min(sizes) <= 1
 
 
 def test_team_count_edges() -> None:
@@ -43,7 +60,7 @@ def test_draft_respects_capacities_and_places_everyone() -> None:
     pool = _pool(23)
     capacities = target_sizes(len(pool), 5)
     team_ids = [10, 20, 30, 40, 50]
-    result = snake_draft(pool, team_ids, capacities)  # type: ignore[arg-type]
+    result = greedy_draft(pool, team_ids, capacities)  # type: ignore[arg-type]
     assert [len(result[t]) for t in team_ids] == capacities
     placed = [s for members in result.values() for s in members]
     assert len(placed) == len(pool)
@@ -53,14 +70,37 @@ def test_draft_respects_capacities_and_places_everyone() -> None:
 def test_draft_spreads_strength() -> None:
     pool = _pool(12)
     team_ids = [1, 2, 3]
-    result = snake_draft(pool, team_ids, [4, 4, 4])  # type: ignore[arg-type]
+    result = greedy_draft(pool, team_ids, [4, 4, 4])  # type: ignore[arg-type]
     totals = [sum(s.ranking_score for s in result[t]) for t in team_ids]
     assert max(totals) - min(totals) <= 4
 
 
+def test_draft_keeps_averages_close_on_a_skewed_ranking_curve() -> None:
+    """A snake order leaves the team holding the top player far ahead; this must not."""
+    pool = _skewed_pool(40)
+    capacities = target_sizes(len(pool), 5)
+    team_ids = list(range(1, len(capacities) + 1))
+    result = greedy_draft(pool, team_ids, capacities)  # type: ignore[arg-type]
+    averages = [
+        sum(s.ranking_score for s in result[t]) / len(result[t]) for t in team_ids
+    ]
+    assert max(averages) / min(averages) < 1.15
+
+
+def test_draft_balances_across_uneven_team_sizes() -> None:
+    pool = _skewed_pool(23)
+    capacities = target_sizes(len(pool), 5)
+    team_ids = list(range(1, len(capacities) + 1))
+    result = greedy_draft(pool, team_ids, capacities)  # type: ignore[arg-type]
+    averages = [
+        sum(s.ranking_score for s in result[t]) / len(result[t]) for t in team_ids
+    ]
+    assert max(averages) / min(averages) < 1.15
+
+
 def test_draft_rejects_insufficient_capacity() -> None:
     try:
-        snake_draft(_pool(5), [1], [2])  # type: ignore[arg-type]
+        greedy_draft(_pool(5), [1], [2])  # type: ignore[arg-type]
     except ValueError:
         return
     raise AssertionError("expected ValueError")

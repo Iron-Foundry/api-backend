@@ -23,24 +23,32 @@ def team_count_for(signup_count: int, team_size: int) -> int:
 
 
 def target_sizes(signup_count: int, team_size: int) -> list[int]:
-    """Per-team capacities: teams filled to team_size, the last takes the remainder."""
+    """Per-team capacities: as even as possible, with team_size a hard maximum.
+
+    The remainder is spread one member at a time across the leading teams rather
+    than dumped into a runt final team, whose average would otherwise swing on a
+    single member.
+    """
     teams = team_count_for(signup_count, team_size)
     if not teams:
         return []
-    full, remainder = divmod(signup_count, team_size)
-    sizes = [team_size] * full
-    if remainder:
-        sizes.append(remainder)
-    return sizes
+    base, remainder = divmod(signup_count, teams)
+    return [base + (1 if i < remainder else 0) for i in range(teams)]
 
 
-def snake_draft(
+def greedy_draft(
     signups: list[TileRaceSignup], team_ids: list[int], capacities: list[int]
 ) -> dict[int, list[TileRaceSignup]]:
-    """Distribute signups strongest-first in snake order, respecting each capacity."""
+    """Assign signups strongest-first to whichever open team has the lowest average.
+
+    Ranking scores are heavily right-skewed, so a snake order - which balances
+    draft positions rather than score mass - leaves the team holding the top
+    player permanently ahead. Placing each pick on the currently lightest team
+    balances the scores themselves, and dividing by capacity rather than by the
+    current member count keeps teams of different sizes comparable.
+    """
     result: dict[int, list[TileRaceSignup]] = {tid: [] for tid in team_ids}
-    n = len(team_ids)
-    if not n:
+    if not team_ids:
         return result
     caps = {
         tid: capacities[i] if i < len(capacities) else 0
@@ -49,17 +57,14 @@ def snake_draft(
     ordered = sorted(signups, key=lambda s: (-s.ranking_score, s.rsn.lower()))
     if sum(caps.values()) < len(ordered):
         raise ValueError("Not enough team capacity for every signup.")
-    picks = 0
+    totals = dict.fromkeys(team_ids, 0)
     for signup in ordered:
-        placed = False
-        while not placed:
-            chunk, pos = divmod(picks, n)
-            idx = pos if chunk % 2 == 0 else n - 1 - pos
-            tid = team_ids[idx]
-            picks += 1
-            if len(result[tid]) < caps[tid]:
-                result[tid].append(signup)
-                placed = True
+        tid = min(
+            (t for t in team_ids if len(result[t]) < caps[t]),
+            key=lambda t: (totals[t] / caps[t], len(result[t]), t),
+        )
+        result[tid].append(signup)
+        totals[tid] += signup.ranking_score
     return result
 
 

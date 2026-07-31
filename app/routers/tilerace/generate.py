@@ -19,8 +19,8 @@ from app.services.page_permissions import require_page_permission
 
 from ._draft import (
     balance_raiders,
+    greedy_draft,
     pick_captain,
-    snake_draft,
     target_sizes,
 )
 from ._helpers import _serialize_team, raids_kc_map
@@ -119,7 +119,7 @@ async def generate_teams(
         )
     teams = await reconcile_teams(session, event_id, teams, len(capacities))
     team_ids = [t.id for t in teams]
-    assignments = snake_draft(signups, team_ids, capacities)
+    assignments = greedy_draft(signups, team_ids, capacities)
     kc_map = await raids_kc_map(session, signups)
     if body.balance_raids_kc:
         balance_raiders(

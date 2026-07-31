@@ -47,10 +47,11 @@ async def _seed_event(engine: AsyncEngine) -> int:
         )
         session.add(event)
         await session.flush()
+        event_id = event.id
         for index, rsn in enumerate(_PLAYERS):
             session.add(
                 TileRaceSignup(
-                    event_id=event.id,
+                    event_id=event_id,
                     discord_user_id=9000 + index,
                     rsn=rsn,
                     ranking_score=(len(_PLAYERS) - index) * 100,
@@ -68,7 +69,7 @@ async def _seed_event(engine: AsyncEngine) -> int:
                 )
             )
         await session.commit()
-        return event.id
+        return event_id
 
 
 async def _signup_rows(
@@ -96,7 +97,7 @@ async def test_generate_keeps_signups_and_reset_restores_the_pool(
     )
     assert resp.status_code == 200, resp.text
     teams = resp.json()["teams"]
-    assert [len(t["members"]) for t in teams] == [3, 3, 1]
+    assert [len(t["members"]) for t in teams] == [3, 2, 2]
 
     rows = await _signup_rows(seed_engine, event_id)
     assert len(rows) == len(_PLAYERS), "generation must never delete a signup"
@@ -144,7 +145,12 @@ async def test_staff_can_add_move_and_remove_a_non_signup(
     now = datetime.now(UTC)
     async with AsyncSession(seed_engine) as session:
         session.add(
-            User(discord_user_id=4242, discord_username="Replacement", created_at=now)
+            User(
+                discord_user_id=4242,
+                discord_username="Replacement",
+                created_at=now,
+                updated_at=now,
+            )
         )
         session.add(
             UserAccount(

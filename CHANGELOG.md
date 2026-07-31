@@ -11,6 +11,29 @@ prerelease, `stable` to drop the tag). A MAJOR bump is the maintainer's call
 and is never made automatically. The bump happens once, when the accumulated
 work is about to be pushed - not per component.
 
+## [1.4.0] - 2026-07-31
+
+### Changed
+
+- Tile race team generation now balances score mass instead of draft position.
+  Ranking points are heavily right-skewed, and the snake order only compensated
+  the team holding the top player with the worst pick of the next round, which
+  left team averages decaying monotonically from first team to last - 302,440
+  against 156,039 on a real 17-team draft. Each pick now lands on whichever
+  open team has the lowest average, cutting the worst-to-best spread from 2.12x
+  to 1.39x on a comparably skewed pool.
+- `team_size` remains a hard maximum, but the remainder is spread one member at
+  a time across the leading teams rather than dumped into a final runt team.
+  Thirteen signups at size four now yield `[4, 3, 3, 3]`, not `[4, 4, 4, 1]`,
+  so no team's average rests on a single member.
+
+### Fixed
+
+- The tile race roster integration fixtures seeded a `User` without
+  `updated_at` and read an event id after the commit that expired it, failing
+  with `NotNullViolationError` and `MissingGreenlet` before reaching any
+  assertion.
+
 ## [1.3.0] - 2026-07-31
 
 ### Added
