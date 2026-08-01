@@ -88,6 +88,14 @@ async def _tile(
 def _notes(summary: dict[str, Any]) -> list[str]:
     """The landing's side effects, worded for the team reading the message."""
     notes: list[str] = []
+    trap = summary.get("trap")
+    if trap:
+        notes.append(
+            f"Trap on tile {trap['from']}! Rolled {trap['total']} "
+            f"and slid back to tile {trap['to']}"
+        )
+    if summary.get("trap_spent") is not None:
+        notes.append(f"Trap on tile {summary['trap_spent']} is already sprung")
     if summary.get("moved_to") is not None:
         notes.append(f"Moved to tile {summary['moved_to']}")
     if summary.get("allow_extra_roll"):

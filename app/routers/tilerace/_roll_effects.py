@@ -28,8 +28,9 @@ def apply_landing_modifiers(
 ) -> dict[str, Any]:
     summary: dict[str, Any] = {}
     effects = dict(team.pending_effects or {})
+    origin = (cell or {}).get("path_position", team.position)
     for modifier in (cell or {}).get("modifiers", []):
-        _apply_one(modifier, team, effects, summary)
+        _apply_one(modifier, team, effects, summary, origin)
     team.pending_effects = effects
     return summary
 
@@ -55,7 +56,7 @@ def apply_pad_trigger(
     if not trigger:
         return
     effects = dict(team.pending_effects or {})
-    _apply_one(trigger, team, effects, summary)
+    _apply_one(trigger, team, effects, summary, team.position)
     team.pending_effects = effects
 
 
@@ -64,9 +65,12 @@ def _apply_one(
     team: TileRaceTeam,
     effects: dict[str, Any],
     summary: dict[str, Any],
+    origin: int,
 ) -> None:
     kind = modifier.get("type")
-    if kind == "snakes_ladders":
+    if kind == "trap":
+        _apply_trap(modifier, team, effects, summary, origin)
+    elif kind == "snakes_ladders":
         team.position = int(modifier.get("target_position", team.position))
         summary["moved_to"] = team.position
     elif kind == "bonus_penalty":
@@ -79,3 +83,28 @@ def _apply_one(
             summary["skip_next"] = True
         elif effect == "reroll":
             summary["reroll"] = True
+
+
+def _apply_trap(
+    modifier: dict[str, Any],
+    team: TileRaceTeam,
+    effects: dict[str, Any],
+    summary: dict[str, Any],
+    origin: int,
+) -> None:
+    sprung = [int(pos) for pos in effects.get("traps_sprung") or []]
+    if origin in sprung:
+        summary["trap_spent"] = origin
+        return
+    dice = roll_dice_values(
+        int(modifier.get("dice_count", 1)), int(modifier.get("dice_sides", 6))
+    )
+    total = sum(dice)
+    team.position = max(0, origin - total)
+    effects["traps_sprung"] = [*sprung, origin]
+    summary["trap"] = {
+        "dice": dice,
+        "total": total,
+        "from": origin,
+        "to": team.position,
+    }

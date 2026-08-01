@@ -11,6 +11,21 @@ prerelease, `stable` to drop the tag). A MAJOR bump is the maintainer's call
 and is never made automatically. The bump happens once, when the accumulated
 work is about to be pushed - not per component.
 
+## [1.9.0] - 2026-08-01
+
+### Added
+
+- A `trap` cell modifier. Landing on it rolls the trap's own dice - count and
+  faces are fixed when the trap is placed, not taken from the board's roll - and
+  walks the team back that many tiles, never past the start. The setback is
+  counted from the cell's own `path_position`, so a jump sharing the cell cannot
+  shift it. Each team springs a given trap cell once and the sprung positions
+  are kept in `pending_effects.traps_sprung`, so a board may carry several traps
+  and every one of them still bites. A trap cell carries no `tile_id` and so
+  never gates a roll - a team parked on a spent trap rolls on without staff
+  review. The team's Discord channel is told what the trap rolled and where it
+  landed them, and a trap they have already sprung says so instead.
+
 ## [1.8.0] - 2026-08-01
 
 ### Added
