@@ -12,6 +12,8 @@ from .roster import router as roster_router
 from .roster_lookup import router as roster_lookup_router
 from .sabotage import router as sabotage_router
 from .signups import router as signups_router
+from .submissions import router as submissions_router
+from .submissions_review import router as submissions_review_router
 from .teams import router as teams_router
 
 router = APIRouter(prefix="/tilerace", tags=["tilerace"])
@@ -26,6 +28,8 @@ router.include_router(roster_router)
 router.include_router(signups_router)
 router.include_router(controls_router)
 router.include_router(completions_router)
+router.include_router(submissions_router)
+router.include_router(submissions_review_router)
 router.include_router(rolls_router)
 router.include_router(sabotage_router)
 router.include_router(discord_setup_router)

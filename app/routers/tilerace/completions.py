@@ -12,6 +12,7 @@ from app.dependencies import get_current_user, get_session
 from app.services.page_permissions import require_page_permission
 
 from ._serializers import _serialize_completion
+from ._submission_helpers import restore_position
 from .schemas import CompletionBody
 
 router = APIRouter()
@@ -72,17 +73,25 @@ async def set_completion(
             )
         )
     ).scalar_one_or_none()
-    if body.completed and existing is None:
-        session.add(
-            TileRaceCompletion(
-                event_id=event_id,
-                team_id=team_id,
-                path_position=path_position,
-                completed_by=int(current_user["sub"]),
-                completed_at=datetime.now(UTC),
+    now = datetime.now(UTC)
+    if body.completed:
+        if existing is None:
+            session.add(
+                TileRaceCompletion(
+                    event_id=event_id,
+                    team_id=team_id,
+                    path_position=path_position,
+                    status="approved",
+                    completed_by=int(current_user["sub"]),
+                    completed_at=now,
+                )
             )
-        )
-    elif not body.completed and existing is not None:
+        else:
+            existing.status = "approved"
+            existing.completed_by = int(current_user["sub"])
+            existing.completed_at = now
+        restore_position(team, path_position, now)
+    elif existing is not None:
         await session.delete(existing)
     await session.commit()
     return {"ok": True, "completed": body.completed}

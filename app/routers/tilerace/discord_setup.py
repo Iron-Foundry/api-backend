@@ -122,6 +122,7 @@ async def record_discord_result(
     event.discord_category_id = body.category_id
     event.discord_captains_role_id = body.captains_role_id
     event.discord_captains_channel_id = body.captains_channel_id
+    event.discord_submissions_channel_id = body.submissions_channel_id
     event.updated_at = datetime.now(UTC)
     by_id = {t.team_id: t for t in body.teams}
     teams = (

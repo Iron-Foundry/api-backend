@@ -26,6 +26,7 @@ from ._roll_effects import (
     find_cell,
     roll_dice_values,
 )
+from ._submission_helpers import CLAIMED_STATUSES
 from .schemas import FogBody
 
 router = APIRouter()
@@ -47,12 +48,18 @@ async def _require_member(
         raise HTTPException(403, "Only team members may roll.")
 
 
-async def _completed(session: AsyncSession, team_id: int, position: int) -> bool:
+async def _claimed(session: AsyncSession, team_id: int, position: int) -> bool:
+    """Whether the team has proof in for this tile.
+
+    A claim is enough to roll on: teams do not wait for staff, and a rejection
+    later rolls them back to this tile (see ``_submission_helpers``).
+    """
     row = (
         await session.execute(
             select(TileRaceCompletion).where(
                 TileRaceCompletion.team_id == team_id,
                 TileRaceCompletion.path_position == position,
+                TileRaceCompletion.status.in_(CLAIMED_STATUSES),
             )
         )
     ).scalar_one_or_none()
@@ -120,8 +127,8 @@ async def roll_dice(
 
     cells = event.cells or []
     current = find_cell(cells, team.position)
-    if cell_is_gated(current) and not await _completed(session, team_id, team.position):
-        raise HTTPException(409, "Current tile not completed.")
+    if cell_is_gated(current) and not await _claimed(session, team_id, team.position):
+        raise HTTPException(409, "Submit proof for the current tile first.")
 
     dice = roll_dice_values(event.dice_count, event.dice_sides)
     roll = sum(dice)

@@ -1286,6 +1286,17 @@
             ],
             "title": "Category Id"
           },
+          "submissions_channel_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submissions Channel Id"
+          },
           "teams": {
             "default": [],
             "items": {
@@ -4068,6 +4079,53 @@
         "title": "SubmissionBody",
         "type": "object"
       },
+      "SubmissionCreateBody": {
+        "description": "One proof post covering one or more of a tile's requirement leaves.",
+        "properties": {
+          "discord_thread_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discord Thread Id"
+          },
+          "discord_user_id": {
+            "title": "Discord User Id",
+            "type": "string"
+          },
+          "leaf_keys": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Leaf Keys",
+            "type": "array"
+          },
+          "path_position": {
+            "title": "Path Position",
+            "type": "integer"
+          },
+          "proof_urls": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Proof Urls",
+            "type": "array"
+          }
+        },
+        "required": [
+          "discord_user_id",
+          "path_position",
+          "leaf_keys"
+        ],
+        "title": "SubmissionCreateBody",
+        "type": "object"
+      },
       "SubmissionPatch": {
         "properties": {
           "review_notes": {
@@ -4090,6 +4148,41 @@
           "status"
         ],
         "title": "SubmissionPatch",
+        "type": "object"
+      },
+      "SubmissionReviewBody": {
+        "properties": {
+          "review_notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Notes"
+          },
+          "reviewed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed By"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "SubmissionReviewBody",
         "type": "object"
       },
       "SubmitFeedbackBody": {
@@ -5908,7 +6001,7 @@
   "info": {
     "description": "The backend for **The Iron Foundry**, an Old School RuneScape clan. It serves the\ncommunity site at [ironfoundry.cc](https://ironfoundry.cc), the clan's Discord\nbots, and the in-game RuneLite plugin from one PostgreSQL + Valkey stack.\n\n## Authentication\n\nThree credentials exist, each for a different caller.\n\n**`DiscordJWT`** - the browser session. `GET /auth/login` redirects to Discord\nOAuth2; `GET /auth/callback` verifies guild membership, upserts the user, and\nredirects back to the frontend with an HS256 JWT in the query string. Send it as\n`Authorization: Bearer <token>` on every member or staff endpoint. `GET /auth/me`\nreturns the decoded profile with Discord roles, refreshed when stale.\n\n**`MemberApiKey`** - the RuneLite plugin. Each member holds a personal key from\n`GET /members/me/api-key` (rotate with `POST /members/me/api-key/rotate`), sent as\na `verification-code` header. `POST /auth/token` trades the same key for a JWT\nwhen a plugin needs member-scoped web endpoints. Revoked keys are rejected.\n\n**`MetricsApiKey`** - service-to-service. A shared secret the Discord services\npresent, also as `verification-code`, to report telemetry and dispatch clan chat.\n\nMissing or invalid credentials return `401`. A valid token whose roles do not\nsatisfy an endpoint's permission returns `403`.\n\n## Conventions\n\nTimestamps are UTC ISO-8601. Request and response bodies are JSON unless an\nendpoint serves a binary asset. Collections large enough to page take `limit` and\n`offset` query parameters; the rest return the full set. Validation failures\nreturn `422` with FastAPI's error array, naming the offending field in `loc`.\n\n## Realtime\n\n`WS /ccdispatch` is the clan-chat bridge: the RuneLite plugin connects with its\n`verification-code` header and receives messages relayed from Discord over Valkey\npubsub, while `POST /ccingest` carries in-game chat the other way. Party chat\npolls over plain HTTP instead.\n\n## Related services\n\n`/osrs-cache/*` proxies an internal service that decodes the live OSRS game cache\ninto items, NPCs, objects, sprites, rendered item icons, and map tiles.\n`/reference/*` serves loot tables scraped from the OSRS Wiki and EHP/EHB\nefficiency rates from WiseOldMan. Both refresh on a schedule; neither needs\nauthentication.",
     "title": "The Foundry API",
-    "version": "1.6.0"
+    "version": "1.7.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -23403,6 +23496,380 @@
         ]
       }
     },
+    "/tilerace/events/{event_id}/submissions": {
+      "get": {
+        "description": "List an event's proof submissions for review, newest first.",
+        "operationId": "list_submissions_tilerace_events__event_id__submissions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "team_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Team Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "path_position",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Path Position"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Submissions Tilerace Events  Event Id  Submissions Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "List Submissions",
+        "tags": [
+          "tilerace"
+        ]
+      },
+      "post": {
+        "description": "Service-key create: one row per requirement leaf the proof covers.",
+        "operationId": "create_submissions_tilerace_events__event_id__submissions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmissionCreateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Submissions Tilerace Events  Event Id  Submissions Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "MetricsApiKey": []
+          }
+        ],
+        "summary": "Create Submissions",
+        "tags": [
+          "tilerace"
+        ]
+      }
+    },
+    "/tilerace/events/{event_id}/submissions/threads/{thread_id}/review": {
+      "post": {
+        "description": "Service-key review: the Approve/Reject buttons in a Discord thread.\n\nStaff judge the proof post as a whole, so every leaf submitted in that\nthread takes the same verdict.",
+        "operationId": "review_submission_thread_tilerace_events__event_id__submissions_threads__thread_id__review_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "title": "Thread Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmissionReviewBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Review Submission Thread Tilerace Events  Event Id  Submissions Threads  Thread Id  Review Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "MetricsApiKey": []
+          }
+        ],
+        "summary": "Review Submission Thread",
+        "tags": [
+          "tilerace"
+        ]
+      }
+    },
+    "/tilerace/events/{event_id}/submissions/{submission_id}": {
+      "delete": {
+        "description": "Remove a submission entirely and recompute the tile it belonged to.\n\nRejecting keeps the audit trail; deleting is for a submission that should\nnever have been logged, such as one filed against the wrong tile.",
+        "operationId": "delete_submission_tilerace_events__event_id__submissions__submission_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "submission_id",
+            "required": true,
+            "schema": {
+              "title": "Submission Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Submission Tilerace Events  Event Id  Submissions  Submission Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Delete Submission",
+        "tags": [
+          "tilerace"
+        ]
+      },
+      "patch": {
+        "description": "Staff review. Approving keeps the claim, rejecting rolls the team back.",
+        "operationId": "review_submission_tilerace_events__event_id__submissions__submission_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "submission_id",
+            "required": true,
+            "schema": {
+              "title": "Submission Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmissionReviewBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Review Submission Tilerace Events  Event Id  Submissions  Submission Id  Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Review Submission",
+        "tags": [
+          "tilerace"
+        ]
+      }
+    },
     "/tilerace/events/{event_id}/teams": {
       "post": {
         "description": "Add a team to a tile race event.",
@@ -23905,6 +24372,65 @@
         ]
       }
     },
+    "/tilerace/events/{event_id}/teams/{team_id}/tile-status": {
+      "get": {
+        "description": "Which leaves of a team's current tile still need proof.",
+        "operationId": "get_tile_status_tilerace_events__event_id__teams__team_id__tile_status_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "team_id",
+            "required": true,
+            "schema": {
+              "title": "Team Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Tile Status Tilerace Events  Event Id  Teams  Team Id  Tile Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Get Tile Status",
+        "tags": [
+          "tilerace"
+        ]
+      }
+    },
     "/tilerace/osrs/npcs": {
       "get": {
         "description": "Search OSRS NPC names for the tile editor. Needs at least two characters.",
@@ -24219,6 +24745,56 @@
           }
         ],
         "summary": "Patch Tile",
+        "tags": [
+          "tilerace"
+        ]
+      }
+    },
+    "/tilerace/submissions/context": {
+      "get": {
+        "description": "Service-key lookup: what the caller's team currently has to prove.\n\ndiscord-server holds no tile race state, so the Submit button asks for the\nteam, the tile it is standing on, and which leaves still need proof.",
+        "operationId": "get_submission_context_tilerace_submissions_context_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "discord_user_id",
+            "required": true,
+            "schema": {
+              "title": "Discord User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Submission Context Tilerace Submissions Context Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "MetricsApiKey": []
+          }
+        ],
+        "summary": "Get Submission Context",
         "tags": [
           "tilerace"
         ]

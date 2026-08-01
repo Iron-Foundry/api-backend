@@ -11,6 +11,36 @@ prerelease, `stable` to drop the tag). A MAJOR bump is the maintainer's call
 and is never made automatically. The bump happens once, when the accumulated
 work is about to be pushed - not per component.
 
+## [1.7.0] - 2026-08-01
+
+### Added
+
+- Tile race submissions. `tilerace_submissions` records one row per requirement
+  leaf a team proves, with its re-hosted screenshots, and drives the board:
+  `GET /tilerace/submissions/context`, `POST /tilerace/events/{id}/submissions`
+  and `POST .../submissions/threads/{thread_id}/review` are the service-key half
+  discord-server calls; `GET .../submissions`, `PATCH .../submissions/{id}` and
+  `DELETE .../submissions/{id}` are the staff review queue.
+- Requirement leaves get stable content-derived keys (`_requirement_leaves.py`),
+  so reordering a tile's items or editing an unrelated branch leaves existing
+  submissions pointing at the same leaf. `or` and `not` nodes are evaluated as a
+  tree rather than counted.
+- `tilerace_events.discord_submissions_channel_id`: the provisioning command and
+  its result now carry an event-wide `#submissions` channel every team can see.
+
+### Changed
+
+- A roll is unlocked by a *claim*, not by staff approval. A tile counts as
+  claimed once every requirement leaf carries a submission that has not been
+  rejected, matching the rules teams were given: roll as soon as you claim, and
+  get rolled back if the proof does not hold up.
+- `tilerace_tile_completions` carries a `status` (`claimed` / `approved` /
+  `rejected`), so the board has one state source. Existing staff-set rows are
+  `approved`.
+- Rejecting or deleting a submission sends the team back to the tile it was
+  proving and stores where it had reached in `tilerace_teams.furthest_position`;
+  claiming that tile again hands the position back.
+
 ## [1.6.0] - 2026-08-01
 
 ### Added

@@ -7,6 +7,7 @@ from app.db.models import (
     TileRaceEvent,
     TileRaceRoll,
     TileRaceSignup,
+    TileRaceSubmission,
     TileRaceTeam,
     TileRepositoryTile,
 )
@@ -56,6 +57,7 @@ def _serialize_summary(e: TileRaceEvent) -> dict[str, Any]:
         "discord_category_id": _id_or_none(e.discord_category_id),
         "discord_captains_role_id": _id_or_none(e.discord_captains_role_id),
         "discord_captains_channel_id": _id_or_none(e.discord_captains_channel_id),
+        "discord_submissions_channel_id": _id_or_none(e.discord_submissions_channel_id),
         "discord_permissions": normalize_perms(e.discord_permissions),
         "background_url": e.background_url,
         "starts_at": e.starts_at.isoformat() if e.starts_at else None,
@@ -95,6 +97,7 @@ def _serialize_team(
         "icon_url": t.icon_url,
         "color": t.color,
         "position": t.position,
+        "furthest_position": t.furthest_position,
         "discord_role_id": _id_or_none(t.discord_role_id),
         "discord_text_channel_id": _id_or_none(t.discord_text_channel_id),
         "discord_voice_channel_id": _id_or_none(t.discord_voice_channel_id),
@@ -137,6 +140,27 @@ def _serialize_completion(c: TileRaceCompletion) -> dict[str, Any]:
     return {
         "team_id": str(c.team_id),
         "path_position": c.path_position,
+        "status": c.status,
         "completed_by": str(c.completed_by) if c.completed_by else None,
         "completed_at": c.completed_at.isoformat(),
+    }
+
+
+def _serialize_submission(s: TileRaceSubmission) -> dict[str, Any]:
+    return {
+        "id": str(s.id),
+        "team_id": str(s.team_id),
+        "path_position": s.path_position,
+        "tile_id": str(s.tile_id) if s.tile_id else None,
+        "leaf_key": s.leaf_key,
+        "leaf_label": s.leaf_label,
+        "discord_user_id": str(s.discord_user_id),
+        "player_rsn": s.player_rsn,
+        "proof_urls": s.proof_urls or [],
+        "discord_thread_id": _id_or_none(s.discord_thread_id),
+        "status": s.status,
+        "reviewed_by": _id_or_none(s.reviewed_by),
+        "reviewed_at": s.reviewed_at.isoformat() if s.reviewed_at else None,
+        "review_notes": s.review_notes,
+        "submitted_at": s.submitted_at.isoformat(),
     }

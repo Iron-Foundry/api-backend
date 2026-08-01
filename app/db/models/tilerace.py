@@ -68,6 +68,7 @@ class TileRaceEvent(Base):
     discord_category_id: Mapped[int | None] = mapped_column(BigInteger)
     discord_captains_role_id: Mapped[int | None] = mapped_column(BigInteger)
     discord_captains_channel_id: Mapped[int | None] = mapped_column(BigInteger)
+    discord_submissions_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     discord_permissions: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default="{}"
     )
@@ -111,6 +112,9 @@ class TileRaceTeam(Base):
     icon_url: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
     color: Mapped[str] = mapped_column(Text, nullable=False, server_default="#888888")
     position: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    furthest_position: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="0"
+    )
     discord_role_id: Mapped[int | None] = mapped_column(BigInteger)
     discord_text_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     discord_voice_channel_id: Mapped[int | None] = mapped_column(BigInteger)
@@ -166,8 +170,54 @@ class TileRaceCompletion(Base):
         nullable=False,
     )
     path_position: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="approved")
     completed_by: Mapped[int | None] = mapped_column(BigInteger)
     completed_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+
+
+class TileRaceSubmission(Base):
+    __tablename__ = "tilerace_submissions"
+    __table_args__ = (
+        Index(
+            "ix_tilerace_submissions_event_status",
+            "event_id",
+            "status",
+            "submitted_at",
+        ),
+        Index("ix_tilerace_submissions_team_position", "team_id", "path_position"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    event_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("tilerace_events.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    team_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("tilerace_teams.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    path_position: Mapped[int] = mapped_column(Integer, nullable=False)
+    tile_id: Mapped[int | None] = mapped_column(BigInteger)
+    leaf_key: Mapped[str] = mapped_column(Text, nullable=False)
+    leaf_label: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    player_rsn: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    proof_urls: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )
+    discord_thread_id: Mapped[int | None] = mapped_column(BigInteger)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="pending")
+    reviewed_by: Mapped[int | None] = mapped_column(BigInteger)
+    reviewed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    review_notes: Mapped[str | None] = mapped_column(Text)
+    submitted_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False
     )
 

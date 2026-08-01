@@ -26,6 +26,7 @@ class DiscordProvisionResult(BaseModel):
     category_id: int | None = None
     captains_role_id: int | None = None
     captains_channel_id: int | None = None
+    submissions_channel_id: int | None = None
     teams: list[DiscordTeamResult] = []
 
 
@@ -84,6 +85,7 @@ async def build_command(
         "category_id": _opt(event.discord_category_id),
         "captains_role_id": _opt(event.discord_captains_role_id),
         "captains_channel_id": _opt(event.discord_captains_channel_id),
+        "submissions_channel_id": _opt(event.discord_submissions_channel_id),
         "captain_user_ids": [str(c.discord_user_id) for c in captains],
         "permissions": normalize_perms(event.discord_permissions),
         "teams": [

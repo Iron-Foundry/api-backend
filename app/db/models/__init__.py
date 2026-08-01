@@ -57,6 +57,7 @@ from .tilerace import (
     TileRaceEvent,
     TileRaceRoll,
     TileRaceSignup,
+    TileRaceSubmission,
     TileRaceTeam,
     TileRepositoryTile,
 )
@@ -121,6 +122,7 @@ __all__ = [
     "TileRaceEvent",
     "TileRaceRoll",
     "TileRaceSignup",
+    "TileRaceSubmission",
     "TileRaceTeam",
     "TileRepositoryTile",
     "Transcript",
