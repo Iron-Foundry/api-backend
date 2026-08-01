@@ -8,23 +8,22 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from valkey.asyncio import Valkey
 
-from app.db.models import TileRaceEvent, TileRaceTeam
+from app.db.models import TileRaceTeam
 from app.dependencies import get_session, get_valkey, verify_metrics_key
 from app.services.page_permissions import require_page_permission
 
-from ._discord_payload import DiscordProvisionResult, build_command, publish
+from ._discord_payload import (
+    DiscordProvisionResult,
+    build_command,
+    publish,
+    sync_if_provisioned,
+)
+from ._discord_perms import normalize as normalize_perms
+from ._roster_helpers import event_or_404
+from .schemas import DiscordPermissionsPatch
 
 router = APIRouter()
 _PERM = Depends(require_page_permission("tilerace.admin", "edit"))
-
-
-async def _event_or_404(session: AsyncSession, event_id: int) -> TileRaceEvent:
-    event = (
-        await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
-    ).scalar_one_or_none()
-    if event is None:
-        raise HTTPException(404, "Event not found.")
-    return event
 
 
 @router.post("/events/{event_id}/discord/setup")
@@ -35,7 +34,7 @@ async def setup_discord(
     _perm: None = _PERM,
 ) -> dict[str, Any]:
     """Ask discord-server to build the category, roles and per-team channels."""
-    event = await _event_or_404(session, event_id)
+    event = await event_or_404(session, event_id)
     if event.discord_category_id is not None:
         raise HTTPException(
             409, "Discord channels already exist. Tear them down first."
@@ -59,7 +58,7 @@ async def teardown_discord(
     _perm: None = _PERM,
 ) -> dict[str, Any]:
     """Ask discord-server to delete everything it created for this event."""
-    event = await _event_or_404(session, event_id)
+    event = await event_or_404(session, event_id)
     if event.discord_category_id is None:
         raise HTTPException(409, "Nothing has been set up for this event.")
     await publish(valkey, await build_command(session, event, "teardown"))
@@ -74,11 +73,38 @@ async def sync_discord(
     _perm: None = _PERM,
 ) -> dict[str, Any]:
     """Push current team names onto the existing roles and channels."""
-    event = await _event_or_404(session, event_id)
+    event = await event_or_404(session, event_id)
     if event.discord_category_id is None:
         raise HTTPException(409, "Nothing has been set up for this event.")
     await publish(valkey, await build_command(session, event, "sync"))
     return {"ok": True, "queued": "sync"}
+
+
+@router.patch("/events/{event_id}/discord/permissions")
+async def patch_discord_permissions(
+    event_id: int,
+    body: DiscordPermissionsPatch,
+    session: AsyncSession = Depends(get_session),
+    valkey: Valkey = Depends(get_valkey),
+    _perm: None = _PERM,
+) -> dict[str, Any]:
+    """Toggle the elevated permissions teams hold in their own channels.
+
+    The toggles are applied by the following sync, which edits the overwrite on
+    the existing channels: nothing is torn down and no channel is recreated, so
+    a live event keeps its history.
+    """
+    event = await event_or_404(session, event_id)
+    perms = normalize_perms(event.discord_permissions)
+    perms.update(body.model_dump(exclude_unset=True, exclude_none=True))
+    event.discord_permissions = perms
+    event.updated_at = datetime.now(UTC)
+    await session.commit()
+    return {
+        "ok": True,
+        "discord_permissions": perms,
+        "synced": await sync_if_provisioned(session, valkey, event_id),
+    }
 
 
 @router.post("/events/{event_id}/discord/result")
@@ -92,7 +118,7 @@ async def record_discord_result(
 
     A teardown reports every id as null, which is what clears them here.
     """
-    event = await _event_or_404(session, event_id)
+    event = await event_or_404(session, event_id)
     event.discord_category_id = body.category_id
     event.discord_captains_role_id = body.captains_role_id
     event.discord_captains_channel_id = body.captains_channel_id

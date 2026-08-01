@@ -3,16 +3,16 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from valkey.asyncio import Valkey
 
-from app.db.models import TileRaceSignup, User
+from app.db.models import TileRaceSignup
 from app.dependencies import get_session, get_valkey
 from app.services.page_permissions import require_page_permission
 
+from ._account_helpers import apply_identity
 from ._discord_payload import sync_if_provisioned
 from ._helpers import raids_kc_map
 from ._roster_helpers import (
@@ -29,40 +29,6 @@ from .schemas import RosterAddBody, RosterPatch
 
 router = APIRouter()
 _PERM = Depends(require_page_permission("tilerace.admin", "edit"))
-
-
-@router.get("/events/{event_id}/roster/candidates")
-async def list_candidates(
-    event_id: int,
-    search: str | None = None,
-    limit: int = Query(default=25, ge=1, le=100),
-    session: AsyncSession = Depends(get_session),
-    _perm: None = _PERM,
-) -> list[dict[str, Any]]:
-    """Clan members not on this event's roster yet, for the add picker."""
-    await event_or_404(session, event_id)
-    taken = select(TileRaceSignup.discord_user_id).where(
-        TileRaceSignup.event_id == event_id
-    )
-    stmt = select(User.discord_user_id, User.discord_username, User.rsn).where(
-        User.discord_user_id.notin_(taken)
-    )
-    if search:
-        pattern = f"%{search}%"
-        stmt = stmt.where(
-            User.rsn.ilike(pattern) | User.discord_username.ilike(pattern)
-        )
-    rows = await session.execute(
-        stmt.order_by(User.rsn.asc().nulls_last()).limit(limit)
-    )
-    return [
-        {
-            "discord_user_id": str(row.discord_user_id),
-            "discord_username": row.discord_username,
-            "rsn": row.rsn,
-        }
-        for row in rows
-    ]
 
 
 @router.post("/events/{event_id}/roster", status_code=201)
@@ -110,11 +76,12 @@ async def patch_roster_member(
     valkey: Valkey = Depends(get_valkey),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
-    """Move a member between teams, unassign them, or set them as captain.
+    """Move a member between teams, set them as captain, or switch their RSN.
 
     A team holds at most one captain: moving a captain to another team drops the
     badge unless the same request re-appoints them, and appointing a captain
-    demotes whoever held it.
+    demotes whoever held it. `account_id` repoints the entry at another of the
+    member's linked accounts; `rsn` sets a raw name and drops the link.
     """
     entry = await entry_or_404(session, event_id, discord_user_id)
     if "team_id" in body.model_fields_set and body.team_id != entry.team_id:
@@ -127,9 +94,7 @@ async def patch_roster_member(
         if body.is_captain:
             await clear_captain(session, entry.team_id, keep_id=entry.id)
         entry.is_captain = body.is_captain
-    if body.rsn is not None:
-        entry.rsn = body.rsn
-        entry.ranking_score = await ranking_score(session, body.rsn)
+    await apply_identity(session, entry, body)
     try:
         await session.commit()
     except IntegrityError as exc:

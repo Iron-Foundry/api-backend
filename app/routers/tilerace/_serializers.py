@@ -11,6 +11,7 @@ from app.db.models import (
     TileRepositoryTile,
 )
 
+from ._discord_perms import normalize as normalize_perms
 from .requirement_schema import requirement_from_items
 
 
@@ -55,6 +56,7 @@ def _serialize_summary(e: TileRaceEvent) -> dict[str, Any]:
         "discord_category_id": _id_or_none(e.discord_category_id),
         "discord_captains_role_id": _id_or_none(e.discord_captains_role_id),
         "discord_captains_channel_id": _id_or_none(e.discord_captains_channel_id),
+        "discord_permissions": normalize_perms(e.discord_permissions),
         "background_url": e.background_url,
         "starts_at": e.starts_at.isoformat() if e.starts_at else None,
         "ends_at": e.ends_at.isoformat() if e.ends_at else None,

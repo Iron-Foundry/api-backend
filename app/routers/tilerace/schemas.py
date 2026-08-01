@@ -173,7 +173,19 @@ class RosterAddBody(BaseModel):
 class RosterPatch(BaseModel):
     team_id: int | None = None
     is_captain: bool | None = None
+    account_id: int | None = None
     rsn: str | None = None
+
+
+class DiscordPermissionsPatch(BaseModel):
+    """Elevated permissions a team's role gets in its own managed channels."""
+
+    pin_messages: bool | None = None
+    manage_messages: bool | None = None
+    mention_everyone: bool | None = None
+    manage_threads: bool | None = None
+    manage_channel: bool | None = None
+    voice_moderation: bool | None = None
 
 
 class TeamPatch(BaseModel):

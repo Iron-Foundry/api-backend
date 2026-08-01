@@ -68,6 +68,9 @@ class TileRaceEvent(Base):
     discord_category_id: Mapped[int | None] = mapped_column(BigInteger)
     discord_captains_role_id: Mapped[int | None] = mapped_column(BigInteger)
     discord_captains_channel_id: Mapped[int | None] = mapped_column(BigInteger)
+    discord_permissions: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
     grid_cols: Mapped[int] = mapped_column(Integer, nullable=False, server_default="10")
     grid_rows: Mapped[int] = mapped_column(Integer, nullable=False, server_default="5")
     dice_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")

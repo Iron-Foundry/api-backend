@@ -11,6 +11,27 @@ prerelease, `stable` to drop the tag). A MAJOR bump is the maintainer's call
 and is never made automatically. The bump happens once, when the accumulated
 work is about to be pushed - not per component.
 
+## [Unreleased]
+
+### Added
+
+- Staff can switch which of a member's linked RSNs a tile race entry races
+  under, after the teams are drawn. `PATCH /tilerace/events/{id}/roster/{user}`
+  takes `account_id`, moving the RSN and its ranking score without touching the
+  team assignment or the captain badge, and `GET .../roster/{user}/accounts`
+  lists the member's linked RSNs for the picker. A raw `rsn` still works for
+  staff-added members with no linked account and now drops the stale account
+  link rather than leaving it pointing at a different name.
+- Elevated Discord permissions for tile race teams inside their own managed
+  channels, event-wide, via `PATCH /tilerace/events/{id}/discord/permissions`:
+  `pin_messages`, `manage_messages`, `mention_everyone`, `manage_threads`,
+  `manage_channel` and `voice_moderation`. Stored on
+  `tilerace_events.discord_permissions` (migration `0062`), reported by the
+  event payload, and carried in every provisioning command so a change is
+  applied to the channels that already exist - never a teardown. Each toggle
+  only grants; switching one off returns the flag to inherited rather than
+  denying it.
+
 ## [1.5.1] - 2026-08-01
 
 ### Security

@@ -10,6 +10,8 @@ from valkey.asyncio import Valkey
 
 from app.db.models import TileRaceEvent, TileRaceSignup, TileRaceTeam
 
+from ._discord_perms import normalize as normalize_perms
+
 COMMAND_CHANNEL = "foundry:tilerace_discord"
 
 
@@ -83,6 +85,7 @@ async def build_command(
         "captains_role_id": _opt(event.discord_captains_role_id),
         "captains_channel_id": _opt(event.discord_captains_channel_id),
         "captain_user_ids": [str(c.discord_user_id) for c in captains],
+        "permissions": normalize_perms(event.discord_permissions),
         "teams": [
             {
                 "team_id": str(t.id),

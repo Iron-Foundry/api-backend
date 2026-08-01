@@ -227,6 +227,70 @@ async def test_command_matches_the_published_contract(
     ]
     mock_session.execute.return_value = result
 
-    command = await build_command(mock_session, _event(), "setup")
+    event = _event(discord_permissions=_FIXTURE["command"]["permissions"])
+    command = await build_command(mock_session, event, "setup")
     assert command.keys() == _FIXTURE["command"].keys()
     assert command == _FIXTURE["command"]
+
+
+async def test_every_command_carries_the_full_toggle_set(
+    mock_session: MagicMock,
+) -> None:
+    """The bot reads toggles positionally off the payload, so none may be absent."""
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = []
+    mock_session.execute.return_value = result
+
+    command = await build_command(
+        mock_session,
+        _event(discord_permissions={"pin_messages": True, "bogus": True}),
+        "sync",
+    )
+    assert command["permissions"] == {
+        **dict.fromkeys(_FIXTURE["permission_toggles"], False),
+        "pin_messages": True,
+    }, "unknown keys must be dropped and every known toggle present"
+
+
+async def test_permission_toggle_syncs_without_a_teardown(
+    staff_client: AsyncClient, mock_session: MagicMock, mock_valkey: AsyncMock
+) -> None:
+    """Flipping a toggle re-syncs the live event; it never rebuilds a channel."""
+    event = _event(discord_category_id=900, discord_permissions={"pin_messages": True})
+    _load_event(mock_session, event)
+
+    resp = await staff_client.patch(
+        "/tilerace/events/12/discord/permissions",
+        json={"mention_everyone": True},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["synced"] is True
+    assert body["discord_permissions"]["pin_messages"] is True, (
+        "an unmentioned toggle must keep its value"
+    )
+    assert body["discord_permissions"]["mention_everyone"] is True
+
+    actions = [
+        json.loads(c.args[1])["action"] for c in mock_valkey.publish.call_args_list
+    ]
+    assert actions == ["sync"], "a toggle change must only ever publish a sync"
+
+
+async def test_permission_toggle_stored_before_setup(
+    staff_client: AsyncClient, mock_session: MagicMock, mock_valkey: AsyncMock
+) -> None:
+    _load_event(mock_session, _event())
+    resp = await staff_client.patch(
+        "/tilerace/events/12/discord/permissions", json={"voice_moderation": True}
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["synced"] is False
+    mock_valkey.publish.assert_not_called()
+
+
+async def test_permission_patch_requires_staff(anon_client: AsyncClient) -> None:
+    resp = await anon_client.patch(
+        "/tilerace/events/12/discord/permissions", json={"pin_messages": True}
+    )
+    assert resp.status_code == 401

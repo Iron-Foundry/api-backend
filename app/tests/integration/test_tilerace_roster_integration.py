@@ -14,6 +14,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from app.db.models import (
+    PlayerRanking,
     PlayerSnapshot,
     TileRaceEvent,
     TileRaceSignup,
@@ -200,6 +201,133 @@ async def test_staff_can_add_move_and_remove_a_non_signup(
     assert removed.status_code == 200
     rows = await _signup_rows(seed_engine, event_id)
     assert "Late Replacement" not in [r.rsn for r in rows]
+
+
+async def _seed_two_accounts(engine: AsyncEngine) -> None:
+    """A member with a main and an alt, signed up on the wrong one."""
+    now = datetime.now(UTC)
+    async with AsyncSession(engine) as session:
+        session.add(
+            User(
+                discord_user_id=5150,
+                discord_username="Mistake",
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        for rsn, primary, points in (
+            ("wrong main", True, 100),
+            ("right alt", False, 900),
+        ):
+            session.add(
+                UserAccount(
+                    discord_user_id=5150,
+                    rsn=rsn,
+                    is_primary=primary,
+                    created_at=now,
+                )
+            )
+            session.add(
+                PlayerRanking(rsn=rsn, rank="member", points=points, updated_at=now)
+            )
+            session.add(
+                PlayerSnapshot(
+                    rsn=rsn,
+                    skills={},
+                    bosses={"chambers_of_xeric": 0},
+                    activities={},
+                    fetched_at=now,
+                )
+            )
+        await session.commit()
+
+
+async def test_staff_can_switch_a_member_to_another_linked_account(
+    staff_client: AsyncClient, seed_engine: AsyncEngine
+) -> None:
+    """The signup mistake is only caught after the scramble, so the switch has
+    to work on a member who already sits on a team - without moving them."""
+    event_id = await _seed_event(seed_engine)
+    await _seed_two_accounts(seed_engine)
+
+    added = await staff_client.post(
+        f"/tilerace/events/{event_id}/roster", json={"discord_user_id": "5150"}
+    )
+    assert added.status_code == 201, added.text
+    assert added.json()["rsn"] == "wrong main"
+
+    generated = await staff_client.post(
+        f"/tilerace/events/{event_id}/teams/generate", json={"team_size": 4}
+    )
+    assert generated.status_code == 200, generated.text
+    before = next(
+        s
+        for s in (await staff_client.get(f"/tilerace/events/{event_id}")).json()[
+            "signups"
+        ]
+        if s["discord_user_id"] == "5150"
+    )
+    assert before["team_id"] is not None
+
+    accounts = await staff_client.get(
+        f"/tilerace/events/{event_id}/roster/5150/accounts"
+    )
+    assert accounts.status_code == 200, accounts.text
+    listed = accounts.json()
+    assert [a["rsn"] for a in listed] == ["wrong main", "right alt"]
+    alt = next(a for a in listed if a["rsn"] == "right alt")
+
+    switched = await staff_client.patch(
+        f"/tilerace/events/{event_id}/roster/5150", json={"account_id": alt["id"]}
+    )
+    assert switched.status_code == 200, switched.text
+    assert switched.json()["rsn"] == "right alt"
+    assert switched.json()["account_id"] == alt["id"]
+    assert switched.json()["ranking_score"] == 900, (
+        "the score must follow the account, not the old signup"
+    )
+    assert switched.json()["team_id"] == before["team_id"], (
+        "switching an RSN must never move the member off their team"
+    )
+    assert switched.json()["is_captain"] == before["is_captain"]
+
+    rows = await _signup_rows(seed_engine, event_id)
+    assert "right alt" in [r.rsn for r in rows]
+    assert "wrong main" not in [r.rsn for r in rows]
+
+
+async def test_switching_to_an_unlinked_account_is_rejected(
+    staff_client: AsyncClient, seed_engine: AsyncEngine
+) -> None:
+    event_id = await _seed_event(seed_engine)
+    await _seed_two_accounts(seed_engine)
+    await staff_client.post(
+        f"/tilerace/events/{event_id}/roster", json={"discord_user_id": "5150"}
+    )
+
+    resp = await staff_client.patch(
+        f"/tilerace/events/{event_id}/roster/5150", json={"account_id": 999999}
+    )
+    assert resp.status_code == 422, resp.text
+
+
+async def test_free_text_rsn_drops_the_account_link(
+    staff_client: AsyncClient, seed_engine: AsyncEngine
+) -> None:
+    """An unlinked name must not keep claiming to be a linked account."""
+    event_id = await _seed_event(seed_engine)
+    await _seed_two_accounts(seed_engine)
+    await staff_client.post(
+        f"/tilerace/events/{event_id}/roster", json={"discord_user_id": "5150"}
+    )
+
+    resp = await staff_client.patch(
+        f"/tilerace/events/{event_id}/roster/5150", json={"rsn": "typed by hand"}
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["rsn"] == "typed by hand"
+    assert resp.json()["account_id"] is None
+    assert resp.json()["ranking_score"] == 0
 
 
 async def _captain_counts(engine: AsyncEngine, event_id: int) -> dict[int, int]:

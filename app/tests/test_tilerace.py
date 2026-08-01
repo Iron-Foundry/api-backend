@@ -248,6 +248,16 @@ async def test_patch_roster_member_not_found(staff_client: AsyncClient) -> None:
     assert resp.status_code == 404
 
 
+async def test_member_accounts_requires_auth(anon_client: AsyncClient) -> None:
+    resp = await anon_client.get("/tilerace/events/9999/roster/1/accounts")
+    assert resp.status_code == 401
+
+
+async def test_member_accounts_not_on_the_roster(staff_client: AsyncClient) -> None:
+    resp = await staff_client.get("/tilerace/events/9999/roster/1/accounts")
+    assert resp.status_code == 404
+
+
 async def test_remove_roster_member_requires_auth(anon_client: AsyncClient) -> None:
     resp = await anon_client.delete("/tilerace/events/9999/roster/1")
     assert resp.status_code == 401

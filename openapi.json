@@ -1178,6 +1178,79 @@
         "title": "DiscordMessage",
         "type": "object"
       },
+      "DiscordPermissionsPatch": {
+        "description": "Elevated permissions a team's role gets in its own managed channels.",
+        "properties": {
+          "manage_channel": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manage Channel"
+          },
+          "manage_messages": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manage Messages"
+          },
+          "manage_threads": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manage Threads"
+          },
+          "mention_everyone": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mention Everyone"
+          },
+          "pin_messages": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pin Messages"
+          },
+          "voice_moderation": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice Moderation"
+          }
+        },
+        "title": "DiscordPermissionsPatch",
+        "type": "object"
+      },
       "DiscordProvisionResult": {
         "properties": {
           "captains_channel_id": {
@@ -3183,6 +3256,17 @@
       },
       "RosterPatch": {
         "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
           "is_captain": {
             "anyOf": [
               {
@@ -22432,6 +22516,66 @@
         ]
       }
     },
+    "/tilerace/events/{event_id}/discord/permissions": {
+      "patch": {
+        "description": "Toggle the elevated permissions teams hold in their own channels.\n\nThe toggles are applied by the following sync, which edits the overwrite on\nthe existing channels: nothing is torn down and no channel is recreated, so\na live event keeps its history.",
+        "operationId": "patch_discord_permissions_tilerace_events__event_id__discord_permissions_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscordPermissionsPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Patch Discord Permissions Tilerace Events  Event Id  Discord Permissions Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Patch Discord Permissions",
+        "tags": [
+          "tilerace"
+        ]
+      }
+    },
     "/tilerace/events/{event_id}/discord/result": {
       "post": {
         "description": "Service-key callback: discord-server reports the ids it created or cleared.\n\nA teardown reports every id as null, which is what clears them here.",
@@ -22965,7 +23109,7 @@
         ]
       },
       "patch": {
-        "description": "Move a member between teams, unassign them, or set them as captain.\n\nA team holds at most one captain: moving a captain to another team drops the\nbadge unless the same request re-appoints them, and appointing a captain\ndemotes whoever held it.",
+        "description": "Move a member between teams, set them as captain, or switch their RSN.\n\nA team holds at most one captain: moving a captain to another team drops the\nbadge unless the same request re-appoints them, and appointing a captain\ndemotes whoever held it. `account_id` repoints the entry at another of the\nmember's linked accounts; `rsn` sets a raw name and drops the link.",
         "operationId": "patch_roster_member_tilerace_events__event_id__roster__discord_user_id__patch",
         "parameters": [
           {
@@ -23027,6 +23171,68 @@
           }
         ],
         "summary": "Patch Roster Member",
+        "tags": [
+          "tilerace"
+        ]
+      }
+    },
+    "/tilerace/events/{event_id}/roster/{discord_user_id}/accounts": {
+      "get": {
+        "description": "The member's linked RSNs, for switching a signup made on the wrong one.",
+        "operationId": "list_member_accounts_tilerace_events__event_id__roster__discord_user_id__accounts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "discord_user_id",
+            "required": true,
+            "schema": {
+              "title": "Discord User Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Member Accounts Tilerace Events  Event Id  Roster  Discord User Id  Accounts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "List Member Accounts",
         "tags": [
           "tilerace"
         ]
