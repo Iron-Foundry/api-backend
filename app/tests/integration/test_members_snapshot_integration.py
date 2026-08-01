@@ -25,6 +25,7 @@ async def _seed(engine: AsyncEngine) -> None:
                 discord_user_id=discord_user_id,
                 discord_username="TestUser",
                 created_at=now,
+                updated_at=now,
             )
         )
         session.add(

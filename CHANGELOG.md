@@ -23,6 +23,13 @@ work is about to be pushed - not per component.
   `cryptography>=3.4.0` with no ceiling and fastapi 0.138.0 declares
   `starlette>=0.46.0` with no ceiling, so neither jump required a parent bump.
 
+### Fixed
+
+- The member snapshot integration fixture sets `users.updated_at`. The column
+  is `nullable=False` with no server default, so seeding a `User` without it
+  failed on a not-null violation before the endpoint was ever reached. The
+  roster fixtures were corrected in 1.4.0; this one was missed.
+
 ## [1.5.0] - 2026-07-31
 
 ### Added
