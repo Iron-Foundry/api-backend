@@ -11,7 +11,7 @@ prerelease, `stable` to drop the tag). A MAJOR bump is the maintainer's call
 and is never made automatically. The bump happens once, when the accumulated
 work is about to be pushed - not per component.
 
-## [Unreleased]
+## [1.6.0] - 2026-08-01
 
 ### Added
 
@@ -31,6 +31,17 @@ work is about to be pushed - not per component.
   applied to the channels that already exist - never a teardown. Each toggle
   only grants; switching one off returns the flag to inherited rather than
   denying it.
+
+### Fixed
+
+- The tile race Discord contract tests read the monorepo-root `fixtures/` at
+  import time, which raised `FileNotFoundError` during collection in this
+  repository's own CI, where only this submodule is checked out. The run aborted
+  before any of the 606 selected tests executed, and had done so on every push
+  since `0061` landed. Both files now carry the same guard the other
+  shared-fixture suites use - `skipif` on the fixtures directory, with the read
+  inside a helper, since a module-level read happens before `pytestmark` can
+  skip anything.
 
 ## [1.5.1] - 2026-08-01
 
