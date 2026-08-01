@@ -11,6 +11,20 @@ prerelease, `stable` to drop the tag). A MAJOR bump is the maintainer's call
 and is never made automatically. The bump happens once, when the accumulated
 work is about to be pushed - not per component.
 
+## [1.8.0] - 2026-08-01
+
+### Added
+
+- A roll publishes a `roll` command on the tile race Discord channel, so the
+  rolling team's own channel gets the result and the tile they landed on. The
+  requirement tree is rendered to text here rather than in the bot, which holds
+  no tile race state: `or` reads as "Any one of", `not` as "Without", and a
+  top-level `and` is flattened. Landing effects - snakes and ladders, extra
+  rolls, skipped turns, the end pad - are worded for the team as well. Nothing
+  is reported back, and a team with no provisioned channel publishes nothing.
+  Publishing happens after the commit and swallows its own failures, so a
+  Discord outage can never cost a roll that is already recorded.
+
 ## [1.7.0] - 2026-08-01
 
 ### Added

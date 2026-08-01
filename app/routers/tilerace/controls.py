@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
+from valkey.asyncio import Valkey
 
 from app.db.models import (
     TileRaceCompletion,
@@ -15,7 +16,7 @@ from app.db.models import (
     TileRaceSignup,
     TileRaceTeam,
 )
-from app.dependencies import get_current_user, get_session
+from app.dependencies import get_current_user, get_session, get_valkey
 from app.services.page_permissions import require_page_permission
 
 from ._roll_effects import (
@@ -26,6 +27,7 @@ from ._roll_effects import (
     find_cell,
     roll_dice_values,
 )
+from ._roll_feed import announce
 from ._submission_helpers import CLAIMED_STATUSES
 from .schemas import FogBody
 
@@ -71,6 +73,7 @@ async def roll_dice(
     event_id: int,
     team_id: int,
     session: AsyncSession = Depends(get_session),
+    valkey: Valkey = Depends(get_valkey),
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Roll for a team and advance them along the board.
@@ -123,6 +126,15 @@ async def roll_dice(
             )
         )
         await session.commit()
+        await announce(
+            session,
+            valkey,
+            event,
+            team,
+            {"dice": [], "total": 0, "skipped": True},
+            rolled_by,
+            {},
+        )
         return {"skipped": True, "new_position": team.position, "dice": []}
 
     cells = event.cells or []
@@ -149,6 +161,15 @@ async def roll_dice(
         )
     )
     await session.commit()
+    await announce(
+        session,
+        valkey,
+        event,
+        team,
+        {"dice": dice, "total": roll, "skipped": False},
+        rolled_by,
+        summary,
+    )
     return {"roll": roll, "dice": dice, "new_position": team.position, **summary}
 
 
