@@ -6,14 +6,22 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from httpx import AsyncClient
 
 from app.db.models import TileRaceEvent, TileRaceTeam
 from app.routers.tilerace._discord_payload import COMMAND_CHANNEL, build_command
 
-_FIXTURE = json.loads(
-    (Path(__file__).parents[3] / "fixtures" / "tilerace_discord.json").read_text()
+_FIXTURES = Path(__file__).resolve().parents[3] / "fixtures"
+
+pytestmark = pytest.mark.skipif(
+    not _FIXTURES.exists(),
+    reason="root fixtures/ not present (submodule-only checkout)",
 )
+
+
+def _fixture() -> dict[str, Any]:
+    return json.loads((_FIXTURES / "tilerace_discord.json").read_text())
 
 
 def _event(**overrides: Any) -> TileRaceEvent:
@@ -90,7 +98,7 @@ async def test_sync_publishes_on_the_contract_channel(
     resp = await staff_client.post("/tilerace/events/12/discord/sync")
     assert resp.status_code == 200
     channel, payload = mock_valkey.publish.call_args.args
-    assert channel == COMMAND_CHANNEL == _FIXTURE["channel"]
+    assert channel == COMMAND_CHANNEL == _fixture()["channel"]
     assert json.loads(payload)["action"] == "sync"
 
 
@@ -105,16 +113,16 @@ async def test_result_writes_every_id_back(
     mock_session.execute.return_value = result
 
     resp = await anon_client.post(
-        "/tilerace/events/12/discord/result", json=_FIXTURE["result"]
+        "/tilerace/events/12/discord/result", json=_fixture()["result"]
     )
     assert resp.status_code == 200
     assert resp.json()["teams_recorded"] == 1
-    assert event.discord_category_id == _FIXTURE["result"]["category_id"]
-    assert event.discord_captains_role_id == _FIXTURE["result"]["captains_role_id"]
-    assert team.discord_role_id == _FIXTURE["result"]["teams"][0]["role_id"]
+    assert event.discord_category_id == _fixture()["result"]["category_id"]
+    assert event.discord_captains_role_id == _fixture()["result"]["captains_role_id"]
+    assert team.discord_role_id == _fixture()["result"]["teams"][0]["role_id"]
     assert (
         team.discord_voice_channel_id
-        == (_FIXTURE["result"]["teams"][0]["voice_channel_id"])
+        == (_fixture()["result"]["teams"][0]["voice_channel_id"])
     )
 
 
@@ -135,7 +143,7 @@ async def test_teardown_result_clears_every_id(
     mock_session.execute.return_value = result
 
     resp = await anon_client.post(
-        "/tilerace/events/12/discord/result", json=_FIXTURE["teardown_result"]
+        "/tilerace/events/12/discord/result", json=_fixture()["teardown_result"]
     )
     assert resp.status_code == 200
     assert event.discord_category_id is None
@@ -227,10 +235,10 @@ async def test_command_matches_the_published_contract(
     ]
     mock_session.execute.return_value = result
 
-    event = _event(discord_permissions=_FIXTURE["command"]["permissions"])
+    event = _event(discord_permissions=_fixture()["command"]["permissions"])
     command = await build_command(mock_session, event, "setup")
-    assert command.keys() == _FIXTURE["command"].keys()
-    assert command == _FIXTURE["command"]
+    assert command.keys() == _fixture()["command"].keys()
+    assert command == _fixture()["command"]
 
 
 async def test_every_command_carries_the_full_toggle_set(
@@ -247,7 +255,7 @@ async def test_every_command_carries_the_full_toggle_set(
         "sync",
     )
     assert command["permissions"] == {
-        **dict.fromkeys(_FIXTURE["permission_toggles"], False),
+        **dict.fromkeys(_fixture()["permission_toggles"], False),
         "pin_messages": True,
     }, "unknown keys must be dropped and every known toggle present"
 

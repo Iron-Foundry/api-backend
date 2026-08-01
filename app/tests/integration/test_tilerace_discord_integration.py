@@ -22,11 +22,16 @@ from valkey.asyncio import Valkey
 
 from app.db.models import TileRaceEvent, TileRaceSignup, TileRaceTeam
 
-pytestmark = pytest.mark.integration
+_FIXTURES = Path(__file__).resolve().parents[4] / "fixtures"
 
-_FIXTURE = json.loads(
-    (Path(__file__).parents[4] / "fixtures" / "tilerace_discord.json").read_text()
-)
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        not _FIXTURES.exists(),
+        reason="root fixtures/ not present (submodule-only checkout)",
+    ),
+]
+
 _CATEGORY_ID = 900000000000000001
 _TEXT_CHANNEL_ID = 900000000000000005
 _DELIVERY_TIMEOUT_SECONDS = 10
@@ -76,6 +81,10 @@ async def _seed_provisioned_event(engine: AsyncEngine) -> int:
         return event_id
 
 
+def _fixture() -> dict[str, Any]:
+    return json.loads((_FIXTURES / "tilerace_discord.json").read_text())
+
+
 async def _next_command(pubsub: Any) -> dict[str, Any]:
     async with asyncio.timeout(_DELIVERY_TIMEOUT_SECONDS):
         while True:
@@ -91,7 +100,7 @@ async def test_a_toggle_syncs_the_live_event_in_place(
     valkey = Valkey.from_url(os.environ["VALKEY_URI"])
     try:
         async with valkey.pubsub() as pubsub:
-            await pubsub.subscribe(_FIXTURE["channel"])
+            await pubsub.subscribe(_fixture()["channel"])
             await pubsub.get_message(timeout=5)
 
             resp = await staff_client.patch(
@@ -110,7 +119,7 @@ async def test_a_toggle_syncs_the_live_event_in_place(
     )
     assert command["teams"][0]["text_channel_id"] == str(_TEXT_CHANNEL_ID)
     assert command["permissions"] == {
-        **dict.fromkeys(_FIXTURE["permission_toggles"], False),
+        **dict.fromkeys(_fixture()["permission_toggles"], False),
         "pin_messages": True,
         "mention_everyone": True,
     }
@@ -133,7 +142,7 @@ async def test_the_toggle_survives_a_reload_and_reaches_every_later_sync(
     valkey = Valkey.from_url(os.environ["VALKEY_URI"])
     try:
         async with valkey.pubsub() as pubsub:
-            await pubsub.subscribe(_FIXTURE["channel"])
+            await pubsub.subscribe(_fixture()["channel"])
             await pubsub.get_message(timeout=5)
 
             resync = await staff_client.post(
