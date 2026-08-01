@@ -10,6 +10,8 @@ from httpx import AsyncClient
 
 from app.db.models import TileRaceEvent, TileRaceSubmission
 from app.routers.tilerace._requirement_leaves import leaves
+from app.routers.tilerace._requirement_state import leaf_catalog, outstanding_count
+from app.routers.tilerace._requirement_text import requirement_lines
 from app.routers.tilerace._submission_helpers import CLAIMED_STATUSES
 
 _FIXTURES = Path(__file__).resolve().parents[3] / "fixtures"
@@ -138,3 +140,33 @@ def test_leaf_keys_match_the_shared_contract() -> None:
     assert [leaf["key"] for leaf in derived] == [leaf["key"] for leaf in contract]
     assert [leaf["label"] for leaf in derived] == [leaf["label"] for leaf in contract]
     assert set(CLAIMED_STATUSES) <= set(fixture["tile_statuses"])
+
+
+@pytest.mark.skipif(
+    not _FIXTURES.exists(),
+    reason="root fixtures/ not present (submodule-only checkout)",
+)
+def test_an_any_of_tile_matches_the_shared_contract() -> None:
+    """What the bot prints and offers for an "any one of" tile.
+
+    The bot counts nothing itself, so this side must send both the structured
+    lines and a count that reflects the choice rather than the leaf total.
+    """
+    fixture = json.loads((_FIXTURES / "tilerace_submission.json").read_text())
+    contract = fixture["any_of_context_response"]
+    tree = {
+        "kind": "or",
+        "children": [
+            {
+                "kind": "item",
+                "item_id": leaf["item_id"],
+                "quantity": 1,
+                "name": leaf["label"],
+            }
+            for leaf in contract["leaves"]
+        ],
+    }
+
+    assert leaf_catalog(tree, set()) == contract["leaves"]
+    assert outstanding_count(tree, set()) == contract["outstanding"]
+    assert requirement_lines(tree, set()) == contract["requirement_lines"]

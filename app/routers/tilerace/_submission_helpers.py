@@ -22,7 +22,7 @@ from app.db.models import (
     TileRepositoryTile,
 )
 
-from ._requirement_leaves import is_satisfied
+from ._requirement_state import is_satisfied
 from ._roll_effects import find_cell
 from .requirement_schema import requirement_from_items
 

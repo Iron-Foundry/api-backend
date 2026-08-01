@@ -16,7 +16,8 @@ from app.db.models import (
     TileRepositoryTile,
 )
 
-from ._requirement_leaves import leaf_catalog
+from ._requirement_state import leaf_catalog, outstanding_count
+from ._requirement_text import requirement_lines
 from ._submission_helpers import tile_at
 
 VALID_STATUSES = ("pending", "approved", "rejected")
@@ -76,6 +77,8 @@ async def submission_context(
         "path_position": team.position,
         "tile": _tile_summary(tile),
         "leaves": leaf_catalog(requirement, covered),
+        "outstanding": outstanding_count(requirement, covered),
+        "requirement_lines": requirement_lines(requirement, covered),
     }
 
 

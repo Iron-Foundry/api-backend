@@ -47,39 +47,6 @@ def leaves(requirement: dict[str, Any] | None) -> list[dict[str, Any]]:
     return collected
 
 
-def leaf_catalog(
-    requirement: dict[str, Any] | None, covered: set[str]
-) -> list[dict[str, Any]]:
-    """Every leaf of a tile, flagged with whether it already has a submission."""
-    return [{**leaf, "covered": leaf["key"] in covered} for leaf in leaves(requirement)]
-
-
-def is_satisfied(
-    requirement: dict[str, Any] | None,
-    covered: set[str],
-    _counter: dict[str, int] | None = None,
-) -> bool:
-    """Whether *covered* keys satisfy the tree.
-
-    ``and`` needs every child, ``or`` needs one, ``not`` inverts. Duplicate
-    leaves consume their ``#n`` suffixed keys in tree order, matching ``leaves``.
-    """
-    if requirement is None:
-        return True
-    counter = _counter if _counter is not None else {}
-    kind = requirement.get("kind")
-    if kind in ("and", "or"):
-        results = [
-            is_satisfied(c, covered, counter)
-            for c in (requirement.get("children") or [])
-        ]
-        return all(results) if kind == "and" else any(results)
-    if kind == "not":
-        child = requirement.get("child")
-        return not is_satisfied(child, covered, counter) if child else True
-    return _next_key(requirement, counter) in covered
-
-
 def _walk(node: dict[str, Any] | None, out: list[dict[str, Any]]) -> None:
     if not node:
         return
@@ -101,7 +68,8 @@ def _walk(node: dict[str, Any] | None, out: list[dict[str, Any]]) -> None:
     )
 
 
-def _next_key(node: dict[str, Any], counter: dict[str, int]) -> str:
+def next_key(node: dict[str, Any], counter: dict[str, int]) -> str:
+    """The key of the next occurrence of *node*, tracking duplicates in order."""
     base = leaf_key(node)
     count = counter.get(base, 0)
     counter[base] = count + 1

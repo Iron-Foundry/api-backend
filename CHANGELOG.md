@@ -11,6 +11,29 @@ prerelease, `stable` to drop the tag). A MAJOR bump is the maintainer's call
 and is never made automatically. The bump happens once, when the accumulated
 work is about to be pushed - not per component.
 
+## [1.10.0] - 2026-08-01
+
+### Fixed
+
+- A tile whose requirement is an "any one of" group no longer reads as several
+  outstanding items. The submission context counted unticked leaves, which is
+  the wrong question for an `or`: it now sends `outstanding`, the number of
+  further submissions actually required, where an `or` costs its cheapest branch
+  and a `not` costs nothing. Each leaf carries `needed`, true only while proving
+  it would bring the tile closer to satisfied - so every branch of an unproved
+  choice is offered, the moment one lands the rest stop being asked for, and a
+  leaf under a `not` is never asked for at all. The context also carries
+  `requirement_lines`, the tree rendered with its "Any one of:" headings and
+  submitted leaves struck through, so the bot prints the shape instead of
+  flattening it.
+
+### Changed
+
+- Requirement evaluation moved out of `_requirement_leaves` into
+  `_requirement_state`, which owns `is_satisfied`, `outstanding_count` and
+  `leaf_catalog`. Key derivation and "what does this team still owe" are
+  different questions and the module was over the size limit.
+
 ## [1.9.0] - 2026-08-01
 
 ### Added

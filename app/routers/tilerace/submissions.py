@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import TileRaceEvent, TileRaceSubmission
 from app.dependencies import get_current_user, get_session, verify_metrics_key
 
-from ._requirement_leaves import leaf_catalog
+from ._requirement_state import leaf_catalog, outstanding_count
 from ._submission_helpers import apply_claim_state, tile_at
 from ._submission_lookup import (
     active_submissions,
@@ -133,4 +133,5 @@ async def get_tile_status(
         "path_position": team.position,
         "tile_id": str(tile.id) if tile else None,
         "leaves": leaf_catalog(requirement, covered),
+        "outstanding": outstanding_count(requirement, covered),
     }
