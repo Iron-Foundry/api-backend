@@ -137,6 +137,17 @@ async def client(app: FastAPI, _truncate: None) -> AsyncGenerator[AsyncClient]:
 
 
 @pytest.fixture
+async def anon_client(app: FastAPI, _truncate: None) -> AsyncGenerator[AsyncClient]:
+    """Unauthenticated client, for asserting what a public surface hands out."""
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        follow_redirects=True,
+    ) as ac:
+        yield ac
+
+
+@pytest.fixture
 async def staff_client(app: FastAPI, _truncate: None) -> AsyncGenerator[AsyncClient]:
     """Authed client whose permission checks all pass (staff-gated endpoints)."""
     from app.dependencies import get_current_user, get_optional_user

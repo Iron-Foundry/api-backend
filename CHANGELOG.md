@@ -11,6 +11,23 @@ prerelease, `stable` to drop the tag). A MAJOR bump is the maintainer's call
 and is never made automatically. The bump happens once, when the accumulated
 work is about to be pushed - not per component.
 
+## [1.11.0] - 2026-08-02
+
+### Security
+
+- `GET /tilerace/active`, the one unauthenticated tile race route, now returns a
+  masked board. Fog of war is enforced on the server: a path cell beyond the
+  furthest team is reduced to `{cell_x, cell_y, path_position}` before any tile
+  is embedded, so its title, description, requirement and modifiers - traps,
+  snakes/ladders targets, sabotage amounts - can no longer be scraped ahead of
+  the race. Previously fog was applied only by the browser and the whole
+  unrevealed board shipped to any caller. The response also drops the event and
+  per-team Discord ids, `discord_permissions`, each team's `pending_effects`,
+  and the `signups[]` roster; `teams[].members` is now `{rsn, is_captain}` only.
+  A signed-in caller gets `my_signup` and `my_team_id` in place of the roster,
+  and everyone gets `signup_count`. Staff keep the full shape on
+  `GET /tilerace/events/{id}`.
+
 ## [1.10.0] - 2026-08-01
 
 ### Fixed

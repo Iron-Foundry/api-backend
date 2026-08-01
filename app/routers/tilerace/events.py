@@ -8,10 +8,11 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import TileRaceEvent, TileRaceSignup, TileRaceTeam
-from app.dependencies import get_current_user, get_session
+from app.dependencies import get_current_user, get_optional_user, get_session
 from app.services.page_permissions import require_page_permission
 
 from ._helpers import _embed_cells, group_by_team, raids_kc_map
+from ._public_view import mask_cells, public_event
 from ._serializers import _serialize_signup, _serialize_summary, _serialize_team
 from .schemas import EventBody, EventPatch
 
@@ -19,7 +20,9 @@ router = APIRouter()
 _PERM = Depends(require_page_permission("tilerace.admin", "edit"))
 
 
-async def _full_event(event: TileRaceEvent, session: AsyncSession) -> dict[str, Any]:
+async def _event_rows(
+    event: TileRaceEvent, session: AsyncSession
+) -> tuple[list[TileRaceTeam], list[TileRaceSignup]]:
     teams = (
         (
             await session.execute(
@@ -42,9 +45,14 @@ async def _full_event(event: TileRaceEvent, session: AsyncSession) -> dict[str, 
         .scalars()
         .all()
     )
+    return list(teams), list(signups)
+
+
+async def _full_event(event: TileRaceEvent, session: AsyncSession) -> dict[str, Any]:
+    teams, signups = await _event_rows(event, session)
     cells = await _embed_cells(event.cells or [], session)
-    rosters = group_by_team(list(signups))
-    kc_map = await raids_kc_map(session, list(signups))
+    rosters = group_by_team(signups)
+    kc_map = await raids_kc_map(session, signups)
     return {
         **_serialize_summary(event),
         "cells": cells,
@@ -56,8 +64,14 @@ async def _full_event(event: TileRaceEvent, session: AsyncSession) -> dict[str, 
 @router.get("/active")
 async def get_active_event(
     session: AsyncSession = Depends(get_session),
+    viewer: dict[str, Any] | None = Depends(get_optional_user),
 ) -> dict[str, Any]:
-    """Return the running tile race with its teams and board. Public."""
+    """Return the running tile race with its teams and board.
+
+    Public, and masked to match: fogged cells carry grid geometry only, Discord
+    ids and per-team effect state are withheld, and the roster is reduced to
+    names. A signed-in caller also gets their own signup as `my_signup`.
+    """
     event = (
         await session.execute(
             select(TileRaceEvent).where(TileRaceEvent.is_active.is_(True))
@@ -74,7 +88,18 @@ async def get_active_event(
         ).scalar_one_or_none()
     if event is None:
         raise HTTPException(404, "No active tile race event.")
-    return await _full_event(event, session)
+    teams, signups = await _event_rows(event, session)
+    cells = await _embed_cells(
+        mask_cells(event.cells or [], teams, event.fog_of_war), session
+    )
+    return public_event(
+        event,
+        teams,
+        cells,
+        group_by_team(signups),
+        signups,
+        int(viewer["sub"]) if viewer else None,
+    )
 
 
 @router.get("/events")
