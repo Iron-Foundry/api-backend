@@ -11,6 +11,18 @@ prerelease, `stable` to drop the tag). A MAJOR bump is the maintainer's call
 and is never made automatically. The bump happens once, when the accumulated
 work is about to be pushed - not per component.
 
+## [1.5.1] - 2026-08-01
+
+### Security
+
+- cryptography 46.0.7 -> 50.0.0, starlette 1.0.1 -> 1.3.1, python-multipart
+  0.0.27 -> 0.0.32, pydantic-settings 2.13.1 -> 2.14.2, pyasn1 0.6.3 -> 0.6.4
+  and idna 3.11 -> 3.18, clearing all 13 Dependabot advisories. Lockfile only -
+  no declared constraint moved. The cryptography advisory needs 48.0.1, so
+  staying on 46.x was not an option; `python-jose[cryptography] 3.5.0` declares
+  `cryptography>=3.4.0` with no ceiling and fastapi 0.138.0 declares
+  `starlette>=0.46.0` with no ceiling, so neither jump required a parent bump.
+
 ## [1.5.0] - 2026-07-31
 
 ### Added
