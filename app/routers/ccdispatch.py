@@ -7,6 +7,7 @@ from fastapi import (
     Depends,
     HTTPException,
     Query,
+    Request,
     WebSocket,
     WebSocketDisconnect,
 )
@@ -16,6 +17,7 @@ from sqlalchemy import select
 
 from app.db.models import User
 from app.dependencies import verify_clan
+from app.services.cc_dispatch import CC_DISPATCH_CHANNEL
 from app.services.connection_manager import connection_manager
 
 router = APIRouter(tags=["clan"])
@@ -31,7 +33,7 @@ def _sanitize(text: str) -> str:
     return text.replace("`", "")
 
 
-def _wrap(sender: str, message: str, rank: str | None = None) -> str:
+def wrap_message(sender: str, message: str, rank: str | None = None) -> str:
     return json.dumps(
         {
             "message_type": "ToClanChat",
@@ -101,7 +103,9 @@ async def clan_chat_dispatch(websocket: WebSocket) -> None:
         return
 
     valkey = websocket.app.state.valkey
+    registry = websocket.app.state.ws_registry
     conn_id = connection_manager.connect(websocket, guild_id, verification_code or "")
+    await registry.add(guild_id, conn_id)
 
     async def _publish_presence(event: str) -> None:
         payload = json.dumps(
@@ -109,7 +113,7 @@ async def clan_chat_dispatch(websocket: WebSocket) -> None:
                 "event": event,
                 "discord_user_id": discord_user_id,
                 "guild_id": guild_id,
-                "connection_count": connection_manager.connection_count(guild_id),
+                "connection_count": await registry.count(guild_id),
                 "hide_presence_notifications": hide_presence,
             }
         )
@@ -132,26 +136,39 @@ async def clan_chat_dispatch(websocket: WebSocket) -> None:
         pass
     finally:
         connection_manager.disconnect(conn_id, guild_id)
+        await registry.remove(guild_id, conn_id)
         await _publish_presence("disconnect")
 
 
 @router.post("/ccdispatch")
 async def dispatch_to_clan(
     payload: DiscordMessage,
+    request: Request,
     conn_id: UUID | None = Query(default=None),
     clan: dict[str, Any] = Depends(verify_clan),
 ) -> dict[str, Any]:
     """Push a Discord message out to the connected in-game clients.
 
-    Long messages are split into chunks the game chat box accepts.
+    Published rather than sent directly: the sockets are spread across every
+    gunicorn worker and each one's connection manager sees only its own, so
+    `CcDispatchService` in each worker does the delivery. Long messages are
+    split into chunks the game chat box accepts, on that side.
     """
     guild_id: int = clan["guild_id"]
-    for part in split_message(payload.message):
-        msg = _wrap(payload.sender, part, payload.rank)
-        if conn_id is not None:
-            delivered = await connection_manager.send_to(conn_id, guild_id, msg)
-            if not delivered:
-                raise HTTPException(status_code=404, detail="Client not connected")
-        else:
-            await connection_manager.broadcast(guild_id, msg)
+    registry = request.app.state.ws_registry
+    if conn_id is not None and not await registry.is_connected(guild_id, conn_id):
+        raise HTTPException(status_code=404, detail="Client not connected")
+
+    await request.app.state.valkey.publish(
+        CC_DISPATCH_CHANNEL,
+        json.dumps(
+            {
+                "guild_id": guild_id,
+                "sender": payload.sender,
+                "rank": payload.rank,
+                "message": payload.message,
+                "conn_id": str(conn_id) if conn_id else None,
+            }
+        ),
+    )
     return {"ok": True}

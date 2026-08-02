@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import os
 import time
 from datetime import UTC, datetime
 from typing import Any
@@ -15,10 +16,19 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.db.models import MetricRecord, ServiceStatus
 from app.services.ccingest_metrics import CcIngestMetricsCollector
 from app.services.connection_manager import ConnectionManager
+from app.services.ws_registry import WsRegistry
 
 _FLUSH_INTERVAL = 60  # 1 minute - fine-grained for coverage graphs
 _SERVICE_NAME = "api-backend"
 _MODULE_NAME = "websocket"
+
+# Every gunicorn worker runs this service. Without a lease each would write its
+# own row holding only its own share, so the graphs showed one worker of three.
+# The lease expires just inside the flush interval, so the writer rotates rather
+# than sticking to whichever worker won first.
+_WRITE_LOCK_KEY = "foundry:ws:metrics_lock"
+_WRITE_LOCK_TTL = _FLUSH_INTERVAL - 5
+_DISPATCHED_KEY = "foundry:ws:dispatched"
 
 
 class WebSocketMetricsService:
@@ -29,10 +39,14 @@ class WebSocketMetricsService:
         connection_manager: ConnectionManager,
         session_factory: async_sessionmaker[AsyncSession] | None,
         ccingest_collector: CcIngestMetricsCollector | None = None,
+        registry: WsRegistry | None = None,
+        worker_id: str = "",
     ) -> None:
         self._cm = connection_manager
         self._session_factory = session_factory
         self._ccingest = ccingest_collector
+        self._registry = registry
+        self._worker_id = worker_id or str(os.getpid())
         self._task: asyncio.Task[None] | None = None
         self._start_time = time.monotonic()
 
@@ -54,13 +68,47 @@ class WebSocketMetricsService:
             await asyncio.sleep(_FLUSH_INTERVAL)
             await self._flush()
 
+    async def _claim_write(self) -> bool:
+        """Win the right to write this interval's row, or defer to the holder."""
+        if self._registry is None:
+            return True
+        won = await self._registry.valkey.set(
+            _WRITE_LOCK_KEY, self._worker_id, nx=True, ex=_WRITE_LOCK_TTL
+        )
+        return bool(won)
+
+    async def _contribute_dispatched(self) -> int:
+        """Hand this worker's tally to the shared counter, before any lease.
+
+        Contributing first is what keeps the total conserved: a worker whose
+        tick lands after the writer's carries into the next interval rather
+        than being dropped, and nothing is ever counted twice.
+        """
+        local = self._cm.drain_messages_dispatched()
+        if self._registry is None or not local:
+            return local
+        await self._registry.valkey.incrby(_DISPATCHED_KEY, local)
+        return local
+
+    async def _take_dispatched(self, local: int) -> int:
+        if self._registry is None:
+            return local
+        return int(await self._registry.valkey.getdel(_DISPATCHED_KEY) or 0)
+
     async def _flush(self) -> None:
         if not self._session_factory:
             return
+        local = await self._contribute_dispatched()
+        if not await self._claim_write():
+            return
+
         now = datetime.now(UTC)
-        connected_clients = self._cm.total_connections()
-        active_guilds = self._cm.active_guild_count()
-        messages_dispatched = self._cm.drain_messages_dispatched()
+        if self._registry is not None:
+            connected_clients, active_guilds = await self._registry.totals()
+        else:
+            connected_clients = self._cm.total_connections()
+            active_guilds = self._cm.active_guild_count()
+        messages_dispatched = await self._take_dispatched(local)
 
         metrics: dict[str, Any] = {
             "connected_clients": connected_clients,

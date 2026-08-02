@@ -50,6 +50,7 @@ from app.routers import (
 )
 from app.routers.config import _ALL_SERVICE_KEYS, get_service_toggles
 from app.services.bulk_gains import BulkGainsService
+from app.services.cc_dispatch import CcDispatchService
 from app.services.ccingest_metrics import collector as ccingest_collector
 from app.services.clan_stats import ClanStatsService
 from app.services.competition_schedule import CompetitionScheduleService
@@ -73,6 +74,7 @@ from app.services.party_expiry import PartyExpiryService
 from app.services.ranking_service import RankingService
 from app.services.websocket_metrics import WebSocketMetricsService
 from app.services.wom_metrics import WomMetricsService
+from app.services.ws_registry import WsRegistry
 from app.version import VERSION
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
@@ -117,7 +119,13 @@ async def lifespan(app: FastAPI):
     else:
         toggles = dict.fromkeys(_ALL_SERVICE_KEYS, True)
 
+    # The connection census is correctness plumbing rather than a feature, so it
+    # is not in the toggle registry - nothing should be able to switch it off.
+    app.state.ws_registry = WsRegistry(app.state.valkey, connection_manager)
+    await app.state.ws_registry.start()
+
     # Build all service instances
+    cc_dispatch_svc = CcDispatchService(VALKEY_URI)
     discord_chat_svc = DiscordChatService(VALKEY_URI, app.state.session_factory)
     music_state_svc = MusicStateService(VALKEY_URI, app.state.valkey)
     music_stats_svc = MusicStatsService(VALKEY_URI, app.state.session_factory)
@@ -180,6 +188,7 @@ async def lifespan(app: FastAPI):
         else None
     )
     app.state.service_registry = {
+        "cc_dispatch": cc_dispatch_svc,
         "discord_chat": discord_chat_svc,
         "music_state": music_state_svc,
         "music_stats": music_stats_svc,
@@ -206,7 +215,10 @@ async def lifespan(app: FastAPI):
     )
     await endpoint_metrics_service.start()
     ws_metrics_service = WebSocketMetricsService(
-        connection_manager, app.state.session_factory, ccingest_collector
+        connection_manager,
+        app.state.session_factory,
+        ccingest_collector,
+        registry=app.state.ws_registry,
     )
     await ws_metrics_service.start()
     wom_metrics_service = WomMetricsService(app.state.session_factory)
@@ -223,6 +235,7 @@ async def lifespan(app: FastAPI):
     for svc in app.state.service_registry.values():
         if svc is not None and svc.is_running:
             await svc.stop()
+    await app.state.ws_registry.stop()
     await wom_queue.stop()
     if app.state.engine:
         logger.info("Closing PostgreSQL connection...")

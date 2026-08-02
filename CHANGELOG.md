@@ -13,6 +13,26 @@ work is about to be pushed - not per component.
 
 ## [Unreleased]
 
+### Fixed
+
+- Clan-chat dispatches now reach every connected RuneLite client. Gunicorn runs
+  three workers, each with its own in-process connection manager, but
+  `POST /ccdispatch` broadcast straight into whichever worker served the
+  request - so a message found a given client roughly one time in three. The
+  endpoint publishes on `foundry:ccdispatch` instead, and a subscriber in every
+  worker delivers to the sockets it holds, which is how the Discord side has
+  always worked. A dedicated channel rather than `foundry:discord_chat`, whose
+  consumer also runs the spacebar-check accounting.
+- `GET`ting a targeted dispatch's 404 is truthful again across workers: which
+  connections are attached now lives in Valkey (`WsRegistry`) rather than in one
+  worker's memory, scored by a heartbeat so a crashed worker's entries age out
+  instead of leaking.
+- WebSocket metrics stopped under-reporting. All three workers wrote their own
+  `metric_records` row each minute holding only their own share, and the
+  `service_status` upsert was last-writer-wins. One worker now takes a Valkey
+  lease per interval and writes a single row with cluster-wide counts; dispatch
+  tallies go through a shared counter, so they are conserved rather than sampled.
+
 ### Changed
 
 - The integration suite runs in 20s instead of 244s. Its truncation fixture used

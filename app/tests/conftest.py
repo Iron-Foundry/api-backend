@@ -127,6 +127,11 @@ def _build_app() -> FastAPI:
     app.state.bulk_gains_service = bulk_gains_svc
     app.state.session_factory = MagicMock()
     app.state.valkey = AsyncMock()
+    ws_registry = AsyncMock()
+    ws_registry.is_connected = AsyncMock(return_value=True)
+    ws_registry.count = AsyncMock(return_value=0)
+    ws_registry.totals = AsyncMock(return_value=(0, 0))
+    app.state.ws_registry = ws_registry
 
     @app.get("/docs", include_in_schema=False)
     async def _scalar_docs() -> HTMLResponse:

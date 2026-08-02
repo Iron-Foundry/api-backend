@@ -48,6 +48,14 @@ class ConnectionManager:
     def connection_count(self, guild_id: int) -> int:
         return len(self._connections.get(guild_id, {}))
 
+    def snapshot(self) -> dict[int, list[UUID]]:
+        """Every guild_id -> conn_ids this process currently holds."""
+        return {
+            guild_id: list(clients)
+            for guild_id, clients in self._connections.items()
+            if clients
+        }
+
     def total_connections(self) -> int:
         return sum(len(v) for v in self._connections.values())
 

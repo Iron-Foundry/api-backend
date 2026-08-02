@@ -7133,7 +7133,7 @@
     },
     "/ccdispatch": {
       "post": {
-        "description": "Push a Discord message out to the connected in-game clients.\n\nLong messages are split into chunks the game chat box accepts.",
+        "description": "Push a Discord message out to the connected in-game clients.\n\nPublished rather than sent directly: the sockets are spread across every\ngunicorn worker and each one's connection manager sees only its own, so\n`CcDispatchService` in each worker does the delivery. Long messages are\nsplit into chunks the game chat box accepts, on that side.",
         "operationId": "dispatch_to_clan_ccdispatch_post",
         "parameters": [
           {
