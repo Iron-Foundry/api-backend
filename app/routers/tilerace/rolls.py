@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,33 +13,26 @@ from ._serializers import _serialize_roll
 
 router = APIRouter()
 
-_MAX_LIMIT = 100
-
 
 @router.get("/events/{event_id}/rolls")
 async def list_rolls(
     event_id: int,
-    limit: int = 25,
+    limit: int | None = Query(default=None, ge=1),
     session: AsyncSession = Depends(get_session),
     _current_user: dict[str, Any] = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
-    """List an event's dice rolls, newest first."""
+    """List an event's dice rolls, newest first. Omit `limit` for full history."""
     event = (
         await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
     ).scalar_one_or_none()
     if event is None:
         raise HTTPException(404, "Event not found.")
-    clamped_limit = max(1, min(limit, _MAX_LIMIT))
-    rows = (
-        (
-            await session.execute(
-                select(TileRaceRoll)
-                .where(TileRaceRoll.event_id == event_id)
-                .order_by(TileRaceRoll.rolled_at.desc())
-                .limit(clamped_limit)
-            )
-        )
-        .scalars()
-        .all()
+    stmt = (
+        select(TileRaceRoll)
+        .where(TileRaceRoll.event_id == event_id)
+        .order_by(TileRaceRoll.rolled_at.desc())
     )
+    if limit is not None:
+        stmt = stmt.limit(limit)
+    rows = (await session.execute(stmt)).scalars().all()
     return [_serialize_roll(r) for r in rows]

@@ -1,6 +1,6 @@
 [project]
 name = "api-backend"
-version = "1.11.0"
+version = "1.12.0"
 description = "FastAPI backend for The Foundry Project"
 readme = "README.md"
 requires-python = ">=3.14"

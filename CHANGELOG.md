@@ -11,7 +11,14 @@ prerelease, `stable` to drop the tag). A MAJOR bump is the maintainer's call
 and is never made automatically. The bump happens once, when the accumulated
 work is about to be pushed - not per component.
 
-## [Unreleased]
+## [1.12.0] - 2026-08-02
+
+### Changed
+
+- `GET /tilerace/events/{event_id}/rolls` returns the event's full roll history
+  when `limit` is omitted. The parameter defaulted to 25 and was clamped to 100,
+  so the web roll feed could not show older rolls at all. `limit` is now
+  optional and only caps the page when a caller passes it (`>= 1`).
 
 ### Fixed
 
