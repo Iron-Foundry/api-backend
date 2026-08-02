@@ -11,6 +11,19 @@ prerelease, `stable` to drop the tag). A MAJOR bump is the maintainer's call
 and is never made automatically. The bump happens once, when the accumulated
 work is about to be pushed - not per component.
 
+## [Unreleased]
+
+### Changed
+
+- The integration suite runs in 20s instead of 244s. Its truncation fixture used
+  to build a fresh engine per test and issue one `TRUNCATE` per table, ~91 round
+  trips against 90 tables, and the app rebooted its whole lifespan for every
+  test. The table list is now resolved once and truncated in a single statement
+  on a session-scoped engine, and the app boots once per worker. It also takes
+  its Postgres and Valkey from the test runner when offered
+  (`TEST_DATABASE_URL` / `TEST_VALKEY_URI`), cloning a migrated template
+  database per pytest-xdist worker rather than running Alembic each time.
+
 ## [1.11.0] - 2026-08-02
 
 ### Security

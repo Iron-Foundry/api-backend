@@ -11,7 +11,9 @@ import asyncio
 from datetime import UTC, datetime
 
 import pytest
+from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import create_async_engine
+from starlette.datastructures import State
 from starlette.testclient import TestClient
 
 pytestmark = pytest.mark.integration
@@ -54,6 +56,22 @@ def test_dispatch_reaches_connected_ws(db_url: str) -> None:
 
     from app.main import app as real_app
 
+    # TestClient drives the app on its own event loop, so it has to boot its own
+    # lifespan - the session-scoped one's engine and Valkey client are bound to
+    # the suite's loop and cannot be reached from here. Both lifespans write to
+    # the same `app.state`, so this one gets a scratch copy that is thrown away
+    # afterwards, leaving the shared app untouched for the tests that follow.
+    shared_state = real_app.state
+    real_app.state = State(
+        {"endpoint_metrics_collector": shared_state.endpoint_metrics_collector}
+    )
+    try:
+        _dispatch_and_assert(real_app)
+    finally:
+        real_app.state = shared_state
+
+
+def _dispatch_and_assert(real_app: FastAPI) -> None:
     with (
         TestClient(real_app, headers={"verification-code": _API_KEY}) as tc,
         tc.websocket_connect("/ccdispatch") as ws,

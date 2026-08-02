@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.tests.conftest import TEST_USER
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.xdist_group("valkey_pubsub")]
 
 OWNER = int(TEST_USER["sub"])
 STRANGER = 999888777666555444

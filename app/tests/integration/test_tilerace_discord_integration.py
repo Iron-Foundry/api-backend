@@ -26,6 +26,7 @@ _FIXTURES = Path(__file__).resolve().parents[4] / "fixtures"
 
 pytestmark = [
     pytest.mark.integration,
+    pytest.mark.xdist_group("valkey_pubsub"),
     pytest.mark.skipif(
         not _FIXTURES.exists(),
         reason="root fixtures/ not present (submodule-only checkout)",
