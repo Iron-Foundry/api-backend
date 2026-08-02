@@ -72,6 +72,7 @@ from app.services.outbound_metrics import _collector as _outbound_collector
 from app.services.outbound_metrics.service import OutboundMetricsService
 from app.services.party_expiry import PartyExpiryService
 from app.services.ranking_service import RankingService
+from app.services.toggle_dispatch import ToggleDispatchService
 from app.services.websocket_metrics import WebSocketMetricsService
 from app.services.wom_metrics import WomMetricsService
 from app.services.ws_registry import WsRegistry
@@ -210,6 +211,13 @@ async def lifespan(app: FastAPI):
         elif svc is not None:
             logger.info("Service {} disabled by config - skipping start", key)
 
+    # Carries staff toggles to every worker's registry, so it must not be in the
+    # registry it applies to - nothing should be able to switch off the switch.
+    app.state.toggle_dispatch = ToggleDispatchService(
+        VALKEY_URI, app.state.service_registry
+    )
+    await app.state.toggle_dispatch.start()
+
     endpoint_metrics_service = EndpointMetricsService(
         app.state.endpoint_metrics_collector, app.state.session_factory
     )
@@ -232,6 +240,7 @@ async def lifespan(app: FastAPI):
     await wom_metrics_service.stop()
     await ws_metrics_service.stop()
     await endpoint_metrics_service.stop()
+    await app.state.toggle_dispatch.stop()
     for svc in app.state.service_registry.values():
         if svc is not None and svc.is_running:
             await svc.stop()

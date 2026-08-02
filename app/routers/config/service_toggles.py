@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from typing import Any
+import json
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from loguru import logger
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_session
 from app.services.page_permissions import require_page_permission
+from app.services.toggle_dispatch import TOGGLE_CHANNEL
 
 from ._helpers import (
     _ALL_SERVICE_KEYS,
@@ -45,7 +45,13 @@ async def set_service_toggle(
     request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, bool]:
-    """Enable or disable a background service. Persists to DB and applies at runtime."""
+    """Enable or disable a background service. Persists to DB and applies at runtime.
+
+    Published rather than applied in place: gunicorn runs several workers, each
+    holding its own service registry, so a toggle applied here would reach one
+    of them. `ToggleDispatchService` in every worker - including this one - acts
+    on the publish.
+    """
     if service_key not in _ALL_SERVICE_KEYS:
         raise HTTPException(
             status_code=404, detail=f"Unknown service key: {service_key}"
@@ -53,15 +59,8 @@ async def set_service_toggle(
     current = await get_service_toggles(session)
     current[service_key] = body.enabled
     await set_config_value(_SERVICE_TOGGLES_KEY, current, session)
-    registry: dict[str, Any] = getattr(request.app.state, "service_registry", {})
-    svc = registry.get(service_key)
-    if svc is not None:
-        if body.enabled and not svc.is_running:
-            await svc.start()
-        elif not body.enabled and svc.is_running:
-            await svc.stop()
-    else:
-        logger.warning(
-            "Service {} not in registry (may require WOM_GROUP_ID)", service_key
-        )
+    await request.app.state.valkey.publish(
+        TOGGLE_CHANNEL,
+        json.dumps({"service_key": service_key, "enabled": body.enabled}),
+    )
     return current

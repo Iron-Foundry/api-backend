@@ -10313,7 +10313,7 @@
     },
     "/config/services/toggles/{service_key}": {
       "put": {
-        "description": "Enable or disable a background service. Persists to DB and applies at runtime.",
+        "description": "Enable or disable a background service. Persists to DB and applies at runtime.\n\nPublished rather than applied in place: gunicorn runs several workers, each\nholding its own service registry, so a toggle applied here would reach one\nof them. `ToggleDispatchService` in every worker - including this one - acts\non the publish.",
         "operationId": "set_service_toggle_config_services_toggles__service_key__put",
         "parameters": [
           {

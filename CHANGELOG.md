@@ -15,6 +15,14 @@ work is about to be pushed - not per component.
 
 ### Fixed
 
+- Flipping a background service from the control panel now takes effect in every
+  worker. `PUT /config/services/toggles/{service_key}` started or stopped the
+  service in whichever worker served the request, so with three gunicorn workers
+  a toggle reached one of them and the other two kept running the opposite of
+  what the panel showed. The endpoint persists the toggle and publishes on
+  `foundry:service_toggles`; `ToggleDispatchService`, running in every worker,
+  applies it. The dispatcher is deliberately outside the toggle registry - it
+  cannot be used to switch itself off.
 - Clan-chat dispatches now reach every connected RuneLite client. Gunicorn runs
   three workers, each with its own in-process connection manager, but
   `POST /ccdispatch` broadcast straight into whichever worker served the
