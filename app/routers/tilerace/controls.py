@@ -28,6 +28,7 @@ from ._roll_effects import (
     roll_dice_values,
 )
 from ._roll_feed import announce
+from ._setback import clear_tile_range
 from ._submission_helpers import CLAIMED_STATUSES
 from .schemas import FogBody
 
@@ -144,9 +145,14 @@ async def roll_dice(
 
     dice = roll_dice_values(event.dice_count, event.dice_sides)
     roll = sum(dice)
-    team.position = team.position + roll
-    summary = apply_landing_modifiers(team, find_cell(cells, team.position))
+    landed_on = team.position + roll
+    team.position = landed_on
+    summary = apply_landing_modifiers(team, find_cell(cells, landed_on))
     _apply_pads(event, team, find_cell(cells, team.position), summary)
+    if team.position < landed_on:
+        reset = await clear_tile_range(session, team_id, team.position, landed_on)
+        if reset:
+            summary["tiles_reset"] = reset
     team.updated_at = now
     session.add(
         TileRaceRoll(

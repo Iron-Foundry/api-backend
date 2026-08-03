@@ -146,6 +146,54 @@ async def test_the_team_channel_is_told_what_the_trap_did() -> None:
     ]
 
 
+async def test_the_team_is_told_the_tile_they_slid_back_to_is_open_again() -> None:
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = None
+    session = MagicMock()
+    session.execute = AsyncMock(return_value=result)
+    valkey = AsyncMock()
+
+    await announce(
+        session,
+        valkey,
+        TileRaceEvent(id=12, name="Summer Tile Race", cells=[{"path_position": 9}]),
+        _team(9, discord_text_channel_id=900000000000000001),
+        {"dice": [4], "total": 4, "skipped": False},
+        1,
+        {
+            "trap": {"dice": [1, 1, 1], "total": 3, "from": 12, "to": 9},
+            "tiles_reset": [9, 10, 11],
+        },
+    )
+
+    _, raw = valkey.publish.call_args.args
+    assert json.loads(raw)["notes"] == [
+        "Trap on tile 12! Rolled 3 and slid back to tile 9",
+        "Tiles 9, 10, 11 must be completed again",
+    ]
+
+
+async def test_a_single_reopened_tile_is_worded_in_the_singular() -> None:
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = None
+    session = MagicMock()
+    session.execute = AsyncMock(return_value=result)
+    valkey = AsyncMock()
+
+    await announce(
+        session,
+        valkey,
+        TileRaceEvent(id=12, name="Summer Tile Race", cells=[{"path_position": 9}]),
+        _team(9, discord_text_channel_id=900000000000000001),
+        {"dice": [4], "total": 4, "skipped": False},
+        1,
+        {"tiles_reset": [9]},
+    )
+
+    _, raw = valkey.publish.call_args.args
+    assert json.loads(raw)["notes"] == ["Tile 9 must be completed again"]
+
+
 async def test_a_spent_trap_is_called_out_rather_than_passed_over() -> None:
     result = MagicMock()
     result.scalar_one_or_none.return_value = None

@@ -11,6 +11,20 @@ prerelease, `stable` to drop the tag). A MAJOR bump is the maintainer's call
 and is never made automatically. The bump happens once, when the accumulated
 work is about to be pushed - not per component.
 
+## [1.12.1] - 2026-08-03
+
+### Fixed
+
+- A tile race trap now costs the team the ground it took. Springing a trap moved
+  the team's marker backwards and nothing else, so every completion row across
+  the stretch they were thrown back over still read as claimed: the roll gate
+  waved each roll back up the board straight through, and the Submit button
+  found every requirement leaf already covered, leaving no way to re-prove those
+  tiles. A backwards landing now clears the team's completions and submissions
+  across the whole span, from where they came to rest up to the tile that threw
+  them back, and the roll response reports the reopened positions as
+  `tiles_reset`. Any backwards `snakes_ladders` jump is handled the same way.
+
 ## [1.12.0] - 2026-08-02
 
 ### Changed

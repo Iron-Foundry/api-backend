@@ -98,6 +98,11 @@ def _notes(summary: dict[str, Any]) -> list[str]:
         notes.append(f"Trap on tile {summary['trap_spent']} is already sprung")
     if summary.get("moved_to") is not None:
         notes.append(f"Moved to tile {summary['moved_to']}")
+    reset = summary.get("tiles_reset") or []
+    if reset:
+        label = "Tile" if len(reset) == 1 else "Tiles"
+        listed = ", ".join(str(position) for position in reset)
+        notes.append(f"{label} {listed} must be completed again")
     if summary.get("allow_extra_roll"):
         notes.append("Bonus: roll again")
     if summary.get("skip_next"):
