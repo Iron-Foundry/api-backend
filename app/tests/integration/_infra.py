@@ -103,10 +103,3 @@ async def _ensure_template(
     except BaseException:
         await conn.execute(f'DROP DATABASE IF EXISTS "{TEMPLATE_DB}" WITH (FORCE)')
         raise
-
-
-def build_truncate_statement(tables: list[str]) -> str | None:
-    if not tables:
-        return None
-    targets = ", ".join(f'"{table}"' for table in tables)
-    return f"TRUNCATE TABLE {targets} RESTART IDENTITY CASCADE"

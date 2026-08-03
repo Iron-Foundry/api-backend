@@ -11,6 +11,19 @@ prerelease, `stable` to drop the tag). A MAJOR bump is the maintainer's call
 and is never made automatically. The bump happens once, when the accumulated
 work is about to be pushed - not per component.
 
+## [Unreleased]
+
+### Fixed
+
+- The integration suite no longer fails at random with `DeadlockDetectedError`.
+  The app boots once per worker and its metrics, party expiry and music services
+  keep writing for the whole session, so the between-test `TRUNCATE` - which
+  takes an AccessExclusiveLock on every table at once - deadlocked against a
+  background transaction already holding a row lock. Postgres kills one side
+  arbitrarily, which failed whichever test happened to be resetting. The
+  truncation now retries on a transient lock SQLSTATE (`40P01`, `55P03`,
+  `40001`) and still surfaces any other error at once.
+
 ## [1.12.1] - 2026-08-03
 
 ### Fixed

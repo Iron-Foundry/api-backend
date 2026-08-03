@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from app.tests.conftest import TEST_USER
 from app.tests.integration import _infra as infra
+from app.tests.integration import _truncation as truncation
 
 pytestmark = pytest.mark.integration
 
@@ -119,25 +120,24 @@ async def _truncate_statement(engine: AsyncEngine) -> str | None:
                 "AND tablename != 'alembic_version'"
             )
         )
-        return infra.build_truncate_statement(list(result.scalars().all()))
+        return truncation.build_truncate_statement(list(result.scalars().all()))
 
 
 @pytest.fixture
 async def _truncate(
     app: FastAPI, engine: AsyncEngine, _truncate_statement: str | None
 ) -> None:
-    """Reset the shared app and empty every table, in a single round trip.
+    """Reset the shared app and empty every table.
 
     Every client fixture depends on this, so it is the one place that runs
     before all of them - which is what makes the override reset safe when a
-    test pulls in two clients at once.
+    test pulls in two clients at once. The truncation retries past the app's own
+    background writers; see ``_truncation``.
     """
     app.dependency_overrides.clear()
     if _truncate_statement is None:
         return
-    async with engine.begin() as conn:
-        await conn.execute(sa.text("SET LOCAL lock_timeout = '5s'"))
-        await conn.execute(sa.text(_truncate_statement))
+    await truncation.truncate_all(engine, _truncate_statement)
 
 
 @pytest.fixture
