@@ -1,6 +1,6 @@
-"""Real-DB proof that the public recap counts only surviving racers.
+"""Real-DB proof that the public recap counts only surviving participants.
 
-A racer removed mid-event keeps their submission rows, so the recap has to
+A participant removed mid-event keeps their submission rows, so the recap has to
 filter them out against the roster rather than trust the rows. These tests seed
 a finished event with one removed author and pin what an anonymous caller sees.
 """
@@ -27,7 +27,7 @@ pytestmark = pytest.mark.integration
 
 _KEPT_ID = 778000111
 _REMOVED_ID = 778000222
-_PROOF_URL = "https://utfs.io/f/removed-racer-proof.webp"
+_PROOF_URL = "https://utfs.io/f/removed-participant-proof.webp"
 
 
 async def _seed_finished_event(engine: AsyncEngine) -> dict[str, int]:
@@ -129,7 +129,7 @@ async def _seed_finished_event(engine: AsyncEngine) -> dict[str, int]:
         return ids
 
 
-async def test_anonymous_recap_drops_removed_racers_and_private_state(
+async def test_anonymous_recap_drops_removed_participants_and_private_state(
     anon_client: AsyncClient, seed_engine: AsyncEngine
 ) -> None:
     ids = await _seed_finished_event(seed_engine)
@@ -141,15 +141,17 @@ async def test_anonymous_recap_drops_removed_racers_and_private_state(
     assert _PROOF_URL not in resp.text, "a proof URL reached the wire"
     assert "looks fine" not in resp.text, "a review note reached the wire"
     assert "987654" not in resp.text, "a Discord id reached the wire"
-    assert str(_REMOVED_ID) not in resp.text, "a removed racer's id reached the wire"
+    assert str(_REMOVED_ID) not in resp.text, (
+        "a removed participant's id reached the wire"
+    )
     assert not [k for k in body["event"] if k.startswith("discord_")]
 
     totals = body["totals"]
-    assert totals["submitted"] == 2, "the removed racer's proof was counted"
+    assert totals["submitted"] == 2, "the removed participant's tile was counted"
     assert totals["approved"] == 1
     assert totals["unreviewed"] == 1
-    assert totals["removed_racers"] == 1
-    assert totals["racers"] == 1
+    assert totals["removed_participants"] == 1
+    assert totals["participants"] == 1
     assert totals["tiles_cleared"] == 1
     assert totals["rolls"] == 1
 
@@ -162,7 +164,7 @@ async def test_anonymous_recap_drops_removed_racers_and_private_state(
             "is_captain": True,
             "approved": 1,
             "rejected": 0,
-            "tiles_proved": 1,
+            "tiles_proven": 1,
         }
     ]
     assert [p["position"] for p in team["position_series"]] == [2]

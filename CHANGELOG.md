@@ -11,6 +11,16 @@ prerelease, `stable` to drop the tag). A MAJOR bump is the maintainer's call
 and is never made automatically. The bump happens once, when the accumulated
 work is about to be pushed - not per component.
 
+## [1.15.0] - 2026-08-18
+
+### Changed
+
+- The tile race recap speaks of participants and tiles. `totals.racers` is now
+  `totals.participants`, `totals.removed_racers` is `totals.removed_participants`
+  and each roster entry's `tiles_proved` is `tiles_proven`. The only consumer is
+  the web app, which ships with it. `proof_urls` on a submission keeps its name:
+  that field is the image, not the tile it proves.
+
 ## [1.14.1] - 2026-08-18
 
 ### Fixed

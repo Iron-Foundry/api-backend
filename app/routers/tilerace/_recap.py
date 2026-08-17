@@ -2,9 +2,9 @@
 
 Everything here is derived from rows the caller may already see on the board,
 reduced to counts and series so no proof URL, review note, thread or Discord id
-can reach an anonymous viewer. A racer removed from the roster during the event
-keeps their rows in the database but drops out of every count: only a surviving
-``tilerace_signups`` row makes a submission countable.
+can reach an anonymous viewer. A participant removed from the roster during the
+event keeps their rows in the database but drops out of every count: only a
+surviving ``tilerace_signups`` row makes a submission countable.
 """
 
 from __future__ import annotations
@@ -39,7 +39,9 @@ def countable(
     return [s for s in submissions if s.discord_user_id in surviving]
 
 
-def removed_racers(submissions: list[TileRaceSubmission], surviving: set[int]) -> int:
+def removed_participants(
+    submissions: list[TileRaceSubmission], surviving: set[int]
+) -> int:
     """How many distinct authors were removed, so the drop can be stated."""
     return len(
         {s.discord_user_id for s in submissions if s.discord_user_id not in surviving}
@@ -64,7 +66,7 @@ def _daily(submissions: list[TileRaceSubmission]) -> list[dict[str, Any]]:
     return [{"day": day, **days[day]} for day in sorted(days)]
 
 
-def _racer(
+def _participant(
     signup: TileRaceSignup, submissions: list[TileRaceSubmission]
 ) -> dict[str, Any]:
     mine = [s for s in submissions if s.discord_user_id == signup.discord_user_id]
@@ -74,7 +76,7 @@ def _racer(
         "is_captain": signup.is_captain,
         "approved": counts["approved"],
         "rejected": counts["rejected"],
-        "tiles_proved": len({s.path_position for s in mine if s.status == "approved"}),
+        "tiles_proven": len({s.path_position for s in mine if s.status == "approved"}),
     }
 
 
@@ -90,7 +92,7 @@ def team_recap(
     completions: list[TileRaceCompletion],
     submissions: list[TileRaceSubmission],
 ) -> dict[str, Any]:
-    """One team's standing, per-racer counts and two time series."""
+    """One team's standing, per-participant counts and two time series."""
     ordered = sorted(rolls, key=lambda r: r.rolled_at)
     return {
         "id": str(team.id),
@@ -104,7 +106,7 @@ def team_recap(
         "tiles_cleared": cleared(completions),
         "rolls": len(rolls),
         **_verdicts(submissions),
-        "roster": [_racer(s, submissions) for s in roster_order(roster)],
+        "roster": [_participant(s, submissions) for s in roster_order(roster)],
         "position_series": [
             {"at": r.rolled_at.isoformat(), "position": r.new_position} for r in ordered
         ],
@@ -161,8 +163,8 @@ def recap_payload(
         "next_event": next_event,
         "totals": {
             "teams": len(teams),
-            "racers": len(signups),
-            "removed_racers": removed_racers(submissions, surviving),
+            "participants": len(signups),
+            "removed_participants": removed_participants(submissions, surviving),
             "tiles_cleared": sum(e["tiles_cleared"] for e in entries),
             "rolls": len(rolls),
             **_verdicts(kept),

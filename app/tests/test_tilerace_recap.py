@@ -9,7 +9,7 @@ from app.routers.tilerace._recap import (
     cleared,
     countable,
     recap_payload,
-    removed_racers,
+    removed_participants,
     surviving_ids,
 )
 
@@ -114,18 +114,18 @@ def test_surviving_ids_are_the_rows_still_on_the_roster() -> None:
     assert surviving_ids([]) == set()
 
 
-def test_countable_drops_a_removed_racers_submissions() -> None:
+def test_countable_drops_a_removed_participants_submissions() -> None:
     subs = [_submission(), _submission(discord_user_id=_REMOVED)]
     assert countable(subs, {_KEPT}) == [subs[0]]
-    assert removed_racers(subs, {_KEPT}) == 1
+    assert removed_participants(subs, {_KEPT}) == 1
 
 
-def test_removed_racers_counts_each_author_once() -> None:
+def test_removed_participants_counts_each_author_once() -> None:
     subs = [
         _submission(discord_user_id=_REMOVED),
         _submission(discord_user_id=_REMOVED, path_position=4),
     ]
-    assert removed_racers(subs, {_KEPT}) == 1
+    assert removed_participants(subs, {_KEPT}) == 1
 
 
 def test_cleared_counts_claimed_and_approved_but_not_rejected() -> None:
@@ -157,15 +157,21 @@ def test_recap_withholds_discord_ids_and_the_board() -> None:
     assert set(payload["event"]) - {"path_length"} <= PUBLIC_SUMMARY_KEYS
     assert not [k for k in payload["event"] if k.startswith("discord_")]
     assert "cells" not in payload["event"]
-    racer = payload["teams"][0]["roster"][0]
-    assert set(racer) == {"rsn", "is_captain", "approved", "rejected", "tiles_proved"}
+    participant = payload["teams"][0]["roster"][0]
+    assert set(participant) == {
+        "rsn",
+        "is_captain",
+        "approved",
+        "rejected",
+        "tiles_proven",
+    }
 
 
 def test_recap_path_length_ignores_off_path_cells() -> None:
     assert _payload()["event"]["path_length"] == 2
 
 
-def test_recap_totals_exclude_a_removed_racer() -> None:
+def test_recap_totals_exclude_a_removed_participant() -> None:
     payload = _payload(
         submissions=[
             _submission(),
@@ -180,8 +186,8 @@ def test_recap_totals_exclude_a_removed_racer() -> None:
     assert totals["approved"] == 1
     assert totals["rejected"] == 1
     assert totals["unreviewed"] == 1
-    assert totals["removed_racers"] == 1
-    assert totals["racers"] == 1
+    assert totals["removed_participants"] == 1
+    assert totals["participants"] == 1
 
 
 def test_recap_racer_counts_only_their_own_proofs() -> None:
@@ -200,9 +206,9 @@ def test_recap_racer_counts_only_their_own_proofs() -> None:
 
     captain, other = payload["teams"][0]["roster"]
     assert captain["rsn"] == "Zezima" and captain["is_captain"] is True
-    assert captain["approved"] == 2 and captain["tiles_proved"] == 2
+    assert captain["approved"] == 2 and captain["tiles_proven"] == 2
     assert other["approved"] == 1 and other["rejected"] == 1
-    assert other["tiles_proved"] == 1
+    assert other["tiles_proven"] == 1
 
 
 def test_recap_series_are_ordered_and_bucketed_by_day() -> None:

@@ -71,9 +71,9 @@ async def get_event_recap(
     """Return a finished event's graphs, standings and contributors.
 
     Public, and aggregated to match: only counts and time series leave the API,
-    never a proof URL, a review note or a Discord id. Racers removed from the
-    roster during the event are dropped from every submission count, and how
-    many were dropped rides along as `totals.removed_racers`.
+    never a proof URL, a review note or a Discord id. Participants removed from
+    the roster during the event are dropped from every submission count, and how
+    many were dropped rides along as `totals.removed_participants`.
     """
     event = (
         await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
