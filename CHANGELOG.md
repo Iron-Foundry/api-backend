@@ -11,6 +11,27 @@ prerelease, `stable` to drop the tag). A MAJOR bump is the maintainer's call
 and is never made automatically. The bump happens once, when the accumulated
 work is about to be pushed - not per component.
 
+## [1.14.0] - 2026-08-18
+
+### Added
+
+- `PATCH /tilerace/events/{id}` accepts `winner_team_id`, so staff can end an
+  event and name who won it. `is_finished` was only ever set by a finish pad,
+  and only when that pad's `ends_game` trigger was on - an event raced to a pad
+  that does not end the game had no way to conclude, and a pad that ends the
+  game credits whichever team stepped on it first, which is not always the
+  answer. The team must belong to the event; anything else is a 404. Setting
+  `is_finished` false still clears the winner.
+
+### Fixed
+
+- `GET /tilerace/active` now falls back to an event whose `ends_at` has passed,
+  not only to one flagged `is_finished`. Staff stop an event by deactivating it,
+  which cleared `is_active` and left the endpoint with nothing to return, so the
+  page showed "no active tile race" and the recap never appeared. An event that
+  was only deactivated - the way staff switch which event is live - still stays
+  hidden.
+
 ## [1.13.0] - 2026-08-18
 
 ### Added

@@ -171,6 +171,44 @@ async def test_anonymous_recap_drops_removed_racers_and_private_state(
     assert body["next_event"] is None
 
 
+async def test_staff_can_end_an_event_and_name_its_winner(
+    staff_client: AsyncClient, anon_client: AsyncClient, seed_engine: AsyncEngine
+) -> None:
+    ids = await _seed_finished_event(seed_engine)
+    async with AsyncSession(seed_engine) as session:
+        await session.execute(
+            sa.update(TileRaceEvent)
+            .where(TileRaceEvent.id == ids["event_id"])
+            .values(is_finished=False, ends_at=None)
+        )
+        await session.commit()
+
+    resp = await staff_client.patch(
+        f"/tilerace/events/{ids['event_id']}",
+        json={"is_finished": True, "winner_team_id": ids["team_id"]},
+    )
+    assert resp.status_code == 200, resp.text
+
+    recap = await anon_client.get(f"/tilerace/events/{ids['event_id']}/recap")
+    assert recap.json()["event"]["winner_team_id"] == str(ids["team_id"])
+
+    active = await anon_client.get("/tilerace/active")
+    assert active.status_code == 200, active.text
+    assert active.json()["id"] == str(ids["event_id"])
+
+
+async def test_naming_a_winner_from_another_event_is_rejected(
+    staff_client: AsyncClient, seed_engine: AsyncEngine
+) -> None:
+    ids = await _seed_finished_event(seed_engine)
+
+    resp = await staff_client.patch(
+        f"/tilerace/events/{ids['event_id']}",
+        json={"is_finished": True, "winner_team_id": ids["team_id"] + 9999},
+    )
+    assert resp.status_code == 404, resp.text
+
+
 async def test_recap_names_the_event_that_takes_over(
     anon_client: AsyncClient, seed_engine: AsyncEngine
 ) -> None:

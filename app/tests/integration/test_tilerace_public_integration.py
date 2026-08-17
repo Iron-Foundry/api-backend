@@ -7,7 +7,7 @@ public endpoint. These tests pin the masking to the response itself.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 import sqlalchemy as sa
@@ -181,6 +181,47 @@ async def test_anonymous_board_hides_fogged_tiles_and_private_state(
     assert body["signup_count"] == 2
     assert body["my_signup"] is None and body["my_team_id"] is None
     assert not [k for k in body if k.startswith("discord_")]
+
+
+async def test_active_falls_back_to_an_event_whose_end_date_has_passed(
+    anon_client: AsyncClient, seed_engine: AsyncEngine
+) -> None:
+    """A stopped event still has a recap to show.
+
+    Staff stop an event by deactivating it, which used to leave the page with
+    nothing: the fallback only looked for `is_finished`, and that is set solely
+    by a finish pad whose `ends_game` trigger is on.
+    """
+    await _seed_active_event(seed_engine)
+    now = datetime.now(UTC)
+    async with AsyncSession(seed_engine) as session:
+        await session.execute(
+            sa.update(TileRaceEvent)
+            .where(TileRaceEvent.is_active.is_(True))
+            .values(is_active=False, ends_at=now - timedelta(days=1))
+        )
+        await session.commit()
+
+    resp = await anon_client.get("/tilerace/active")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["name"] == "Fog Test"
+
+
+async def test_active_ignores_an_event_that_was_only_deactivated(
+    anon_client: AsyncClient, seed_engine: AsyncEngine
+) -> None:
+    """Deactivating is how staff switch which event is live, not how they end one."""
+    await _seed_active_event(seed_engine)
+    async with AsyncSession(seed_engine) as session:
+        await session.execute(
+            sa.update(TileRaceEvent)
+            .where(TileRaceEvent.is_active.is_(True))
+            .values(is_active=False, ends_at=None)
+        )
+        await session.commit()
+
+    resp = await anon_client.get("/tilerace/active")
+    assert resp.status_code == 404, resp.text
 
 
 async def test_signed_in_board_carries_only_the_callers_own_signup(

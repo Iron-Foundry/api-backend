@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import TileRaceEvent, TileRaceSignup, TileRaceTeam
@@ -15,6 +15,7 @@ from ._helpers import _embed_cells, group_by_team, raids_kc_map
 from ._public_view import mask_cells, public_event
 from ._serializers import _serialize_signup, _serialize_summary, _serialize_team
 from .schemas import EventBody, EventPatch
+from .teams import _team_or_404
 
 router = APIRouter()
 _PERM = Depends(require_page_permission("tilerace.admin", "edit"))
@@ -71,6 +72,11 @@ async def get_active_event(
     Public, and masked to match: fogged cells carry grid geometry only, Discord
     ids and per-team effect state are withheld, and the roster is reduced to
     names. A signed-in caller also gets their own signup as `my_signup`.
+
+    With nothing running this falls back to the most recently updated concluded
+    event - one a team finished, or one whose `ends_at` has passed - so the page
+    can show its recap. A merely deactivated event stays hidden, because
+    deactivating is how staff switch which event is live.
     """
     event = (
         await session.execute(
@@ -81,7 +87,12 @@ async def get_active_event(
         event = (
             await session.execute(
                 select(TileRaceEvent)
-                .where(TileRaceEvent.is_finished.is_(True))
+                .where(
+                    or_(
+                        TileRaceEvent.is_finished.is_(True),
+                        TileRaceEvent.ends_at < datetime.now(UTC),
+                    )
+                )
                 .order_by(TileRaceEvent.updated_at.desc())
                 .limit(1)
             )
@@ -202,6 +213,12 @@ async def patch_event(
         event.fog_of_war = body.fog_of_war
     if body.rolls_paused is not None:
         event.rolls_paused = body.rolls_paused
+    if "winner_team_id" in fields:
+        event.winner_team_id = (
+            None
+            if body.winner_team_id is None
+            else (await _team_or_404(session, event.id, body.winner_team_id)).id
+        )
     if body.is_finished is not None:
         event.is_finished = body.is_finished
         if not body.is_finished:
