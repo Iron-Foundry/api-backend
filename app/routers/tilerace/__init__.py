@@ -6,6 +6,7 @@ from .discord_setup import router as discord_setup_router
 from .events import router as events_router
 from .generate import router as generate_router
 from .osrs_ref import router as osrs_ref_router
+from .recap import router as recap_router
 from .repository import router as repository_router
 from .rolls import router as rolls_router
 from .roster import router as roster_router
@@ -19,6 +20,7 @@ from .teams import router as teams_router
 router = APIRouter(prefix="/tilerace", tags=["tilerace"])
 
 router.include_router(events_router)
+router.include_router(recap_router)
 router.include_router(osrs_ref_router)
 router.include_router(repository_router)
 router.include_router(generate_router)

@@ -11,7 +11,24 @@ prerelease, `stable` to drop the tag). A MAJOR bump is the maintainer's call
 and is never made automatically. The bump happens once, when the accumulated
 work is about to be pushed - not per component.
 
-## [Unreleased]
+## [1.13.0] - 2026-08-18
+
+### Added
+
+- `GET /tilerace/events/{event_id}/recap` returns a finished event's graphs,
+  final standings and top contributors to any caller. It is unauthenticated and
+  aggregated server-side, so only counts and time series leave the API - never a
+  proof URL, a review note, a thread id or a Discord id. Until now every number
+  a recap needs sat behind auth: rolls and completions required a signed-in
+  caller and submissions required `tilerace.admin`. The payload also names the
+  event that takes over (`next_event`), running or still to start, so a page can
+  tell "the race is over" from "the next one starts in a week".
+- Racers removed from the roster during an event are dropped from every
+  submission count in that recap. Their rows survive in `tilerace_submissions`
+  but only a surviving `tilerace_signups` row makes a submission countable, and
+  `totals.removed_racers` states how many authors were dropped. Team positions,
+  roll counts and tiles cleared are unaffected: a roll belongs to the team, and
+  a cleared tile stays cleared.
 
 ### Fixed
 

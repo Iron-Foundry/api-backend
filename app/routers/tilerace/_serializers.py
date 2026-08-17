@@ -66,6 +66,13 @@ def _serialize_summary(e: TileRaceEvent) -> dict[str, Any]:
     }
 
 
+def roster_order(members: list[TileRaceSignup]) -> list[TileRaceSignup]:
+    """Captain first, then by ranking score, then by name."""
+    return sorted(
+        members, key=lambda s: (not s.is_captain, -s.ranking_score, s.rsn.lower())
+    )
+
+
 def _kc(s: TileRaceSignup, kc_map: dict[str, int]) -> int:
     return kc_map.get(s.rsn.lower(), 0) if s.rsn else 0
 
@@ -85,9 +92,7 @@ def _serialize_team(
     members: list[TileRaceSignup] | None = None,
     kc_map: dict[str, int] | None = None,
 ) -> dict[str, Any]:
-    roster = sorted(
-        members or [], key=lambda s: (not s.is_captain, -s.ranking_score, s.rsn.lower())
-    )
+    roster = roster_order(members or [])
     kc_map = kc_map or {}
     return {
         "id": str(t.id),

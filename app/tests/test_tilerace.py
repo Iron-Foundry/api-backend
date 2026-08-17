@@ -358,6 +358,11 @@ async def test_list_rolls_not_found(auth_client: AsyncClient) -> None:
     assert resp.status_code == 404
 
 
+async def test_event_recap_not_found(anon_client: AsyncClient) -> None:
+    resp = await anon_client.get("/tilerace/events/9999/recap")
+    assert resp.status_code == 404
+
+
 async def test_osrs_npcs_empty_query(auth_client: AsyncClient) -> None:
     resp = await auth_client.get("/tilerace/osrs/npcs")
     assert resp.status_code == 200

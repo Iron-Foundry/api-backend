@@ -4,7 +4,7 @@ from typing import Any
 
 from app.db.models import TileRaceEvent, TileRaceSignup, TileRaceTeam
 
-from ._serializers import _serialize_summary
+from ._serializers import _serialize_summary, roster_order
 
 PUBLIC_SUMMARY_KEYS = frozenset(
     {
@@ -63,9 +63,7 @@ def _public_member(signup: TileRaceSignup) -> dict[str, Any]:
 
 
 def _public_team(team: TileRaceTeam, members: list[TileRaceSignup]) -> dict[str, Any]:
-    roster = sorted(
-        members, key=lambda s: (not s.is_captain, -s.ranking_score, s.rsn.lower())
-    )
+    roster = roster_order(members)
     return {
         "id": str(team.id),
         "name": team.name,
