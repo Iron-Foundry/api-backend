@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import TileRaceEvent, TileRaceSignup, TileRaceTeam
+from app.db.models import TileRaceEvent, TileRaceRoll, TileRaceSignup, TileRaceTeam
 from app.dependencies import get_current_user, get_optional_user, get_session
 from app.services.page_permissions import require_page_permission
 
@@ -73,10 +73,11 @@ async def get_active_event(
     ids and per-team effect state are withheld, and the roster is reduced to
     names. A signed-in caller also gets their own signup as `my_signup`.
 
-    With nothing running this falls back to the most recently updated concluded
-    event - one a team finished, or one whose `ends_at` has passed - so the page
-    can show its recap. A merely deactivated event stays hidden, because
-    deactivating is how staff switch which event is live.
+    With nothing running this falls back to the most recently updated event that
+    actually ran, so the page can show its recap. Stopping an event is enough:
+    the board state does not matter and neither does `is_finished`, which only a
+    finish pad sets. An event that was never rolled on stays hidden, so a draft
+    never takes the page.
     """
     event = (
         await session.execute(
@@ -91,6 +92,7 @@ async def get_active_event(
                     or_(
                         TileRaceEvent.is_finished.is_(True),
                         TileRaceEvent.ends_at < datetime.now(UTC),
+                        TileRaceEvent.id.in_(select(TileRaceRoll.event_id).distinct()),
                     )
                 )
                 .order_by(TileRaceEvent.updated_at.desc())
@@ -279,12 +281,18 @@ async def deactivate_event(
     session: AsyncSession = Depends(get_session),
     _perm: None = _PERM,
 ) -> dict[str, Any]:
-    """Stop the running event without deleting its progress."""
+    """Stop the running event without deleting its progress.
+
+    The public page falls back to this event's recap, so stopping is how an
+    event ends whatever the board looks like. `updated_at` moves so the event
+    just stopped is the one that fallback picks.
+    """
     event = (
         await session.execute(select(TileRaceEvent).where(TileRaceEvent.id == event_id))
     ).scalar_one_or_none()
     if event is None:
         raise HTTPException(404, "Event not found.")
     event.is_active = False
+    event.updated_at = datetime.now(UTC)
     await session.commit()
     return {"ok": True}

@@ -11,6 +11,20 @@ prerelease, `stable` to drop the tag). A MAJOR bump is the maintainer's call
 and is never made automatically. The bump happens once, when the accumulated
 work is about to be pushed - not per component.
 
+## [1.14.1] - 2026-08-18
+
+### Fixed
+
+- Stopping a tile race event now shows its recap, whatever the board looks like.
+  `GET /tilerace/active`'s fallback wanted `is_finished` or a passed `ends_at`,
+  and `is_finished` is set by an end pad only when that pad's `ends_game`
+  trigger is on - so an event raced to a pad that does not end the game, then
+  stopped, returned a 404 and the page said "no active tile race". The fallback
+  now also accepts an event with at least one roll, which is what makes stopping
+  sufficient. Rolls rather than "not active" so a draft nobody has rolled on
+  cannot take the page. `POST /tilerace/events/{id}/deactivate` stamps
+  `updated_at`, so the event just stopped is the one the fallback picks.
+
 ## [1.14.0] - 2026-08-18
 
 ### Added

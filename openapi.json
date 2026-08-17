@@ -6045,7 +6045,7 @@
   "info": {
     "description": "The backend for **The Iron Foundry**, an Old School RuneScape clan. It serves the\ncommunity site at [ironfoundry.cc](https://ironfoundry.cc), the clan's Discord\nbots, and the in-game RuneLite plugin from one PostgreSQL + Valkey stack.\n\n## Authentication\n\nThree credentials exist, each for a different caller.\n\n**`DiscordJWT`** - the browser session. `GET /auth/login` redirects to Discord\nOAuth2; `GET /auth/callback` verifies guild membership, upserts the user, and\nredirects back to the frontend with an HS256 JWT in the query string. Send it as\n`Authorization: Bearer <token>` on every member or staff endpoint. `GET /auth/me`\nreturns the decoded profile with Discord roles, refreshed when stale.\n\n**`MemberApiKey`** - the RuneLite plugin. Each member holds a personal key from\n`GET /members/me/api-key` (rotate with `POST /members/me/api-key/rotate`), sent as\na `verification-code` header. `POST /auth/token` trades the same key for a JWT\nwhen a plugin needs member-scoped web endpoints. Revoked keys are rejected.\n\n**`MetricsApiKey`** - service-to-service. A shared secret the Discord services\npresent, also as `verification-code`, to report telemetry and dispatch clan chat.\n\nMissing or invalid credentials return `401`. A valid token whose roles do not\nsatisfy an endpoint's permission returns `403`.\n\n## Conventions\n\nTimestamps are UTC ISO-8601. Request and response bodies are JSON unless an\nendpoint serves a binary asset. Collections large enough to page take `limit` and\n`offset` query parameters; the rest return the full set. Validation failures\nreturn `422` with FastAPI's error array, naming the offending field in `loc`.\n\n## Realtime\n\n`WS /ccdispatch` is the clan-chat bridge: the RuneLite plugin connects with its\n`verification-code` header and receives messages relayed from Discord over Valkey\npubsub, while `POST /ccingest` carries in-game chat the other way. Party chat\npolls over plain HTTP instead.\n\n## Related services\n\n`/osrs-cache/*` proxies an internal service that decodes the live OSRS game cache\ninto items, NPCs, objects, sprites, rendered item icons, and map tiles.\n`/reference/*` serves loot tables scraped from the OSRS Wiki and EHP/EHB\nefficiency rates from WiseOldMan. Both refresh on a schedule; neither needs\nauthentication.",
     "title": "The Foundry API",
-    "version": "1.14.0"
+    "version": "1.14.1"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -22243,7 +22243,7 @@
     },
     "/tilerace/active": {
       "get": {
-        "description": "Return the running tile race with its teams and board.\n\nPublic, and masked to match: fogged cells carry grid geometry only, Discord\nids and per-team effect state are withheld, and the roster is reduced to\nnames. A signed-in caller also gets their own signup as `my_signup`.\n\nWith nothing running this falls back to the most recently updated concluded\nevent - one a team finished, or one whose `ends_at` has passed - so the page\ncan show its recap. A merely deactivated event stays hidden, because\ndeactivating is how staff switch which event is live.",
+        "description": "Return the running tile race with its teams and board.\n\nPublic, and masked to match: fogged cells carry grid geometry only, Discord\nids and per-team effect state are withheld, and the roster is reduced to\nnames. A signed-in caller also gets their own signup as `my_signup`.\n\nWith nothing running this falls back to the most recently updated event that\nactually ran, so the page can show its recap. Stopping an event is enough:\nthe board state does not matter and neither does `is_finished`, which only a\nfinish pad sets. An event that was never rolled on stays hidden, so a draft\nnever takes the page.",
         "operationId": "get_active_event_tilerace_active_get",
         "responses": {
           "200": {
@@ -22610,7 +22610,7 @@
     },
     "/tilerace/events/{event_id}/deactivate": {
       "post": {
-        "description": "Stop the running event without deleting its progress.",
+        "description": "Stop the running event without deleting its progress.\n\nThe public page falls back to this event's recap, so stopping is how an\nevent ends whatever the board looks like. `updated_at` moves so the event\njust stopped is the one that fallback picks.",
         "operationId": "deactivate_event_tilerace_events__event_id__deactivate_post",
         "parameters": [
           {

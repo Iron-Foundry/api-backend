@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from app.db.models import (
     TileRaceEvent,
+    TileRaceRoll,
     TileRaceSignup,
     TileRaceTeam,
     TileRepositoryTile,
@@ -207,16 +208,62 @@ async def test_active_falls_back_to_an_event_whose_end_date_has_passed(
     assert resp.json()["name"] == "Fog Test"
 
 
-async def test_active_ignores_an_event_that_was_only_deactivated(
+async def test_active_falls_back_to_a_stopped_event_whatever_the_board_says(
     anon_client: AsyncClient, seed_engine: AsyncEngine
 ) -> None:
-    """Deactivating is how staff switch which event is live, not how they end one."""
+    """Stopping an event is enough to show its recap.
+
+    No team need have reached the finish and no end date need have passed: only
+    a finish pad with its `ends_game` trigger on ever sets `is_finished`, so
+    hanging the recap on that flag left a raced-out event with nothing to show.
+    """
+    await _seed_active_event(seed_engine)
+    now = datetime.now(UTC)
+    async with AsyncSession(seed_engine) as session:
+        event = (
+            await session.execute(
+                sa.select(TileRaceEvent).where(TileRaceEvent.is_active.is_(True))
+            )
+        ).scalar_one()
+        team = (
+            await session.execute(
+                sa.select(TileRaceTeam).where(TileRaceTeam.event_id == event.id)
+            )
+        ).scalar_one()
+        session.add(
+            TileRaceRoll(
+                event_id=event.id,
+                team_id=team.id,
+                dice=[3],
+                roll=3,
+                new_position=1,
+                rolled_by=_VIEWER_ID,
+                rolled_at=now,
+            )
+        )
+        event.is_active = False
+        event.is_finished = False
+        event.ends_at = None
+        await session.commit()
+
+    resp = await anon_client.get("/tilerace/active")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["name"] == "Fog Test"
+    assert body["is_active"] is False, "the page needs this to know the race is over"
+    assert body["is_finished"] is False
+
+
+async def test_active_ignores_an_event_that_was_never_rolled_on(
+    anon_client: AsyncClient, seed_engine: AsyncEngine
+) -> None:
+    """A draft must not take the page just because it is not active."""
     await _seed_active_event(seed_engine)
     async with AsyncSession(seed_engine) as session:
         await session.execute(
             sa.update(TileRaceEvent)
             .where(TileRaceEvent.is_active.is_(True))
-            .values(is_active=False, ends_at=None)
+            .values(is_active=False, is_finished=False, ends_at=None)
         )
         await session.commit()
 
