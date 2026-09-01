@@ -102,6 +102,46 @@ async def list_npcs(
     return await _proxy_json("/npcs", params)
 
 
+@router.get("/npcs/names")
+async def list_npc_names() -> dict[str, Any]:
+    """Return the full NPC id to name map, for bulk client-side lookups.
+
+    Unnamed NPCs - the shells a varbit transform points away from - are omitted.
+    """
+    return await _proxy_json("/npcs/names", {})
+
+
+@router.get("/npcs/{npc_id}")
+async def get_npc(npc_id: Annotated[int, Path(ge=0)]) -> dict[str, Any]:
+    """Return one NPC definition: models, actions, recolours, and its form table."""
+    return await _proxy_json(f"/npcs/{npc_id}", {})
+
+
+@router.get("/gamevals")
+async def list_gamevals(
+    namespace: Annotated[str | None, Query()] = None,
+    search: SearchQuery = None,
+    limit: LimitQuery = 50,
+    offset: OffsetQuery = 0,
+) -> list[Any]:
+    """Search the internal Jagex symbol names by namespace (`npcs`, `items`, ...)."""
+    params: dict[str, Any] = {"limit": limit, "offset": offset}
+    if namespace:
+        params["namespace"] = namespace
+    if search:
+        params["search"] = search
+    return await _proxy_json("/gamevals", params)
+
+
+@router.get("/gamevals/{namespace}/{entry_id}")
+async def get_gameval(
+    namespace: Annotated[str, Path()],
+    entry_id: Annotated[int, Path(ge=0)],
+) -> list[Any]:
+    """Return one entity's symbol name, plus its sub-entries where it has them."""
+    return await _proxy_json(f"/gamevals/{namespace}/{entry_id}", {})
+
+
 @router.get("/objects")
 async def list_objects(
     search: SearchQuery = None,

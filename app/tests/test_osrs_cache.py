@@ -62,6 +62,67 @@ async def test_list_item_names_proxies_map(anon_client: AsyncClient) -> None:
     assert args[0].endswith("/items/names")
 
 
+async def test_list_npc_names_proxies_map(anon_client: AsyncClient) -> None:
+    fake_client = _fake_client(Response(200, json={"8": "Nechryael"}))
+    with patch.object(osrs_cache, "httpx", _fake_httpx_module(fake_client)):
+        resp = await anon_client.get("/osrs-cache/npcs/names")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"8": "Nechryael"}
+    args, _ = fake_client.get.call_args
+    assert args[0].endswith("/npcs/names")
+
+
+async def test_get_npc_proxies_definition(anon_client: AsyncClient) -> None:
+    definition = {"npc_id": 8, "name": "Nechryael", "model_ids": [5074]}
+    fake_client = _fake_client(Response(200, json=definition))
+    with patch.object(osrs_cache, "httpx", _fake_httpx_module(fake_client)):
+        resp = await anon_client.get("/osrs-cache/npcs/8")
+
+    assert resp.status_code == 200
+    assert resp.json() == definition
+    args, _ = fake_client.get.call_args
+    assert args[0].endswith("/npcs/8")
+
+
+async def test_get_npc_not_found_upstream(anon_client: AsyncClient) -> None:
+    fake_client = _fake_client(Response(404, text="NPC not found"))
+    with patch.object(osrs_cache, "httpx", _fake_httpx_module(fake_client)):
+        resp = await anon_client.get("/osrs-cache/npcs/999999")
+
+    assert resp.status_code == 404
+
+
+async def test_list_gamevals_proxies_namespace_and_search(
+    anon_client: AsyncClient,
+) -> None:
+    fake_client = _fake_client(
+        Response(200, json=[{"entry_id": 8, "name": "nechryael"}])
+    )
+    with patch.object(osrs_cache, "httpx", _fake_httpx_module(fake_client)):
+        resp = await anon_client.get("/osrs-cache/gamevals?namespace=npcs&search=nech")
+
+    assert resp.status_code == 200
+    args, kwargs = fake_client.get.call_args
+    assert args[0].endswith("/gamevals")
+    assert kwargs["params"] == {
+        "limit": 50,
+        "offset": 0,
+        "namespace": "npcs",
+        "search": "nech",
+    }
+
+
+async def test_get_gameval_proxies_path(anon_client: AsyncClient) -> None:
+    fake_client = _fake_client(Response(200, json=[{"entry_id": 8, "name": "npc_8"}]))
+    with patch.object(osrs_cache, "httpx", _fake_httpx_module(fake_client)):
+        resp = await anon_client.get("/osrs-cache/gamevals/npcs/8")
+
+    assert resp.status_code == 200
+    args, _ = fake_client.get.call_args
+    assert args[0].endswith("/gamevals/npcs/8")
+
+
 async def test_render_item_icon_rejects_size_out_of_range(
     anon_client: AsyncClient,
 ) -> None:

@@ -11,6 +11,17 @@ prerelease, `stable` to drop the tag). A MAJOR bump is the maintainer's call
 and is never made automatically. The bump happens once, when the accumulated
 work is about to be pushed - not per component.
 
+## [1.16.0] - 2026-09-01
+
+### Added
+
+- `GET /osrs-cache/npcs/{npc_id}` returns one NPC definition, and
+  `GET /osrs-cache/npcs/names` the full id to name map, so a list surface resolves
+  names in one call instead of one request per row. Both existed on the cache
+  service and were unreachable from a browser.
+- `GET /osrs-cache/gamevals` and `GET /osrs-cache/gamevals/{namespace}/{entry_id}`
+  expose the cache's internal Jagex symbol names, the `npcs` namespace included.
+
 ## [1.15.0] - 2026-08-18
 
 ### Changed
