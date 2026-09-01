@@ -44,3 +44,40 @@ class OsrsWikiContentHandler(BaseRequestHandler):
             return ""
         data = resp.json()
         return data.get("parse", {}).get("wikitext", {}).get("*", "")
+
+    async def get_page_thumbnails(
+        self, pages: list[str], size: int = 64
+    ) -> dict[str, str]:
+        """Map each requested page title to its lead image URL, skipping the ones without.
+
+        One `action=query` call for the whole batch (MediaWiki accepts 50 titles).
+        Titles the wiki normalises or redirects are mapped back to what was asked
+        for, so the caller can look up by the name it passed in.
+        """
+        if not pages:
+            return {}
+        resp = await self.get(
+            "/api.php",
+            params={
+                "action": "query",
+                "titles": "|".join(pages),
+                "prop": "pageimages",
+                "pithumbsize": size,
+                "format": "json",
+                "redirects": "1",
+            },
+        )
+        if not resp.is_success:
+            return {}
+        data = resp.json().get("query", {})
+        by_title = {
+            page["title"]: page["thumbnail"]["source"]
+            for page in data.get("pages", {}).values()
+            if page.get("thumbnail", {}).get("source")
+        }
+        for hop in ("normalized", "redirects"):
+            for entry in data.get(hop, []):
+                resolved = by_title.get(entry["to"])
+                if resolved:
+                    by_title[entry["from"]] = resolved
+        return {page: by_title[page] for page in pages if page in by_title}

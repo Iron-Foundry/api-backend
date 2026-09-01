@@ -11,6 +11,20 @@ prerelease, `stable` to drop the tag). A MAJOR bump is the maintainer's call
 and is never made automatically. The bump happens once, when the accumulated
 work is about to be pushed - not per component.
 
+## [1.16.1] - 2026-09-02
+
+### Fixed
+
+- The tile editor's NPC search returned nothing for every term. It queried the OSRS
+  Wiki with `action=cargoquery`, and the wiki has dropped that extension; the wiki
+  answers HTTP 200 with an error body, so the endpoint saw no exception and returned
+  an empty list. Names and ids now come from our own cache, which is where NPC names
+  belong, and the wiki is asked only for the artwork it alone has. A wiki failure now
+  costs the picture, not the result: the NPC still comes back with `icon_url` empty.
+  Forms of one NPC collapse to a single entry - the id carrying a combat level, so
+  "Vorkath" is the dragon rather than one of its four cutscene shells - and names
+  starting with the query rank first.
+
 ## [1.16.0] - 2026-09-01
 
 ### Added
