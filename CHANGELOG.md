@@ -11,6 +11,16 @@ prerelease, `stable` to drop the tag). A MAJOR bump is the maintainer's call
 and is never made automatically. The bump happens once, when the accumulated
 work is about to be pushed - not per component.
 
+## [1.17.0] - 2026-09-02
+
+### Removed
+
+- `POST /ironclad/sanitize/deaths` and the whole `ironclad` tag. The Ironclad clan
+  has built its own replacement, so the Dink death ingest we hosted for them - WOM
+  membership check, mention and URL stripping, webhook forward - has no consumer.
+  `IRONCLAD_WEBHOOK_URL` goes with it, out of the compose file, `.env.example` and
+  the README. The value can be retired from Infisical.
+
 ## [1.16.1] - 2026-09-02
 
 ### Fixed

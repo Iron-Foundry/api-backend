@@ -44,7 +44,6 @@ uv run uvicorn app.main:app --reload
 | `MAP_TILES_BASE_URL` | No | - | Public base URL of the `cache-tiles` nginx sidecar |
 | `METRICS_API_KEY` | No | - | Shared service key accepted on metrics ingest |
 | `LAVALINK_URI` / `LAVALINK_PASSWORD` | No | - | Lavalink node, for the music bridge |
-| `IRONCLAD_WEBHOOK_URL` | No | - | Discord webhook for Ironclad death posts |
 | `WOM_GROUP_ID` | No | - | Wise Old Man group ID - enables RSN name change tracking when set |
 | `WOM_GROUP_KEY` | No | - | WOM group token (private groups only) |
 | `WOM_API_KEY` | No | - | WOM API key |

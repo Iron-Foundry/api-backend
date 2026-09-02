@@ -1,6 +1,6 @@
 [project]
 name = "api-backend"
-version = "1.16.1"
+version = "1.17.0"
 description = "FastAPI backend for The Foundry Project"
 readme = "README.md"
 requires-python = ">=3.14"
@@ -33,9 +33,6 @@ select = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# Pydantic models mirroring the Dink RuneLite plugin's wire payload; the
-# camelCase field names are the contract and cannot be renamed.
-"app/routers/ironclad/_helpers.py" = ["N815"]
 # assert is the point of a test.
 "app/tests/**" = ["S101"]
 # Config-table key names, not credential values.

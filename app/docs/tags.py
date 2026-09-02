@@ -167,13 +167,6 @@ TAGS_METADATA: list[dict[str, Any]] = [
         ),
     },
     {
-        "name": "ironclad",
-        "description": (
-            "Ingest seam for the Ironclad RuneLite plugin. Sanitizes death "
-            "payloads before they reach the clan's death log."
-        ),
-    },
-    {
         "name": "config",
         "description": (
             "Runtime configuration the control panel edits without a redeploy: "
@@ -223,6 +216,6 @@ TAG_GROUPS: list[dict[str, Any]] = [
     },
     {
         "name": "Game Data and Integrations",
-        "tags": ["osrs-cache", "reference", "discord", "runelite-configs", "ironclad"],
+        "tags": ["osrs-cache", "reference", "discord", "runelite-configs"],
     },
 ]

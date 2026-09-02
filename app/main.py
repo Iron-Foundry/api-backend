@@ -29,7 +29,6 @@ from app.routers import (
     events,
     feedback,
     frenzy,
-    ironclad,
     members,
     meta,
     metrics,
@@ -317,7 +316,6 @@ app.include_router(feedback.router)
 app.include_router(badges.router)
 app.include_router(content.router)
 app.include_router(frenzy.router)
-app.include_router(ironclad.router)
 app.include_router(tilerace.router)
 app.include_router(ticket_config.router)
 app.include_router(osrs_cache.router)
