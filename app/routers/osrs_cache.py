@@ -6,13 +6,25 @@ import os
 from typing import Annotated, Any
 
 import httpx
-from fastapi import APIRouter, HTTPException, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from fastapi.responses import Response
 
 from app.docs import responses
 
+
+# The whole proxy is public, unauthenticated and read-only, so its JSON is
+# fetched cross-origin exactly like its images are. The app-wide CORSMiddleware
+# names only the frontend origins, and overwrites this header with the specific
+# origin for those, so credentialed CORS from our own site is unaffected.
+def _allow_any_origin(response: Response) -> None:
+    response.headers["Access-Control-Allow-Origin"] = "*"
+
+
 router = APIRouter(
-    prefix="/osrs-cache", tags=["osrs-cache"], responses=responses.PROXIED
+    prefix="/osrs-cache",
+    tags=["osrs-cache"],
+    responses=responses.PROXIED,
+    dependencies=[Depends(_allow_any_origin)],
 )
 
 OSRS_CACHE_SERVICE_URL = os.getenv(

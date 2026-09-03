@@ -12,9 +12,13 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
-from httpx import AsyncClient, Response
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from httpx import ASGITransport, AsyncClient, Response
 
 from app.routers import osrs_cache
+
+_FRONTEND_ORIGIN = "https://ironfoundry.cc"
 
 
 def _fake_client(response: Response | MagicMock) -> MagicMock:
@@ -58,6 +62,7 @@ async def test_list_item_names_proxies_map(anon_client: AsyncClient) -> None:
 
     assert resp.status_code == 200
     assert resp.json() == {"995": "Coins", "4151": "Abyssal whip"}
+    assert resp.headers["access-control-allow-origin"] == "*"
     args, _ = fake_client.get.call_args
     assert args[0].endswith("/items/names")
 
@@ -69,8 +74,44 @@ async def test_list_npc_names_proxies_map(anon_client: AsyncClient) -> None:
 
     assert resp.status_code == 200
     assert resp.json() == {"8": "Nechryael"}
+    assert resp.headers["access-control-allow-origin"] == "*"
     args, _ = fake_client.get.call_args
     assert args[0].endswith("/npcs/names")
+
+
+async def test_json_routes_allow_any_origin(anon_client: AsyncClient) -> None:
+    fake_client = _fake_client(Response(200, json={"build_id": 2024, "items": 17157}))
+    with patch.object(osrs_cache, "httpx", _fake_httpx_module(fake_client)):
+        resp = await anon_client.get(
+            "/osrs-cache/meta", headers={"Origin": "https://osrsclans.cc"}
+        )
+
+    assert resp.status_code == 200
+    assert resp.headers["access-control-allow-origin"] == "*"
+
+
+async def test_frontend_origin_keeps_credentialed_cors() -> None:
+    app = FastAPI()
+    app.include_router(osrs_cache.router)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[_FRONTEND_ORIGIN],
+        allow_credentials=True,
+        allow_methods=["GET"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
+    fake_client = _fake_client(Response(200, json={"build_id": 2024}))
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        with patch.object(osrs_cache, "httpx", _fake_httpx_module(fake_client)):
+            resp = await client.get(
+                "/osrs-cache/meta", headers={"Origin": _FRONTEND_ORIGIN}
+            )
+
+    assert resp.status_code == 200
+    assert resp.headers["access-control-allow-origin"] == _FRONTEND_ORIGIN
+    assert resp.headers["access-control-allow-credentials"] == "true"
 
 
 async def test_get_npc_proxies_definition(anon_client: AsyncClient) -> None:

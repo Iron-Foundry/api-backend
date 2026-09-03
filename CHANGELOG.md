@@ -11,6 +11,19 @@ prerelease, `stable` to drop the tag). A MAJOR bump is the maintainer's call
 and is never made automatically. The bump happens once, when the accumulated
 work is about to be pushed - not per component.
 
+## [1.17.1] - 2026-09-04
+
+### Fixed
+
+- Every JSON route under `/osrs-cache/*` now answers with
+  `Access-Control-Allow-Origin: *`, so a site other than ironfoundry.cc can fetch
+  the item and NPC name maps. Only the image routes carried the header, and the
+  app-wide CORS middleware names the frontend origins alone, so a third-party page
+  could show an item icon but never resolve its name - the browser blocked
+  `/items/names`, `/npcs/names` and `/meta` before the page saw a byte. Requests
+  from the frontend origin still get that origin back with
+  `Access-Control-Allow-Credentials`, unchanged.
+
 ## [1.17.0] - 2026-09-02
 
 ### Removed
