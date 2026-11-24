@@ -1,9 +1,18 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import TIMESTAMP, BigInteger, Boolean, ForeignKey, Integer, Text
+from sqlalchemy import (
+    TIMESTAMP,
+    BigInteger,
+    Boolean,
+    ForeignKey,
+    Integer,
+    Numeric,
+    Text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -87,7 +96,7 @@ class Leaderboard(Base):
     player_name: Mapped[str] = mapped_column(Text, primary_key=True)
     activity: Mapped[str] = mapped_column(Text, primary_key=True)
     variant: Mapped[str] = mapped_column(Text, primary_key=True, server_default="")
-    time_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+    time_seconds: Mapped[Decimal] = mapped_column(Numeric(10, 3), nullable=False)
 
 
 class Metric(Base):

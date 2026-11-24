@@ -1,4 +1,6 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.services.parser.broadcast_template import render_broadcast
 
 
 class ClanChatPayload(BaseModel):
@@ -12,3 +14,8 @@ class ClanChatPayload(BaseModel):
     is_league_world: bool = Field(default=False, alias="is_league_world")
 
     model_config = {"populate_by_name": True}
+
+    @field_validator("message")
+    @classmethod
+    def resolve_variable_tags(cls, message: str) -> str:
+        return render_broadcast(message)

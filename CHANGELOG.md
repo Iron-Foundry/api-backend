@@ -11,6 +11,15 @@ prerelease, `stable` to drop the tag). A MAJOR bump is the maintainer's call
 and is never made automatically. The bump happens once, when the accumulated
 work is about to be pushed - not per component.
 
+## [Unreleased]
+
+### Fixed
+
+- Clan chat broadcasts with game variable tags store the correct item, value and player
+- Level-up, XP and pet broadcasts with game variable tags store their own event type
+- `POST /ccingest` resolves the `<lt>`, `<gt>` and `<at>` escapes before it parses, dedupes or stores the message
+- Loot, collection log and personal-best broadcasts with game variable tags update the loot total, the collection log and the personal-best leaderboard
+
 ## [1.17.1] - 2026-09-04
 
 ### Fixed
