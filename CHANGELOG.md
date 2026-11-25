@@ -13,6 +13,10 @@ work is about to be pushed - not per component.
 
 ## [Unreleased]
 
+### Added
+
+- `GET /reference/osrs/npcs?q=` and `GET /reference/osrs/sprites?q=` return OSRSClans NPCs and interface sprites by name, each with its image URL
+
 ### Fixed
 
 - Clan chat broadcasts with game variable tags store the correct item, value and player

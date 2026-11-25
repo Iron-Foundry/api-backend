@@ -2016,6 +2016,550 @@
         "title": "LinkEntry",
         "type": "object"
       },
+      "LootLine": {
+        "description": "One line of a Wiki drop table, with its rarity as the Wiki writes it.\n\n`quantity_low` and `quantity_high` are the numbers of the `quantity` range,\nnull where the Wiki gives none. `group` is the heading of the drop table.",
+        "properties": {
+          "alt_rarity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt Rarity"
+          },
+          "approximate": {
+            "title": "Approximate",
+            "type": "boolean"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          },
+          "noted": {
+            "default": false,
+            "title": "Noted",
+            "type": "boolean"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "string"
+          },
+          "quantity_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity High"
+          },
+          "quantity_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity Low"
+          },
+          "rarity": {
+            "title": "Rarity",
+            "type": "string"
+          },
+          "rolls": {
+            "title": "Rolls",
+            "type": "number"
+          }
+        },
+        "required": [
+          "rarity",
+          "alt_rarity",
+          "rolls",
+          "quantity",
+          "approximate"
+        ],
+        "title": "LootLine",
+        "type": "object"
+      },
+      "LootRate": {
+        "description": "One item from one drop source, with the source's kill rate and the item's price.\n\n`chance` is the chance of at least one drop per kill, and null where the Wiki\ngives a word for the rarity. `per_purple` marks a raid unique whose chance is\nper purple. `chance_per_raid` is that chance times the mean uniques a raid at\nthe asked `points` and `raid_level`. A null kill rate is unknown.",
+        "properties": {
+          "alt_chance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt Chance"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "enum": [
+                  "raid",
+                  "boss",
+                  "minigame",
+                  "clue",
+                  "skilling",
+                  "monster"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "chance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chance"
+          },
+          "chance_per_raid": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chance Per Raid"
+          },
+          "drop_type": {
+            "title": "Drop Type",
+            "type": "string"
+          },
+          "ge_price": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ge Price"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          },
+          "high_alchemy": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "High Alchemy"
+          },
+          "item_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item Id"
+          },
+          "item_name": {
+            "title": "Item Name",
+            "type": "string"
+          },
+          "kill_rate_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "wom",
+                  "droptracker",
+                  "clue_scroll",
+                  "fixed",
+                  "item_drop",
+                  "superior"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kill Rate Source"
+          },
+          "kills_per_hour": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kills Per Hour"
+          },
+          "kills_per_hour_ironman": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kills Per Hour Ironman"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/LootLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "string"
+          },
+          "per_purple": {
+            "title": "Per Purple",
+            "type": "boolean"
+          },
+          "read_at": {
+            "format": "date-time",
+            "title": "Read At",
+            "type": "string"
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section"
+          },
+          "skill": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LootSkill"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "uniques_per_raid": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uniques Per Raid"
+          },
+          "wom_metric": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wom Metric"
+          }
+        },
+        "required": [
+          "item_id",
+          "item_name",
+          "source",
+          "page",
+          "section",
+          "category",
+          "drop_type",
+          "group",
+          "lines",
+          "chance",
+          "alt_chance",
+          "per_purple",
+          "uniques_per_raid",
+          "chance_per_raid",
+          "kills_per_hour",
+          "kills_per_hour_ironman",
+          "kill_rate_source",
+          "wom_metric",
+          "skill",
+          "ge_price",
+          "high_alchemy",
+          "read_at"
+        ],
+        "title": "LootRate",
+        "type": "object"
+      },
+      "LootRatePage": {
+        "description": "One window of loot rates, with the count of all rows that match.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LootRate"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "LootRatePage",
+        "type": "object"
+      },
+      "LootSkill": {
+        "description": "The level that a skilling pet or clue nest chance is computed at.",
+        "properties": {
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level"
+          },
+          "level_needed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level Needed"
+          }
+        },
+        "required": [
+          "kind",
+          "level_needed",
+          "level"
+        ],
+        "title": "LootSkill",
+        "type": "object"
+      },
+      "LootSource": {
+        "description": "One drop source, with its kill rate and its count of loot rate rows.\n\n`source` is the value that `/reference/loot-rates?source=` takes.",
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "enum": [
+                  "raid",
+                  "boss",
+                  "minigame",
+                  "clue",
+                  "skilling",
+                  "monster"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "drop_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Drop Types",
+            "type": "array"
+          },
+          "kill_rate_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "wom",
+                  "droptracker",
+                  "clue_scroll",
+                  "fixed",
+                  "item_drop",
+                  "superior"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kill Rate Source"
+          },
+          "kills_per_hour": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kills Per Hour"
+          },
+          "kills_per_hour_ironman": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kills Per Hour Ironman"
+          },
+          "page": {
+            "title": "Page",
+            "type": "string"
+          },
+          "rows": {
+            "title": "Rows",
+            "type": "integer"
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "wom_metric": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wom Metric"
+          }
+        },
+        "required": [
+          "source",
+          "page",
+          "section",
+          "category",
+          "drop_types",
+          "rows",
+          "kills_per_hour",
+          "kills_per_hour_ironman",
+          "kill_rate_source",
+          "wom_metric"
+        ],
+        "title": "LootSource",
+        "type": "object"
+      },
+      "LootSourcePage": {
+        "description": "One window of drop sources, with the count of all sources that match.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LootSource"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "LootSourcePage",
+        "type": "object"
+      },
       "MetricReportBody": {
         "properties": {
           "is_healthy": {
@@ -2222,6 +2766,140 @@
           "kind"
         ],
         "title": "OrRequirement",
+        "type": "object"
+      },
+      "OsrsNpc": {
+        "description": "One NPC definition. Some ids have no still, and their image answers 404.",
+        "properties": {
+          "combat_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Combat Level"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "image_url": {
+            "readOnly": true,
+            "title": "Image Url",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "image_url"
+        ],
+        "title": "OsrsNpc",
+        "type": "object"
+      },
+      "OsrsNpcPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OsrsNpc"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "OsrsNpcPage",
+        "type": "object"
+      },
+      "OsrsSprite": {
+        "description": "One sprite of the game interface, such as a skill icon.",
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "image_url": {
+            "readOnly": true,
+            "title": "Image Url",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "image_url"
+        ],
+        "title": "OsrsSprite",
+        "type": "object"
+      },
+      "OsrsSpritePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OsrsSprite"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "OsrsSpritePage",
         "type": "object"
       },
       "OverrideOptionsBody": {
@@ -19775,6 +20453,405 @@
         ]
       }
     },
+    "/reference/loot-rates": {
+      "get": {
+        "description": "Return loot rates from OSRSClans: each item's chance from each drop source.\n\n`item`, `source`, `page`, `category` and `wom_metric` keep one of each. `q`\nkeeps the rows whose item or source name holds the text. `level` sets the\nlevel that a skilling pet or clue nest chance is computed at. `points` and\n`raid_level` set the raid that `chance_per_raid` is computed at.",
+        "operationId": "list_loot_rates_reference_loot_rates_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "item",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Item"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Page"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "raid",
+                    "boss",
+                    "minigame",
+                    "clue",
+                    "skilling",
+                    "monster"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "in": "query",
+            "name": "wom_metric",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Wom Metric"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "level",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 99,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Level"
+            }
+          },
+          {
+            "in": "query",
+            "name": "points",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 3420000,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Points"
+            }
+          },
+          {
+            "in": "query",
+            "name": "raid_level",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 600,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Raid Level"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LootRatePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "The internal service behind this proxy did not respond."
+          }
+        },
+        "summary": "List Loot Rates",
+        "tags": [
+          "reference"
+        ]
+      }
+    },
+    "/reference/loot-rates/sources": {
+      "get": {
+        "description": "Return the drop sources from OSRSClans, with each source's kill rate.\n\n`page`, `category` and `wom_metric` keep one of each. `q` keeps the sources\nwhose name, or the name of an item they drop, holds the text.",
+        "operationId": "list_loot_sources_reference_loot_rates_sources_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Page"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "raid",
+                    "boss",
+                    "minigame",
+                    "clue",
+                    "skilling",
+                    "monster"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "in": "query",
+            "name": "wom_metric",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Wom Metric"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LootSourcePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "The internal service behind this proxy did not respond."
+          }
+        },
+        "summary": "List Loot Sources",
+        "tags": [
+          "reference"
+        ]
+      }
+    },
     "/reference/loot/items/{item_id}": {
       "get": {
         "description": "Reverse lookup: list every source that drops this item, with rarities.",
@@ -19945,6 +21022,182 @@
           }
         },
         "summary": "Get Source",
+        "tags": [
+          "reference"
+        ]
+      }
+    },
+    "/reference/osrs/npcs": {
+      "get": {
+        "description": "Return the NPCs from OSRSClans whose name holds `q`, with each one's still.",
+        "operationId": "search_npcs_reference_osrs_npcs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 2,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OsrsNpcPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "The internal service behind this proxy did not respond."
+          }
+        },
+        "summary": "Search Npcs",
+        "tags": [
+          "reference"
+        ]
+      }
+    },
+    "/reference/osrs/sprites": {
+      "get": {
+        "description": "Return the interface sprites from OSRSClans whose name holds `q`.",
+        "operationId": "search_sprites_reference_osrs_sprites_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 2,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OsrsSpritePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "The internal service behind this proxy did not respond."
+          }
+        },
+        "summary": "Search Sprites",
         "tags": [
           "reference"
         ]
