@@ -17,6 +17,7 @@ from app.services.osrsclans.loot_rates import LootSourceAsk
 _OSRSCLANS_ROUTES = [
     "/reference/loot-rates",
     "/reference/loot-rates/sources",
+    "/reference/loot-rates/collection-log?name=Vorkath",
     "/reference/osrs/npcs?q=zulrah",
     "/reference/osrs/sprites?q=slayer",
 ]
@@ -33,6 +34,8 @@ _SOURCE = {
     "killsPerHourIronman": 34.0,
     "killRateSource": "wom",
     "womMetric": "vorkath",
+    "collectionLogPage": "Vorkath",
+    "collectionLogRows": 6,
 }
 _PAGE = {"items": [_SOURCE], "total": 1, "limit": 50, "offset": 0}
 
@@ -107,6 +110,8 @@ async def test_routes_report_unreachable_osrsclans_as_502(
         "/sources?category=bogus",
         "/sources?q=x",
         "/sources?limit=501",
+        "/collection-log",
+        "/collection-log?name=x",
     ],
 )
 async def test_routes_refuse_out_of_bound_filters(

@@ -405,25 +405,6 @@
         "title": "BroadcastFeatureConfig",
         "type": "object"
       },
-      "CalculatePointsBody": {
-        "properties": {
-          "tiers": {
-            "additionalProperties": true,
-            "title": "Tiers",
-            "type": "object"
-          },
-          "total_point_cap": {
-            "title": "Total Point Cap",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "tiers",
-          "total_point_cap"
-        ],
-        "title": "CalculatePointsBody",
-        "type": "object"
-      },
       "ChannelEntry": {
         "properties": {
           "channel_id": {
@@ -2623,7 +2604,7 @@
         "type": "object"
       },
       "LootRate": {
-        "description": "One item from one drop source, with the source's kill rate and the item's price.\n\n`chance` is the chance of at least one drop per kill, and null where the Wiki\ngives a word for the rarity. `per_purple` marks a raid unique whose chance is\nper purple. `chance_per_raid` is that chance times the mean uniques a raid at\nthe asked `points` and `raid_level`. A null kill rate is unknown.",
+        "description": "One item from one drop source, with the source's kill rate and the item's price.\n\n`chance` is the chance of at least one drop per kill, and null where the Wiki\ngives a word for the rarity. `per_purple` marks a raid unique whose chance is\nper purple. `chance_per_raid` is that chance times the mean uniques a raid at\nthe asked `points` and `raid_level`. A null kill rate is unknown.\n`collection_log` marks an item on the collection log page that this source\nfills, and `collection_log_page` names that page.",
         "properties": {
           "alt_chance": {
             "anyOf": [
@@ -2676,6 +2657,21 @@
               }
             ],
             "title": "Chance Per Raid"
+          },
+          "collection_log": {
+            "title": "Collection Log",
+            "type": "boolean"
+          },
+          "collection_log_page": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Collection Log Page"
           },
           "drop_type": {
             "title": "Drop Type",
@@ -2873,6 +2869,8 @@
           "skill",
           "ge_price",
           "high_alchemy",
+          "collection_log",
+          "collection_log_page",
           "read_at",
           "image_url"
         ],
@@ -2950,7 +2948,7 @@
         "type": "object"
       },
       "LootSource": {
-        "description": "One drop source, with its kill rate and its count of loot rate rows.\n\n`source` is the value that `/reference/loot-rates?source=` takes.",
+        "description": "One drop source, with its kill rate and its count of loot rate rows.\n\n`source` is the value that `/reference/loot-rates?source=` takes.\n`collection_log_page` is the collection log page the source fills, and\n`collection_log_rows` counts the source's rows on it.",
         "properties": {
           "category": {
             "anyOf": [
@@ -2970,6 +2968,21 @@
               }
             ],
             "title": "Category"
+          },
+          "collection_log_page": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Collection Log Page"
+          },
+          "collection_log_rows": {
+            "title": "Collection Log Rows",
+            "type": "integer"
           },
           "drop_types": {
             "items": {
@@ -3065,7 +3078,9 @@
           "kills_per_hour",
           "kills_per_hour_ironman",
           "kill_rate_source",
-          "wom_metric"
+          "wom_metric",
+          "collection_log_page",
+          "collection_log_rows"
         ],
         "title": "LootSource",
         "type": "object"
@@ -6839,11 +6854,6 @@
             "default": {},
             "title": "Tiers",
             "type": "object"
-          },
-          "total_point_cap": {
-            "default": 0,
-            "title": "Total Point Cap",
-            "type": "integer"
           }
         },
         "required": [
@@ -13764,6 +13774,30 @@
         ]
       }
     },
+    "/frenzy/active/board": {
+      "get": {
+        "description": "Return the active event's tiers, activities, milestones and multipliers.",
+        "operationId": "get_active_board_frenzy_active_board_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Active Board Frenzy Active Board Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Active Board",
+        "tags": [
+          "frenzy"
+        ]
+      }
+    },
     "/frenzy/active/history": {
       "get": {
         "description": "All teams' cumulative points over time - used for rank-over-time chart.",
@@ -13873,55 +13907,6 @@
           }
         },
         "summary": "Get Team History",
-        "tags": [
-          "frenzy"
-        ]
-      }
-    },
-    "/frenzy/calculate-points": {
-      "post": {
-        "description": "Preview the per-tier point split for a tier set and total cap.\n\nPure calculation helper for the template editor; it persists nothing.",
-        "operationId": "calculate_points_frenzy_calculate_points_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CalculatePointsBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Calculate Points Frenzy Calculate Points Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "DiscordJWT": []
-          }
-        ],
-        "summary": "Calculate Points",
         "tags": [
           "frenzy"
         ]
@@ -15658,7 +15643,7 @@
         ]
       },
       "post": {
-        "description": "Create a reusable frenzy template that events are built from.",
+        "description": "Create a reusable frenzy template. The server sets each item's points.",
         "operationId": "create_template_frenzy_templates_post",
         "requestBody": {
           "content": {
@@ -15803,7 +15788,7 @@
         ]
       },
       "put": {
-        "description": "Replace a template's definition, snapshotting the previous version.",
+        "description": "Replace a template's definition. The server sets each item's points.",
         "operationId": "update_template_frenzy_templates__template_id__put",
         "parameters": [
           {
@@ -20350,6 +20335,71 @@
           }
         },
         "summary": "List Loot Rates",
+        "tags": [
+          "reference"
+        ]
+      }
+    },
+    "/reference/loot-rates/collection-log": {
+      "get": {
+        "description": "Return the drops of one collection log page, from every source that fills it.\n\n`name` matches the page name without regard to case. An item that several\nsources drop has one row per source. A row with no OSRSClans kill rate takes\nthe staff-set rate of its source, marked `foundry`.",
+        "operationId": "list_collection_log_rates_reference_loot_rates_collection_log_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 2,
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LootRatePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "The internal service behind this proxy did not respond."
+          }
+        },
+        "summary": "List Collection Log Rates",
         "tags": [
           "reference"
         ]

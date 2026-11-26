@@ -36,6 +36,7 @@ class LootRateAsk:
     raid_level: int | None = None
     limit: int = 50
     offset: int = 0
+    collection_log: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,7 @@ class LootSourceAsk:
     q: str | None = None
     limit: int = 50
     offset: int = 0
+    collection_log: bool | None = None
 
 
 async def cached_loot_rates(valkey: Valkey, ask: LootRateAsk) -> LootRatePage:

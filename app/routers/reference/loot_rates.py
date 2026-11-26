@@ -9,6 +9,7 @@ from valkey.asyncio import Valkey
 from app.dependencies import get_session, get_valkey
 from app.docs import responses
 from app.services.osrsclans.client import OsrsClansError
+from app.services.osrsclans.collection_log import cached_collection_log
 from app.services.osrsclans.foundry_rates import fill_rate_page, fill_source_page
 from app.services.osrsclans.loot_rate_models import (
     LootCategory,
@@ -74,6 +75,25 @@ async def list_loot_rates(
     )
     try:
         rates = await cached_loot_rates(valkey, ask)
+    except OsrsClansError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return await fill_rate_page(session, rates)
+
+
+@router.get("/collection-log")
+async def list_collection_log_rates(
+    valkey: ValkeyDep,
+    session: SessionDep,
+    name: Annotated[str, Query(min_length=2, max_length=64)],
+) -> LootRatePage:
+    """Return the drops of one collection log page, from every source that fills it.
+
+    `name` matches the page name without regard to case. An item that several
+    sources drop has one row per source. A row with no OSRSClans kill rate takes
+    the staff-set rate of its source, marked `foundry`.
+    """
+    try:
+        rates = await cached_collection_log(valkey, name)
     except OsrsClansError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return await fill_rate_page(session, rates)

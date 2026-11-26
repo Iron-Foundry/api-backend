@@ -50,6 +50,8 @@ _ROW = {
     "skill": None,
     "gePrice": None,
     "highAlchemy": None,
+    "collectionLog": False,
+    "collectionLogPage": None,
     "readAt": "2026-11-25T04:33:22.443951Z",
 }
 _PAGE = {"items": [_ROW], "total": 1, "limit": 1, "offset": 0}

@@ -19,7 +19,9 @@ from valkey.asyncio import Valkey
 
 OSRSCLANS_API_URL = "https://osrsclans.cc/api/v1"
 CACHE_TTL_SECONDS = 3600
-_CACHE_PREFIX = "osrsclans:"
+# Change the prefix when a cached model gains a required field: an older copy
+# fails validation until it expires.
+_CACHE_PREFIX = "osrsclans:2:"
 _HEADERS = {"User-Agent": "The Foundry Project - clan event tracker"}
 _TIMEOUT_SECONDS = 10.0
 

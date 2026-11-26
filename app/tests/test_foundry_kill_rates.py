@@ -21,6 +21,8 @@ def _source(kills_per_hour: float | None, measurer: str | None) -> LootSource:
             "killsPerHourIronman": None,
             "killRateSource": measurer,
             "womMetric": None,
+            "collectionLogPage": None,
+            "collectionLogRows": 0,
         }
     )
 

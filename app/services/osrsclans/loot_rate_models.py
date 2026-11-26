@@ -51,6 +51,8 @@ class LootRate(OsrsClansModel):
     gives a word for the rarity. `per_purple` marks a raid unique whose chance is
     per purple. `chance_per_raid` is that chance times the mean uniques a raid at
     the asked `points` and `raid_level`. A null kill rate is unknown.
+    `collection_log` marks an item on the collection log page that this source
+    fills, and `collection_log_page` names that page.
     """
 
     item_id: int | None
@@ -74,6 +76,8 @@ class LootRate(OsrsClansModel):
     skill: LootSkill | None
     ge_price: int | None
     high_alchemy: int | None
+    collection_log: bool
+    collection_log_page: str | None
     read_at: datetime
 
     @computed_field
@@ -97,6 +101,8 @@ class LootSource(OsrsClansModel):
     """One drop source, with its kill rate and its count of loot rate rows.
 
     `source` is the value that `/reference/loot-rates?source=` takes.
+    `collection_log_page` is the collection log page the source fills, and
+    `collection_log_rows` counts the source's rows on it.
     """
 
     source: str
@@ -109,6 +115,8 @@ class LootSource(OsrsClansModel):
     kills_per_hour_ironman: float | None
     kill_rate_source: KillRateSource | None
     wom_metric: str | None
+    collection_log_page: str | None
+    collection_log_rows: int
 
 
 class LootSourcePage(OsrsClansModel):

@@ -25,6 +25,8 @@ _RATELESS = {
     "killsPerHourIronman": None,
     "killRateSource": None,
     "womMetric": None,
+    "collectionLogPage": None,
+    "collectionLogRows": 0,
 }
 
 
