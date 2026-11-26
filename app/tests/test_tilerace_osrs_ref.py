@@ -39,7 +39,7 @@ async def test_npc_search_keeps_the_fightable_form(
         {
             "id": 8061,
             "name": "Vorkath",
-            "icon_url": "https://osrsclans.cc/api/v1/osrs/npcs/8061.webp",
+            "icon_url": "https://api.test/reference/osrs/images/npcs/8061.webp",
         }
     ]
 

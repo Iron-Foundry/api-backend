@@ -66,6 +66,8 @@ from app.services.metric_compaction import MetricCompactionService
 from app.services.music_live import MusicStateService
 from app.services.music_stats import MusicStatsService
 from app.services.name_change import WomNameChangeService
+from app.services.osrsclans.cooldown import install_cooldown_handler
+from app.services.osrsclans.images import public_api_url
 from app.services.outbound_metrics import _collector as _outbound_collector
 from app.services.outbound_metrics.service import OutboundMetricsService
 from app.services.party_expiry import PartyExpiryService
@@ -88,6 +90,7 @@ _ALLOWED_ORIGINS = [o.strip() for o in FRONTEND_URL.split(",") if o.strip()]
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("Public API address for image links: {}", public_api_url())
     if DATABASE_URL:
         logger.info("Connecting to PostgreSQL...")
         engine = create_engine(DATABASE_URL)
@@ -256,6 +259,7 @@ app = FastAPI(
     redoc_url=None,
 )
 install_openapi_customization(app)
+install_cooldown_handler(app)
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 _collector = EndpointMetricsCollector()

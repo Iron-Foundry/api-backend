@@ -10,7 +10,7 @@ from httpx import AsyncClient
 
 from app.services.osrsclans import client as osrsclans_client
 
-_OSRS = "https://osrsclans.cc/api/v1/osrs"
+_OSRS = "https://api.test/reference/osrs/images"
 _COINS = {
     "id": 995,
     "name": "Coins",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncGenerator, Callable
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -53,9 +54,12 @@ from app.routers import (
 from app.routers import (
     discord as discord_router,
 )
+from app.services.osrsclans.cooldown import install_cooldown_handler
 from app.tests._staff_patches import staff_permission_patches
 from app.tests._wom import mock_wom_instance as mock_wom_instance
 from app.version import VERSION
+
+os.environ.setdefault("PUBLIC_API_URL", "https://api.test")
 
 TEST_USER: dict[str, Any] = {
     "sub": "111222333444555666",
@@ -103,6 +107,7 @@ def _build_app() -> FastAPI:
         redoc_url=None,
     )
     install_openapi_customization(app)
+    install_cooldown_handler(app)
     for router in _ROUTERS:
         app.include_router(router)
     ranking_svc = MagicMock()

@@ -37,7 +37,7 @@ async def test_item_search_reads_osrsclans_named_items(
         {
             "id": 4151,
             "name": "Abyssal whip",
-            "icon_url": "https://osrsclans.cc/api/v1/osrs/items/4151.webp",
+            "icon_url": "https://api.test/reference/osrs/images/items/4151.webp",
             "members": True,
         }
     ]

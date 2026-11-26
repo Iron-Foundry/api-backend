@@ -7,7 +7,7 @@ from typing import Literal
 
 from pydantic import computed_field
 
-from app.services.osrsclans.client import OSRSCLANS_API_URL
+from app.services.osrsclans.images import ImageAsk, osrs_image_url
 from app.services.osrsclans.wire_model import OsrsClansModel
 
 # `foundry` is never an OSRSClans value: Foundry sets it on a row whose rate
@@ -85,7 +85,7 @@ class LootRate(OsrsClansModel):
     def image_url(self) -> str | None:
         if self.item_id is None:
             return None
-        return f"{OSRSCLANS_API_URL}/osrs/items/{self.item_id}.webp"
+        return osrs_image_url(ImageAsk("items", self.item_id))
 
 
 class LootRatePage(OsrsClansModel):

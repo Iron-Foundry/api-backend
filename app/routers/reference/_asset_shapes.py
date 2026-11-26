@@ -5,7 +5,7 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 from app.services.osrsclans.art import OsrsSprite
-from app.services.osrsclans.client import OSRSCLANS_API_URL
+from app.services.osrsclans.images import ImageAsk, osrs_image_url
 from app.services.osrsclans.items import OsrsItem, item_image_url
 
 
@@ -91,15 +91,16 @@ def variants_out(item: OsrsItem) -> list[ItemOut]:
 
 def frames_out(sprite: OsrsSprite) -> list[SpriteFrameOut]:
     """Return one asset row per non-empty frame of a sprite."""
-    base = f"{OSRSCLANS_API_URL}/osrs/sprites/{sprite.id}"
     return [
         SpriteFrameOut(
             sprite_id=sprite.id,
             frame_index=frame.frame,
             width=frame.width,
             height=frame.height,
-            webp_url=f"{base}.webp?frame={frame.frame}",
-            svg_url=f"{base}.svg?frame={frame.frame}",
+            webp_url=osrs_image_url(ImageAsk("sprites", sprite.id, frame=frame.frame)),
+            svg_url=osrs_image_url(
+                ImageAsk("sprites", sprite.id, "svg", frame=frame.frame)
+            ),
             name=sprite.name,
             category=sprite.category,
         )

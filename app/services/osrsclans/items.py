@@ -1,7 +1,6 @@
 """The OSRSClans item queries: a window, a name search, one item, and every name.
 
-The browser loads an item image from OSRSClans itself, which sends CORS `*` on
-its image routes.
+The browser loads an item image from Foundry's image route, which keeps a copy.
 """
 
 from __future__ import annotations
@@ -12,13 +11,14 @@ from typing import ClassVar
 from pydantic import Field, RootModel
 from valkey.asyncio import Valkey
 
-from app.services.osrsclans.client import OSRSCLANS_API_URL, cached_page
+from app.services.osrsclans.client import cached_page
+from app.services.osrsclans.images import ImageAsk, osrs_image_url
 from app.services.osrsclans.wire_model import OsrsClansModel
 
 
 def item_image_url(item_id: int) -> str:
-    """Return the OSRSClans image of an item at its largest size."""
-    return f"{OSRSCLANS_API_URL}/osrs/items/{item_id}.webp"
+    """Return the Foundry address of an item's OSRSClans image at its largest size."""
+    return osrs_image_url(ImageAsk("items", item_id))
 
 
 class StackForm(OsrsClansModel):

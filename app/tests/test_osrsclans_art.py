@@ -26,8 +26,8 @@ _SPRITES = {
 @pytest.mark.parametrize(
     ("path", "answer", "upstream", "image"),
     [
-        ("npcs", _NPCS, "/api/v1/osrs/npcs/search", "/osrs/npcs/2042.webp"),
-        ("sprites", _SPRITES, "/api/v1/osrs/sprites/search", "/osrs/sprites/4255.webp"),
+        ("npcs", _NPCS, "/api/v1/osrs/npcs/search", "/npcs/2042.webp"),
+        ("sprites", _SPRITES, "/api/v1/osrs/sprites/search", "/sprites/4255.webp"),
     ],
 )
 async def test_search_answers_rows_with_image_urls(
@@ -49,7 +49,7 @@ async def test_search_answers_rows_with_image_urls(
 
     assert resp.status_code == 200, resp.text
     row = resp.json()["items"][0]
-    assert row["image_url"] == f"https://osrsclans.cc/api/v1{image}"
+    assert row["image_url"] == f"https://api.test/reference/osrs/images{image}"
     assert (seen[0].url.path, seen[0].url.params["q"]) == (upstream, "zul")
 
 

@@ -67,6 +67,28 @@
         "title": "ActionLogFeatureConfig",
         "type": "object"
       },
+      "ActiveSignups": {
+        "description": "The active event's signups, strongest ranking first, as the draft pool shows them.",
+        "properties": {
+          "event_id": {
+            "title": "Event Id",
+            "type": "integer"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/DraftMember"
+            },
+            "title": "Members",
+            "type": "array"
+          }
+        },
+        "required": [
+          "event_id",
+          "members"
+        ],
+        "title": "ActiveSignups",
+        "type": "object"
+      },
       "ActivityOut": {
         "description": "One recorded interaction with a session.",
         "properties": {
@@ -13841,6 +13863,28 @@
         ]
       }
     },
+    "/frenzy/active/signups": {
+      "get": {
+        "description": "Return the active event's signups with each member's clan rank and points.\n\nThe order matches the draft pool: highest ranking points first, and ties go to\nthe earlier signup. Answers 404 with no active event.",
+        "operationId": "get_active_signups_frenzy_active_signups_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActiveSignups"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Active Signups",
+        "tags": [
+          "frenzy"
+        ]
+      }
+    },
     "/frenzy/active/teams/{team_slug}": {
       "get": {
         "description": "Full team detail: template merged with team progress and computed scores.",
@@ -20655,6 +20699,130 @@
           }
         },
         "summary": "List Loot Sources",
+        "tags": [
+          "reference"
+        ]
+      }
+    },
+    "/reference/osrs/images/{kind}/{image_id}.{fmt}": {
+      "get": {
+        "description": "Return an OSRSClans item, NPC or sprite image, from Foundry's own copy.\n\nThe first request for an image fetches it from OSRSClans and keeps a copy on\ndisk; each later request reads the copy. `scale` and `frame` pass through to\nOSRSClans. Answers 404 for an image OSRSClans does not have, and 503 while\nOSRSClans cools down after a failure.",
+        "operationId": "get_osrs_image_reference_osrs_images__kind___image_id___fmt__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "items",
+                "npcs",
+                "sprites"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "image_id",
+            "required": true,
+            "schema": {
+              "maximum": 16777215,
+              "minimum": 0,
+              "title": "Image Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "fmt",
+            "required": true,
+            "schema": {
+              "enum": [
+                "webp",
+                "svg"
+              ],
+              "title": "Fmt",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scale",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^([0-9]{1,2}|max)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Scale"
+            }
+          },
+          {
+            "in": "query",
+            "name": "frame",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 4096,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Frame"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/svg+xml": {},
+              "image/webp": {}
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "The internal service behind this proxy did not respond."
+          }
+        },
+        "summary": "Get Osrs Image",
         "tags": [
           "reference"
         ]

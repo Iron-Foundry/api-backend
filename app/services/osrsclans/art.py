@@ -12,7 +12,8 @@ from typing import ClassVar
 from pydantic import Field, RootModel, computed_field
 from valkey.asyncio import Valkey
 
-from app.services.osrsclans.client import OSRSCLANS_API_URL, cached_page
+from app.services.osrsclans.client import cached_page
+from app.services.osrsclans.images import ImageAsk, osrs_image_url
 from app.services.osrsclans.wire_model import OsrsClansModel
 
 
@@ -26,7 +27,7 @@ class OsrsNpc(OsrsClansModel):
     @computed_field
     @property
     def image_url(self) -> str:
-        return f"{OSRSCLANS_API_URL}/osrs/npcs/{self.id}.webp"
+        return osrs_image_url(ImageAsk("npcs", self.id))
 
 
 class SpriteFrame(OsrsClansModel):
@@ -49,7 +50,7 @@ class OsrsSprite(OsrsClansModel):
     @computed_field
     @property
     def image_url(self) -> str:
-        return f"{OSRSCLANS_API_URL}/osrs/sprites/{self.id}.webp"
+        return osrs_image_url(ImageAsk("sprites", self.id))
 
 
 class OsrsNpcPage(OsrsClansModel):
