@@ -27,6 +27,7 @@ async def wom_stats(session: AsyncSession = Depends(get_session)) -> dict[str, A
             "cox_kc": 0,
             "tob_kc": 0,
             "toa_kc": 0,
+            "tfa_kc": 0,
             "updated_at": None,
         }
     return {
@@ -36,6 +37,7 @@ async def wom_stats(session: AsyncSession = Depends(get_session)) -> dict[str, A
         "cox_kc": row.cox_kc or 0,
         "tob_kc": row.tob_kc or 0,
         "toa_kc": row.toa_kc or 0,
+        "tfa_kc": row.tfa_kc or 0,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
 

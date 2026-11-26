@@ -6,15 +6,14 @@ import asyncio
 import contextlib
 import os
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import Any
 
 from loguru import logger
-from sqlalchemy import ARRAY, Text, bindparam, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.models import ClanStats
+from app.services.clan_rank_sync import sync_wom_ranks
 from app.services.http import WiseOldManHandler, WomPriority
 
 POLL_INTERVAL = 3600  # 1 hour
@@ -23,14 +22,26 @@ _WOM_GROUP_ID = os.getenv("WOM_GROUP_ID", "9403")
 _WOM_API_KEY = os.getenv("WOM_API_KEY")
 _WOM_DISCORD_CONTACT = os.getenv("WOM_DISCORD_CONTACT")
 
-_RAID_METRICS = [
-    "chambers_of_xeric",
-    "chambers_of_xeric_challenge_mode",
-    "theatre_of_blood",
-    "theatre_of_blood_hard_mode",
-    "tombs_of_amascut",
-    "tombs_of_amascut_expert_mode",
-]
+RAID_METRICS: dict[str, tuple[str, ...]] = {
+    "cox_kc": ("chambers_of_xeric", "chambers_of_xeric_challenge_mode"),
+    "tob_kc": ("theatre_of_blood", "theatre_of_blood_hard_mode"),
+    "toa_kc": ("tombs_of_amascut", "tombs_of_amascut_expert_mode"),
+    "tfa_kc": ("the_fractured_archive",),
+}
+
+
+def raid_kc_totals(bulk_entries: list[dict[str, Any]]) -> dict[str, int]:
+    """Return the clan's summed kills per raid column from WOM bulk hiscores."""
+    totals = dict.fromkeys(RAID_METRICS, 0)
+    for entry in bulk_entries:
+        bosses: dict[str, Any] = ((entry.get("data") or {}).get("data") or {}).get(
+            "bosses"
+        ) or {}
+        for column, metrics in RAID_METRICS.items():
+            for metric in metrics:
+                kills = (bosses.get(metric) or {}).get("kills")
+                totals[column] += kills if isinstance(kills, int) and kills > 0 else 0
+    return totals
 
 
 class ClanStatsService:
@@ -89,59 +100,24 @@ class ClanStatsService:
 
         raw: dict[str, Any] = group_result
         memberships = raw.get("memberships") or []
-        bulk_entries: list[dict[str, Any]] = (
-            bulk_result if isinstance(bulk_result, list) else []
-        )
-
-        def _safe_int(v: object) -> int:
-            return v if isinstance(v, int) else 0
-
-        metric_totals: dict[str, int] = dict.fromkeys(_RAID_METRICS, 0)
-        for entry in bulk_entries:
-            data: dict[str, Any] = (entry.get("data") or {}).get("data") or {}
-            bosses: dict[str, Any] = data.get("bosses") or {}
-            for metric in _RAID_METRICS:
-                boss_info = bosses.get(metric)
-                if isinstance(boss_info, dict):
-                    metric_totals[metric] += _safe_int(boss_info.get("kills"))
+        raids = raid_kc_totals(bulk_result if isinstance(bulk_result, list) else [])
 
         member_count = raw.get("memberCount", 0)
         total_xp = sum(m.get("player", {}).get("exp", 0) for m in memberships)
         total_ehb = round(sum(m.get("player", {}).get("ehb", 0.0) for m in memberships))
-        cox_kc = (
-            metric_totals["chambers_of_xeric"]
-            + metric_totals["chambers_of_xeric_challenge_mode"]
-        )
-        tob_kc = (
-            metric_totals["theatre_of_blood"]
-            + metric_totals["theatre_of_blood_hard_mode"]
-        )
-        toa_kc = (
-            metric_totals["tombs_of_amascut"]
-            + metric_totals["tombs_of_amascut_expert_mode"]
-        )
 
         stmt = pg_insert(ClanStats).values(
             id=1,
             member_count=member_count,
             total_xp=total_xp,
             total_ehb=total_ehb,
-            cox_kc=cox_kc,
-            tob_kc=tob_kc,
-            toa_kc=toa_kc,
+            **raids,
             updated_at=datetime.now(UTC),
         )
+        columns = ["member_count", "total_xp", "total_ehb", *raids, "updated_at"]
         stmt = stmt.on_conflict_do_update(
             index_elements=["id"],
-            set_={
-                "member_count": stmt.excluded.member_count,
-                "total_xp": stmt.excluded.total_xp,
-                "total_ehb": stmt.excluded.total_ehb,
-                "cox_kc": stmt.excluded.cox_kc,
-                "tob_kc": stmt.excluded.tob_kc,
-                "toa_kc": stmt.excluded.toa_kc,
-                "updated_at": stmt.excluded.updated_at,
-            },
+            set_={c: stmt.excluded[c] for c in columns},
         )
 
         async with self._session_factory() as session:
@@ -149,84 +125,10 @@ class ClanStatsService:
             await session.commit()
 
         logger.info(
-            "ClanStatsService: updated - members={}, total_xp={:,}, cox={} tob={} toa={}",
+            "ClanStatsService: updated - members={}, total_xp={:,}, raids={}",
             member_count,
             total_xp,
-            cox_kc,
-            tob_kc,
-            toa_kc,
+            raids,
         )
 
-        await _sync_wom_ranks(self._session_factory, memberships)
-
-
-async def _sync_wom_ranks(
-    session_factory: async_sessionmaker[AsyncSession], memberships: list[dict[str, Any]]
-) -> None:
-    """Bulk-write WOM in-game ranks to users.clan_rank for all matched members."""
-    wom_ranks: dict[str, str] = {
-        m["player"]["username"].lower(): m["role"]
-        for m in memberships
-        if m.get("player") and m.get("role")
-    }
-    if not wom_ranks:
-        return
-
-    rsns = list(wom_ranks.keys())
-    roles = list(wom_ranks.values())
-
-    _arr = ARRAY(Text())
-    _params = [bindparam("rsns", type_=_arr), bindparam("roles", type_=_arr)]
-
-    async with session_factory() as session:
-        r1 = cast(
-            CursorResult[Any],
-            await session.execute(
-                text("""
-                UPDATE users u
-                   SET clan_rank  = wd.role,
-                       updated_at = now()
-                  FROM (SELECT unnest(:rsns) AS rsn,
-                               unnest(:roles) AS role) AS wd
-                  JOIN user_accounts ua ON lower(ua.rsn) = wd.rsn
-                 WHERE ua.discord_user_id = u.discord_user_id
-                   AND (u.clan_rank IS DISTINCT FROM wd.role)
-            """).bindparams(*_params),
-                {"rsns": rsns, "roles": roles},
-            ),
-        )
-        r2 = cast(
-            CursorResult[Any],
-            await session.execute(
-                text("""
-                UPDATE users u
-                   SET clan_rank  = wd.role,
-                       updated_at = now()
-                  FROM (SELECT unnest(:rsns) AS rsn,
-                               unnest(:roles) AS role) AS wd
-                 WHERE lower(u.rsn) = wd.rsn
-                   AND (u.clan_rank IS DISTINCT FROM wd.role)
-            """).bindparams(*_params),
-                {"rsns": rsns, "roles": roles},
-            ),
-        )
-        await session.execute(
-            text("""
-                INSERT INTO wom_clan_ranks (rsn, clan_rank, updated_at)
-                SELECT wd.rsn, wd.role, now()
-                  FROM (SELECT unnest(:rsns) AS rsn,
-                               unnest(:roles) AS role) AS wd
-                ON CONFLICT (rsn) DO UPDATE
-                       SET clan_rank  = EXCLUDED.clan_rank,
-                           updated_at = EXCLUDED.updated_at
-                     WHERE wom_clan_ranks.clan_rank IS DISTINCT FROM EXCLUDED.clan_rank
-            """).bindparams(*_params),
-            {"rsns": rsns, "roles": roles},
-        )
-        await session.commit()
-
-    logger.info(
-        "WOM rank sync: updated {} (user_accounts) + {} (legacy rsn)",
-        r1.rowcount,
-        r2.rowcount,
-    )
+        await sync_wom_ranks(self._session_factory, memberships)

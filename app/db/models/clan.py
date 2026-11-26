@@ -20,6 +20,7 @@ class ClanStats(Base):
     cox_kc: Mapped[int | None] = mapped_column(Integer)
     tob_kc: Mapped[int | None] = mapped_column(Integer)
     toa_kc: Mapped[int | None] = mapped_column(Integer)
+    tfa_kc: Mapped[int | None] = mapped_column(Integer)
     updated_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
 
 
