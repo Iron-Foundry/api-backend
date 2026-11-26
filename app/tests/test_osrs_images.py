@@ -63,15 +63,39 @@ async def test_missing_image_is_404_and_remembered(
     assert any(k.startswith("osrsclans:image-missing:") for k in keys)
 
 
-async def test_non_image_answer_is_502_and_unstored(
-    anon_client: AsyncClient, upload_dir: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("kind", "size"), [("text/html", 16), ("image/webp", 2 * 1024 * 1024 + 1)]
+)
+async def test_bad_answer_is_502_and_unstored(
+    anon_client: AsyncClient,
+    upload_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    kind: str,
+    size: int,
 ) -> None:
-    monkeypatch.setattr(client, "_transport", _serving([], kind="text/html"))
+    body = b"x" * size
+    transport = httpx.MockTransport(
+        lambda _: httpx.Response(200, content=body, headers={"content-type": kind})
+    )
+    monkeypatch.setattr(client, "_transport", transport)
 
     resp = await anon_client.get("/reference/osrs/images/items/4151.webp")
 
     assert resp.status_code == 502
     assert not (upload_dir / "osrsclans").exists()
+
+
+async def test_default_scale_shares_one_copy(
+    anon_client: AsyncClient, upload_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[httpx.Request] = []
+    monkeypatch.setattr(client, "_transport", _serving(seen))
+
+    await anon_client.get("/reference/osrs/images/items/4151.webp?scale=max")
+    await anon_client.get("/reference/osrs/images/items/4151.webp")
+
+    assert len(seen) == 1
+    assert "scale" not in seen[0].url.params
 
 
 async def test_svg_carries_a_script_blocking_policy(
@@ -91,10 +115,17 @@ async def test_svg_carries_a_script_blocking_policy(
         "/reference/osrs/images/models/1.webp",
         "/reference/osrs/images/items/1.png",
         "/reference/osrs/images/items/1.webp?scale=huge",
-        "/reference/osrs/images/items/1.webp?frame=-1",
+        "/reference/osrs/images/items/1.webp?scale=16",
+        "/reference/osrs/images/items/1.webp?frame=0",
+        "/reference/osrs/images/npcs/1.svg",
+        "/reference/osrs/images/npcs/1.webp?scale=2",
+        "/reference/osrs/images/sprites/1.webp?frame=-1",
     ],
 )
 async def test_image_route_refuses_unknown_asks(
-    anon_client: AsyncClient, path: str
+    anon_client: AsyncClient, monkeypatch: pytest.MonkeyPatch, path: str
 ) -> None:
+    seen: list[httpx.Request] = []
+    monkeypatch.setattr(client, "_transport", _serving(seen))
     assert (await anon_client.get(path)).status_code in (404, 422)
+    assert seen == []

@@ -5,7 +5,8 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 from app.services.osrsclans.art import OsrsSprite
-from app.services.osrsclans.images import ImageAsk, osrs_image_url
+from app.services.osrsclans.image_asks import ImageAsk
+from app.services.osrsclans.images import osrs_image_url
 from app.services.osrsclans.items import OsrsItem, item_image_url
 
 

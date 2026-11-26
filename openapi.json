@@ -20706,7 +20706,7 @@
     },
     "/reference/osrs/images/{kind}/{image_id}.{fmt}": {
       "get": {
-        "description": "Return an OSRSClans item, NPC or sprite image, from Foundry's own copy.\n\nThe first request for an image fetches it from OSRSClans and keeps a copy on\ndisk; each later request reads the copy. `scale` and `frame` pass through to\nOSRSClans. Answers 404 for an image OSRSClans does not have, and 503 while\nOSRSClans cools down after a failure.",
+        "description": "Return an OSRSClans item, NPC or sprite image, from Foundry's own copy.\n\nThe first request for an image fetches it from OSRSClans and keeps a copy on\ndisk; each later request reads the copy. `scale` takes the values OSRSClans\nserves for the kind, and only a sprite takes a `frame`; any other ask answers\n422 without a request. Answers 404 for an image OSRSClans does not have, and\n503 while OSRSClans cools down after a failure.",
         "operationId": "get_osrs_image_reference_osrs_images__kind___image_id___fmt__get",
         "parameters": [
           {
@@ -20754,7 +20754,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "pattern": "^([0-9]{1,2}|max)$",
+                  "maxLength": 3,
                   "type": "string"
                 },
                 {

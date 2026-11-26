@@ -13,7 +13,8 @@ from pydantic import Field, RootModel, computed_field
 from valkey.asyncio import Valkey
 
 from app.services.osrsclans.client import cached_page
-from app.services.osrsclans.images import ImageAsk, osrs_image_url
+from app.services.osrsclans.image_asks import ImageAsk
+from app.services.osrsclans.images import osrs_image_url
 from app.services.osrsclans.wire_model import OsrsClansModel
 
 

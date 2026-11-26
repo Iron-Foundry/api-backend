@@ -8,13 +8,13 @@ from valkey.asyncio import Valkey
 from app.dependencies import get_valkey
 from app.docs import responses
 from app.services.osrsclans.client import OsrsClansError, OsrsClansNotFoundError
-from app.services.osrsclans.images import (
-    MEDIA_TYPES,
-    ImageAsk,
+from app.services.osrsclans.image_asks import (
     ImageFormat,
     ImageKind,
-    cached_image,
+    InvalidImageAskError,
+    checked_ask,
 )
+from app.services.osrsclans.images import MEDIA_TYPES, cached_image
 
 router = APIRouter(prefix="/osrs/images", responses=responses.PROXIED)
 
@@ -40,17 +40,21 @@ async def get_osrs_image(
     image_id: Annotated[int, Path(ge=0, le=16_777_215)],
     fmt: ImageFormat,
     valkey: Annotated[Valkey, Depends(get_valkey)],
-    scale: Annotated[str | None, Query(pattern=r"^([0-9]{1,2}|max)$")] = None,
+    scale: Annotated[str | None, Query(max_length=3)] = None,
     frame: Annotated[int | None, Query(ge=0, le=4096)] = None,
 ) -> Response:
     """Return an OSRSClans item, NPC or sprite image, from Foundry's own copy.
 
     The first request for an image fetches it from OSRSClans and keeps a copy on
-    disk; each later request reads the copy. `scale` and `frame` pass through to
-    OSRSClans. Answers 404 for an image OSRSClans does not have, and 503 while
-    OSRSClans cools down after a failure.
+    disk; each later request reads the copy. `scale` takes the values OSRSClans
+    serves for the kind, and only a sprite takes a `frame`; any other ask answers
+    422 without a request. Answers 404 for an image OSRSClans does not have, and
+    503 while OSRSClans cools down after a failure.
     """
-    ask = ImageAsk(kind, image_id, fmt, scale, frame)
+    try:
+        ask = checked_ask(kind, image_id, fmt, scale, frame)
+    except InvalidImageAskError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     try:
         data = await cached_image(valkey, ask)
     except OsrsClansNotFoundError as exc:
