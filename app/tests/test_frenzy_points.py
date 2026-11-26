@@ -6,7 +6,12 @@ from typing import Any
 
 import pytest
 
-from app.routers.frenzy._points import POINT_CAP, assign_item_points, round_half_up
+from app.routers.frenzy._points import (
+    POINT_CAP,
+    assign_item_points,
+    ordered_tiers,
+    round_half_up,
+)
 from app.routers.frenzy._scoring import _calc_item_points
 
 _FIXTURES = Path(__file__).resolve().parents[3] / "fixtures"
@@ -46,6 +51,28 @@ def test_assign_drops_budget_and_lock_keys() -> None:
     tier = assign_item_points(tiers)["Easy"]
     assert "budget_pct" not in tier
     assert "points_locked" not in tier["sources"][0]["items"][0]
+
+
+def test_tiers_follow_their_order_not_their_keys() -> None:
+    tiers = {
+        "Hard": {"order": 2, "sources": []},
+        "Easy": {"order": 0, "sources": []},
+        "Elite": {"sources": []},
+        "Medium": {"order": 1, "sources": []},
+    }
+    assert [name for name, _ in ordered_tiers(tiers)] == [
+        "Easy",
+        "Medium",
+        "Hard",
+        "Elite",
+    ]
+    stored = assign_item_points(tiers)
+    assert [stored[n]["order"] for n in ("Easy", "Medium", "Hard", "Elite")] == [
+        0,
+        1,
+        2,
+        3,
+    ]
 
 
 @pytest.mark.parametrize(("obtained", "expected"), [(1, 5), (2, 8)])

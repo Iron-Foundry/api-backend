@@ -4,7 +4,7 @@ from typing import Any
 
 from app.db.models import FrenzyTeam, FrenzyTemplate
 
-from ._points import round_half_up
+from ._points import ordered_tiers, round_half_up
 
 
 def _calc_item_points(item: dict[str, Any], obtained: int) -> int:
@@ -66,7 +66,7 @@ def _tier_points(
 ) -> dict[str, int]:
     factors = _unlocked_factors(template, item_progress)
     tier_pts: dict[str, int] = {}
-    for tier_name, tier_data in (template.tiers or {}).items():
+    for tier_name, tier_data in ordered_tiers(template.tiers or {}):
         t_pts = 0
         for source in tier_data.get("sources", []):
             src_name: str = source.get("name", "")
