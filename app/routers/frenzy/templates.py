@@ -7,12 +7,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import FrenzyEvent, FrenzyTemplate, FrenzyTemplateVersion, User
+from app.db.models import FrenzyEvent, FrenzyTemplate
 from app.dependencies import get_current_user, get_session
 from app.services.page_permissions import require_page_permission
 
-from ._scoring import _recalculate_tier_points
-from .schemas import CalculatePointsBody, TemplateBody
+from ._points import assign_item_points
+from ._template_store import load_template, next_version_number, snapshot
+from .schemas import TemplateBody
 
 router = APIRouter()
 
@@ -53,17 +54,16 @@ async def create_template(
     _perm: None = _PERM,
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Create a reusable frenzy template that events are built from."""
+    """Create a reusable frenzy template. The server sets each item's points."""
     now = datetime.now(UTC)
     uid = int(current_user["sub"])
     tmpl = FrenzyTemplate(
         name=body.name,
         description=body.description,
-        tiers=body.tiers,
+        tiers=assign_item_points(body.tiers),
         activities=body.activities,
         milestones=body.milestones,
         multipliers=body.multipliers,
-        total_point_cap=body.total_point_cap,
         version_number=1,
         created_by=uid,
         created_at=now,
@@ -71,18 +71,7 @@ async def create_template(
     )
     session.add(tmpl)
     await session.flush()
-    session.add(
-        FrenzyTemplateVersion(
-            template_id=tmpl.id,
-            version_number=1,
-            tiers=body.tiers,
-            activities=body.activities,
-            milestones=body.milestones,
-            multipliers=body.multipliers,
-            edited_by=uid,
-            created_at=now,
-        )
-    )
+    session.add(snapshot(tmpl, 1, uid, now))
     await session.commit()
     return {"id": tmpl.id, "version_number": 1}
 
@@ -92,13 +81,7 @@ async def get_template(
     template_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM
 ) -> dict[str, Any]:
     """Return one template with its full tier and task definition."""
-    tmpl = (
-        await session.execute(
-            select(FrenzyTemplate).where(FrenzyTemplate.id == template_id)
-        )
-    ).scalar_one_or_none()
-    if tmpl is None:
-        raise HTTPException(404, "Template not found.")
+    tmpl = await load_template(session, template_id)
     return {
         "id": tmpl.id,
         "name": tmpl.name,
@@ -107,7 +90,6 @@ async def get_template(
         "activities": tmpl.activities,
         "milestones": tmpl.milestones,
         "multipliers": tmpl.multipliers,
-        "total_point_cap": tmpl.total_point_cap,
         "version_number": tmpl.version_number,
         "created_at": tmpl.created_at.isoformat(),
         "updated_at": tmpl.updated_at.isoformat(),
@@ -122,45 +104,17 @@ async def update_template(
     _perm: None = _PERM,
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Replace a template's definition, snapshotting the previous version."""
-    tmpl = (
-        await session.execute(
-            select(FrenzyTemplate).where(FrenzyTemplate.id == template_id)
-        )
-    ).scalar_one_or_none()
-    if tmpl is None:
-        raise HTTPException(404, "Template not found.")
-
-    uid = int(current_user["sub"])
+    """Replace a template's definition. The server sets each item's points."""
+    tmpl = await load_template(session, template_id)
     now = datetime.now(UTC)
-    max_ver = (
-        await session.execute(
-            select(func.max(FrenzyTemplateVersion.version_number)).where(
-                FrenzyTemplateVersion.template_id == template_id
-            )
-        )
-    ).scalar_one_or_none()
-    next_ver = (max_ver or 0) + 1
-
-    session.add(
-        FrenzyTemplateVersion(
-            template_id=tmpl.id,
-            version_number=next_ver,
-            tiers=tmpl.tiers,
-            activities=tmpl.activities,
-            milestones=tmpl.milestones,
-            multipliers=tmpl.multipliers,
-            edited_by=uid,
-            created_at=now,
-        )
-    )
+    next_ver = await next_version_number(session, template_id)
+    session.add(snapshot(tmpl, next_ver, int(current_user["sub"]), now))
     tmpl.name = body.name
     tmpl.description = body.description
-    tmpl.tiers = body.tiers
+    tmpl.tiers = assign_item_points(body.tiers)
     tmpl.activities = body.activities
     tmpl.milestones = body.milestones
     tmpl.multipliers = body.multipliers
-    tmpl.total_point_cap = body.total_point_cap
     tmpl.version_number = next_ver
     tmpl.updated_at = now
 
@@ -187,166 +141,6 @@ async def delete_template(
     if event_count > 0:
         raise HTTPException(409, "Template is referenced by one or more events.")
 
-    tmpl = (
-        await session.execute(
-            select(FrenzyTemplate).where(FrenzyTemplate.id == template_id)
-        )
-    ).scalar_one_or_none()
-    if tmpl is None:
-        raise HTTPException(404, "Template not found.")
-    await session.delete(tmpl)
+    await session.delete(await load_template(session, template_id))
     await session.commit()
     return {"ok": True}
-
-
-@router.get("/templates/{template_id}/versions")
-async def list_template_versions(
-    template_id: int, session: AsyncSession = Depends(get_session), _perm: None = _PERM
-) -> list[dict[str, Any]]:
-    """List a template's saved versions with who authored each."""
-    result = await session.execute(
-        select(FrenzyTemplateVersion, User)
-        .join(
-            User, User.discord_user_id == FrenzyTemplateVersion.edited_by, isouter=True
-        )
-        .where(FrenzyTemplateVersion.template_id == template_id)
-        .order_by(FrenzyTemplateVersion.version_number.desc())
-    )
-    return [
-        {
-            "id": v.id,
-            "version_number": v.version_number,
-            "created_at": v.created_at.isoformat(),
-            "edited_by": {
-                "discord_user_id": u.discord_user_id,
-                "discord_username": u.discord_username,
-                "rsn": u.rsn,
-                "avatar": u.discord_avatar_url,
-            }
-            if u
-            else None,
-        }
-        for v, u in result.all()
-    ]
-
-
-@router.get("/templates/{template_id}/versions/{version_id}")
-async def get_template_version(
-    template_id: int,
-    version_id: int,
-    session: AsyncSession = Depends(get_session),
-    _perm: None = _PERM,
-) -> dict[str, Any]:
-    """Return one archived version of a template in full."""
-    row = (
-        await session.execute(
-            select(FrenzyTemplateVersion, User)
-            .join(
-                User,
-                User.discord_user_id == FrenzyTemplateVersion.edited_by,
-                isouter=True,
-            )
-            .where(
-                FrenzyTemplateVersion.id == version_id,
-                FrenzyTemplateVersion.template_id == template_id,
-            )
-        )
-    ).one_or_none()
-    if row is None:
-        raise HTTPException(404, "Version not found.")
-    v, u = row
-    return {
-        "id": v.id,
-        "version_number": v.version_number,
-        "tiers": v.tiers,
-        "activities": v.activities,
-        "milestones": v.milestones,
-        "multipliers": v.multipliers,
-        "created_at": v.created_at.isoformat(),
-        "edited_by": {
-            "discord_user_id": u.discord_user_id,
-            "discord_username": u.discord_username,
-            "rsn": u.rsn,
-            "avatar": u.discord_avatar_url,
-        }
-        if u
-        else None,
-    }
-
-
-@router.post("/templates/{template_id}/revert/{version_id}")
-async def revert_template_to_version(
-    template_id: int,
-    version_id: int,
-    session: AsyncSession = Depends(get_session),
-    _perm: None = _PERM,
-    current_user: dict[str, Any] = Depends(get_current_user),
-) -> dict[str, Any]:
-    """Restore an archived version as the template's current definition."""
-    tmpl = (
-        await session.execute(
-            select(FrenzyTemplate).where(FrenzyTemplate.id == template_id)
-        )
-    ).scalar_one_or_none()
-    if tmpl is None:
-        raise HTTPException(404, "Template not found.")
-
-    ver = (
-        await session.execute(
-            select(FrenzyTemplateVersion).where(
-                FrenzyTemplateVersion.id == version_id,
-                FrenzyTemplateVersion.template_id == template_id,
-            )
-        )
-    ).scalar_one_or_none()
-    if ver is None:
-        raise HTTPException(404, "Version not found.")
-
-    uid = int(current_user["sub"])
-    now = datetime.now(UTC)
-    max_ver = (
-        await session.execute(
-            select(func.max(FrenzyTemplateVersion.version_number)).where(
-                FrenzyTemplateVersion.template_id == template_id
-            )
-        )
-    ).scalar_one_or_none()
-    next_ver = (max_ver or 0) + 1
-
-    session.add(
-        FrenzyTemplateVersion(
-            template_id=tmpl.id,
-            version_number=next_ver,
-            tiers=tmpl.tiers,
-            activities=tmpl.activities,
-            milestones=tmpl.milestones,
-            multipliers=tmpl.multipliers,
-            edited_by=uid,
-            created_at=now,
-        )
-    )
-    tmpl.tiers = ver.tiers
-    tmpl.activities = ver.activities
-    tmpl.milestones = ver.milestones
-    tmpl.multipliers = ver.multipliers
-    tmpl.version_number = next_ver
-    tmpl.updated_at = now
-
-    await session.commit()
-    return {
-        "id": tmpl.id,
-        "version_number": tmpl.version_number,
-        "updated_at": now.isoformat(),
-    }
-
-
-@router.post("/calculate-points")
-async def calculate_points(
-    body: CalculatePointsBody,
-    _perm: None = _PERM,
-) -> dict[str, Any]:
-    """Preview the per-tier point split for a tier set and total cap.
-
-    Pure calculation helper for the template editor; it persists nothing.
-    """
-    return {"tiers": _recalculate_tier_points(body.tiers, body.total_point_cap)}

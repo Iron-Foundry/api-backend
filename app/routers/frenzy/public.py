@@ -11,11 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import FrenzyEvent, FrenzySubmission, FrenzyTeam, FrenzyTemplate
 from app.dependencies import get_optional_user, get_session
 
-from ._scoring import (
-    _apply_pending_submissions,
-    _compute_scores_from_progress,
-    _compute_team_scores,
-)
+from ._progress import _apply_pending_submissions
+from ._scoring import _compute_scores_from_progress, _compute_team_scores
 from .signup_schemas import MyFrenzySignup
 from .signups import find_signup
 

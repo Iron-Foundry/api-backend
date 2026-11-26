@@ -12,7 +12,7 @@ from app.dependencies import get_current_user, get_session
 from app.services.page_permissions import require_page_permission
 
 from ._constants import _VALID_SOURCES, _VALID_STATUSES, _VALID_SUBMISSION_TYPES
-from ._scoring import _recompute_team_progress
+from ._progress import _recompute_team_progress
 from .schemas import SubmissionBody, SubmissionPatch
 
 router = APIRouter()
