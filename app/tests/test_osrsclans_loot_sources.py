@@ -18,6 +18,7 @@ _OSRSCLANS_ROUTES = [
     "/reference/loot-rates",
     "/reference/loot-rates/sources",
     "/reference/loot-rates/collection-log?name=Vorkath",
+    "/reference/loot-rates/collection-log/pages?q=vork",
     "/reference/osrs/npcs?q=zulrah",
     "/reference/osrs/sprites?q=slayer",
 ]
@@ -112,6 +113,8 @@ async def test_routes_report_unreachable_osrsclans_as_502(
         "/sources?limit=501",
         "/collection-log",
         "/collection-log?name=x",
+        "/collection-log/pages?q=x",
+        "/collection-log/pages?q=vork&limit=51",
     ],
 )
 async def test_routes_refuse_out_of_bound_filters(

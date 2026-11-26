@@ -9,11 +9,13 @@ import pytest
 from httpx import AsyncClient
 
 from app.services.osrsclans import client
+from app.services.osrsclans.collection_log import matching_pages
+from app.services.osrsclans.loot_rate_models import LootSource
 
 _COX = "Chambers of Xeric"
 
 
-def _source(key: str, page: str) -> dict[str, Any]:
+def _source(key: str, page: str | None) -> dict[str, Any]:
     return {
         "source": key,
         "page": key.split("#")[0],
@@ -88,7 +90,7 @@ async def test_collection_log_gathers_every_source_of_page(
     monkeypatch.setattr(client, "_transport", transport)
 
     resp = await anon_client.get(
-        "/reference/loot-rates/collection-log?name=chambers of xeric"
+        "/reference/loot-rates/collection-log?name=CHAMBERS OF XERIC"
     )
 
     assert resp.status_code == 200, resp.text
@@ -98,3 +100,38 @@ async def test_collection_log_gathers_every_source_of_page(
         ("Twisted bow", _COX)
     }
     assert len(rows) == 2
+
+
+def _named_sources(*pages: str | None) -> list[LootSource]:
+    return [
+        LootSource.model_validate(_source(f"Source {i}", page))
+        for i, page in enumerate(pages)
+    ]
+
+
+@pytest.mark.parametrize(
+    ("q", "expected"),
+    [
+        ("kril", ["K'ril Tsutsaroth"]),
+        ("Vetion", ["Vet'ion and Calvar'ion"]),
+        ("K" + chr(0x2019) + "RIL tsutsaroth", ["K'ril Tsutsaroth"]),
+        ("kraken", ["Kraken", "Kraken boss", "Cave kraken"]),
+    ],
+)
+def test_pages_match_without_case_or_apostrophes(q: str, expected: list[str]) -> None:
+    sources = _named_sources(
+        "K'ril Tsutsaroth",
+        "Vet'ion and Calvar'ion",
+        "Vet'ion and Calvar'ion",
+        "Cave kraken",
+        "Kraken boss",
+        "Kraken",
+        "Chambers of Xeric",
+        None,
+    )
+    assert [p.name for p in matching_pages(sources, q, 20)] == expected
+
+
+def test_page_counts_its_sources() -> None:
+    sources = _named_sources("Vet'ion and Calvar'ion", "Vet'ion and Calvar'ion")
+    assert matching_pages(sources, "calvar", 20)[0].sources == 2

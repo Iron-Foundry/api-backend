@@ -536,6 +536,25 @@
         "title": "ClanStatsOut",
         "type": "object"
       },
+      "CollectionLogPage": {
+        "description": "One collection log page and the count of drop sources that fill it.",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sources": {
+            "title": "Sources",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "sources"
+        ],
+        "title": "CollectionLogPage",
+        "type": "object"
+      },
       "CommandAccepted": {
         "description": "A command was published. Whether it changed anything arrives over the socket.",
         "properties": {
@@ -20342,7 +20361,7 @@
     },
     "/reference/loot-rates/collection-log": {
       "get": {
-        "description": "Return the drops of one collection log page, from every source that fills it.\n\n`name` matches the page name without regard to case. An item that several\nsources drop has one row per source. A row with no OSRSClans kill rate takes\nthe staff-set rate of its source, marked `foundry`.",
+        "description": "Return the drops of one collection log page, from every source that fills it.\n\n`name` matches the page name without regard to case, apostrophes or\npunctuation. An item that several sources drop has one row per source. A row\nwith no OSRSClans kill rate takes the staff-set rate of its source, marked\n`foundry`.",
         "operationId": "list_collection_log_rates_reference_loot_rates_collection_log_get",
         "parameters": [
           {
@@ -20400,6 +20419,87 @@
           }
         },
         "summary": "List Collection Log Rates",
+        "tags": [
+          "reference"
+        ]
+      }
+    },
+    "/reference/loot-rates/collection-log/pages": {
+      "get": {
+        "description": "Return the collection log pages whose name holds `q`.\n\nThe match ignores case, apostrophes and punctuation, so \"kril\" finds\n\"K'ril Tsutsaroth\". An exact match comes first, then the names that start\nwith `q`. Each page carries the count of drop sources that fill it.",
+        "operationId": "search_collection_log_pages_reference_loot_rates_collection_log_pages_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 2,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CollectionLogPage"
+                  },
+                  "title": "Response Search Collection Log Pages Reference Loot Rates Collection Log Pages Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "The internal service behind this proxy did not respond."
+          }
+        },
+        "summary": "Search Collection Log Pages",
         "tags": [
           "reference"
         ]
