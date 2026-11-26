@@ -55,6 +55,7 @@ from app.routers import (
     discord as discord_router,
 )
 from app.services.osrsclans.cooldown import install_cooldown_handler
+from app.services.osrsclans.name_index import forget_indexes
 from app.tests._staff_patches import staff_permission_patches
 from app.tests._wom import mock_wom_instance as mock_wom_instance
 from app.version import VERSION
@@ -167,6 +168,12 @@ def mock_session() -> MagicMock:
     session.expunge = MagicMock()
     session.expunge_all = MagicMock()
     return session
+
+
+@pytest.fixture(autouse=True)
+def _fresh_name_indexes() -> None:
+    """Each test builds the OSRS name indexes from its own stubbed answers."""
+    forget_indexes()
 
 
 @pytest.fixture

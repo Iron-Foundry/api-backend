@@ -1,4 +1,4 @@
-"""The `/reference/osrs/npcs` and `/reference/osrs/sprites` routes."""
+"""The `/reference/osrs/npcs` and `/reference/osrs/sprites` name searches."""
 
 from __future__ import annotations
 
@@ -8,61 +8,74 @@ from httpx import AsyncClient
 
 from app.services.osrsclans import client
 
-# Trimmed live rows from https://osrsclans.cc/api/v1/osrs/{npcs,sprites}/search
-_NPCS = {
-    "items": [{"id": 2042, "name": "Zulrah", "combatLevel": 725, "size": 5}],
-    "total": 3,
-    "limit": 20,
-    "offset": 0,
+# Trimmed live shapes of https://osrsclans.cc/api/v1/osrs/npcs/names and /osrs/sprites
+_NPC_NAMES = {
+    "2042": "Zulrah",
+    "2043": "Zulrah",
+    "6766": "K'ril Tsutsaroth",
+    "1": "Imp",
 }
 _SPRITES = {
-    "items": [{"id": 4255, "name": "Slayer", "category": "IconStat50x50"}],
-    "total": 22,
-    "limit": 20,
+    "items": [
+        {"id": 4255, "name": "Slayer", "category": "IconStat50x50"},
+        {"id": 216, "name": "SLAYER", "category": "Staticons2"},
+        {"id": 3206, "name": "Slayer Master", "category": "ClanRankIcons"},
+    ],
+    "total": 3,
+    "limit": 500,
     "offset": 0,
 }
 
 
-@pytest.mark.parametrize(
-    ("path", "answer", "upstream", "image"),
-    [
-        ("npcs", _NPCS, "/api/v1/osrs/npcs/search", "/npcs/2042.webp"),
-        ("sprites", _SPRITES, "/api/v1/osrs/sprites/search", "/sprites/4255.webp"),
-    ],
-)
-async def test_search_answers_rows_with_image_urls(
-    anon_client: AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
-    path: str,
-    answer: dict[str, object],
-    upstream: str,
-    image: str,
-) -> None:
-    seen: list[httpx.Request] = []
-
-    def handle(request: httpx.Request) -> httpx.Response:
+def _serving(seen: list[httpx.Request]) -> httpx.MockTransport:
+    def answer(request: httpx.Request) -> httpx.Response:
         seen.append(request)
-        return httpx.Response(200, json=answer)
+        body = _NPC_NAMES if request.url.path.endswith("/names") else _SPRITES
+        return httpx.Response(200, json=body)
 
-    monkeypatch.setattr(client, "_transport", httpx.MockTransport(handle))
-    resp = await anon_client.get(f"/reference/osrs/{path}?q=zul&limit=5")
-
-    assert resp.status_code == 200, resp.text
-    row = resp.json()["items"][0]
-    assert row["image_url"] == f"https://api.test/reference/osrs/images{image}"
-    assert (seen[0].url.path, seen[0].url.params["q"]) == (upstream, "zul")
+    return httpx.MockTransport(answer)
 
 
-async def test_npc_rows_answer_snake_case(
+async def test_npc_search_matches_without_punctuation(
     anon_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(
-        client,
-        "_transport",
-        httpx.MockTransport(lambda r: httpx.Response(200, json=_NPCS)),
+    seen: list[httpx.Request] = []
+    monkeypatch.setattr(client, "_transport", _serving(seen))
+
+    resp = await anon_client.get("/reference/osrs/npcs?q=kril")
+
+    assert resp.status_code == 200, resp.text
+    rows = resp.json()["items"]
+    assert [(r["id"], r["name"]) for r in rows] == [(6766, "K'ril Tsutsaroth")]
+    assert (
+        rows[0]["image_url"] == "https://api.test/reference/osrs/images/npcs/6766.webp"
     )
-    row = (await anon_client.get("/reference/osrs/npcs?q=zulrah")).json()["items"][0]
-    assert (row["name"], row["combat_level"]) == ("Zulrah", 725)
+    assert seen[0].url.path == "/api/v1/osrs/npcs/names"
+
+
+async def test_searches_reuse_the_name_index(
+    anon_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[httpx.Request] = []
+    monkeypatch.setattr(client, "_transport", _serving(seen))
+
+    await anon_client.get("/reference/osrs/npcs?q=zul")
+    await anon_client.get("/reference/osrs/npcs?q=imp")
+
+    assert len(seen) == 1
+
+
+async def test_sprite_search_ranks_the_exact_name_first(
+    anon_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(client, "_transport", _serving([]))
+
+    resp = await anon_client.get("/reference/osrs/sprites?q=slayer&limit=2")
+
+    page = resp.json()
+    assert [r["id"] for r in page["items"]] == [216, 4255]
+    assert page["total"] == 3
+    assert page["items"][0]["category"] == "Staticons2"
 
 
 @pytest.mark.parametrize(

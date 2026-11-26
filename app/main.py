@@ -68,6 +68,7 @@ from app.services.music_stats import MusicStatsService
 from app.services.name_change import WomNameChangeService
 from app.services.osrsclans.cooldown import install_cooldown_handler
 from app.services.osrsclans.images import public_api_url
+from app.services.osrsclans.name_index_service import NameIndexService
 from app.services.outbound_metrics import _collector as _outbound_collector
 from app.services.outbound_metrics.service import OutboundMetricsService
 from app.services.party_expiry import PartyExpiryService
@@ -107,6 +108,8 @@ async def lifespan(app: FastAPI):
     logger.info("Connecting to Valkey at {}...", VALKEY_URI)
     app.state.valkey = Valkey.from_url(VALKEY_URI)
     await frenzy.warm_osrs_caches(app.state.valkey)
+    name_index_service = NameIndexService(app.state.valkey)
+    await name_index_service.start()
 
     # Read toggle state from DB; fall back to all-enabled if DB unavailable
     if app.state.session_factory:
@@ -240,6 +243,7 @@ async def lifespan(app: FastAPI):
         if svc is not None and svc.is_running:
             await svc.stop()
     await app.state.ws_registry.stop()
+    await name_index_service.stop()
     await wom_queue.stop()
     if app.state.engine:
         logger.info("Closing PostgreSQL connection...")

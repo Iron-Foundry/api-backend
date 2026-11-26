@@ -44,6 +44,7 @@ work is about to be pushed - not per component.
 
 ### Fixed
 
+- `GET /reference/osrs/npcs`, `GET /reference/osrs/sprites`, `GET /frenzy/osrs/items` and the collection log page search match names fuzzily: case, accents, apostrophes, hyphens, underscores and other marks do not count, so "kril" finds "K'ril Tsutsaroth". The best match comes first: the exact name, then names that start with the search, then names with a word that starts with it, then the rest. Foundry matches against OSRSClans' item, NPC and sprite lists, so a search no longer calls OSRSClans. Each worker builds these indexes when the API starts and rebuilds them in the background every 50 minutes, so no search waits for a build. A failed build keeps the last indexes and retries after a minute. An NPC result no longer carries `combat_level`, and an item result no longer carries `members`.
 - `GET /frenzy/osrs/items` lists each item name once, the lowest id first, with the exact match and the names that start with the search ahead of the rest
 - A frenzy signup's time zone check works on a host with no system time zone data, such as Windows, through the `tzdata` package
 - Clan chat broadcasts with game variable tags store the correct item, value and player

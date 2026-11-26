@@ -132,7 +132,8 @@ async def guarded_get(
     """
     await raise_if_cooling_down(valkey)
     task = _in_flight.get(key)
-    if task is None:
+    # A task belongs to one event loop; a second app on another loop sends its own.
+    if task is None or task.get_loop() is not asyncio.get_running_loop():
         task = asyncio.create_task(_get_or_cool(valkey, path, params))
         _in_flight[key] = task
         task.add_done_callback(lambda done: _forget(key, done))

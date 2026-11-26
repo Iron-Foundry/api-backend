@@ -17,17 +17,35 @@ import asyncio
 import os
 from collections.abc import AsyncGenerator, Iterator
 
+import httpx
 import pytest
 import sqlalchemy as sa
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
+from app.services.osrsclans import client as osrsclans_client
 from app.tests.conftest import TEST_USER
 from app.tests.integration import _infra as infra
 from app.tests.integration import _truncation as truncation
 
 pytestmark = pytest.mark.integration
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _no_live_osrsclans() -> Iterator[None]:
+    """The suite never reaches the live OSRSClans: an unstubbed call answers 404.
+
+    The real lifespan starts the name index service, which calls OSRSClans. A 404
+    starts no cooldown, so it leaves the shared Valkey clean for the cache tests.
+    """
+    previous = osrsclans_client._transport
+    osrsclans_client._transport = httpx.MockTransport(
+        lambda _: httpx.Response(404, json={})
+    )
+    yield
+    osrsclans_client._transport = previous
+
 
 _docker = pytest.importorskip("docker")
 _tc_postgres = pytest.importorskip("testcontainers.postgres")

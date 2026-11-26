@@ -15625,7 +15625,7 @@
     },
     "/frenzy/osrs/items": {
       "get": {
-        "description": "Search OSRS items by name on OSRSClans for the frenzy task editor.",
+        "description": "Search OSRS item names for the frenzy and tile editors, best match first.\n\nOne item per name, the lowest id. The match ignores case, accents and\npunctuation. Foundry matches against OSRSClans' item name list, which it\nreads once an hour.",
         "operationId": "search_osrs_items_frenzy_osrs_items_get",
         "parameters": [
           {
@@ -21109,7 +21109,7 @@
     },
     "/reference/osrs/npcs": {
       "get": {
-        "description": "Return the NPCs from OSRSClans whose name holds `q`, with each one's still.",
+        "description": "Return the NPCs whose name holds `q`, best match first, with each one's still.\n\nThe match ignores case, accents and punctuation, so \"kril\" finds\n\"K'ril Tsutsaroth\". Foundry matches against OSRSClans' NPC name list, which it\nreads once an hour.",
         "operationId": "search_npcs_reference_osrs_npcs_get",
         "parameters": [
           {
@@ -21379,7 +21379,7 @@
     },
     "/reference/osrs/sprites": {
       "get": {
-        "description": "Return the interface sprites from OSRSClans whose name holds `q`.",
+        "description": "Return the interface sprites whose name holds `q`, best match first.\n\nThe match ignores case, accents and punctuation. Foundry matches against\nOSRSClans' sprite list, which it reads once an hour.",
         "operationId": "search_sprites_reference_osrs_sprites_get",
         "parameters": [
           {

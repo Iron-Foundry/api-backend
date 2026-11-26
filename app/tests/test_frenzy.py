@@ -4,33 +4,24 @@ import httpx
 import pytest
 from httpx import AsyncClient
 
-from app.routers.frenzy.osrs_ref import ranked_item_names
 from app.services.osrsclans import client as osrsclans_client
-from app.services.osrsclans.items import OsrsItem
 
-_WHIP_PAGE = {
-    "items": [
-        {"id": 4151, "name": "Abyssal whip", "members": True},
-        {"id": 4152, "name": None, "members": True},
-    ],
-    "total": 2,
-    "limit": 30,
-    "offset": 0,
-}
+# A trimmed live shape of https://osrsclans.cc/api/v1/osrs/items/names
+_ITEM_NAMES = {"4151": "Abyssal whip", "4178": "Abyssal whip", "1": "Toolkit"}
 
 
-async def test_item_search_reads_osrsclans_named_items(
+async def test_item_search_lists_each_name_once(
     auth_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     seen: list[httpx.Request] = []
 
     def answer(request: httpx.Request) -> httpx.Response:
         seen.append(request)
-        return httpx.Response(200, json=_WHIP_PAGE)
+        return httpx.Response(200, json=_ITEM_NAMES)
 
     monkeypatch.setattr(osrsclans_client, "_transport", httpx.MockTransport(answer))
 
-    resp = await auth_client.get("/frenzy/osrs/items?q=whip")
+    resp = await auth_client.get("/frenzy/osrs/items?q=abyssal-WHIP")
 
     assert resp.status_code == 200, resp.text
     assert resp.json() == [
@@ -38,33 +29,9 @@ async def test_item_search_reads_osrsclans_named_items(
             "id": 4151,
             "name": "Abyssal whip",
             "icon_url": "https://api.test/reference/osrs/images/items/4151.webp",
-            "members": True,
         }
     ]
-    assert seen[0].url.path == "/api/v1/osrs/items/search"
-
-
-_KODAI = [
-    (23626, "Kodai wand"),
-    (20946, "Kodai (+)(2)"),
-    (21006, "Kodai wand"),
-    (21043, "Kodai insignia"),
-    (7, "Insignia of kodai"),
-]
-
-
-@pytest.mark.parametrize(
-    ("q", "expected"),
-    [
-        ("kodai", [20946, 21043, 21006, 7]),
-        ("Kodai insignia", [21043, 7, 20946, 21006]),
-    ],
-)
-def test_item_names_rank_exact_first_without_repeats(
-    q: str, expected: list[int]
-) -> None:
-    items = [OsrsItem.model_validate({"id": i, "name": n}) for i, n in _KODAI]
-    assert [i.id for i in ranked_item_names(items, q)] == expected
+    assert seen[0].url.path == "/api/v1/osrs/items/names"
 
 
 async def test_active_event(auth_client: AsyncClient) -> None:

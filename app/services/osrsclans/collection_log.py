@@ -8,7 +8,6 @@ rows. Each query goes through `cached_page`, so a repeat costs no request.
 from __future__ import annotations
 
 import asyncio
-import re
 
 from pydantic import BaseModel
 from valkey.asyncio import Valkey
@@ -20,11 +19,10 @@ from app.services.osrsclans.loot_rates import (
     cached_loot_rates,
     cached_loot_sources,
 )
+from app.services.osrsclans.name_search import best_matches, name_entries, search_key
 
 _SOURCE_WINDOW = 500
 _ROW_WINDOW = 100
-_APOSTROPHES = str.maketrans("", "", "'`" + chr(0x2018) + chr(0x2019))
-_NOT_WORD = re.compile(r"[^0-9a-z]+")
 
 
 class CollectionLogPage(BaseModel):
@@ -34,34 +32,18 @@ class CollectionLogPage(BaseModel):
     sources: int
 
 
-def page_key(name: str) -> str:
-    """Return a name without case, apostrophes or punctuation, its words one space apart."""
-    folded = name.casefold().translate(_APOSTROPHES)
-    return " ".join(_NOT_WORD.sub(" ", folded).split())
-
-
-def _page_rank(name: str, key: str) -> tuple[int, str]:
-    own = page_key(name)
-    if own == key:
-        return (0, name)
-    return (1 if own.startswith(key) else 2, name)
-
-
 def matching_pages(
     sources: list[LootSource], q: str, limit: int
 ) -> list[CollectionLogPage]:
-    """Return the pages whose key holds the key of `q`, exact and prefix matches first."""
-    key = page_key(q)
+    """Return the pages whose name holds `q`, best match first (see `name_search`)."""
     counts: dict[str, int] = {}
     for source in sources:
         if source.collection_log_page:
             name = source.collection_log_page
             counts[name] = counts.get(name, 0) + 1
-    hits = sorted(
-        (name for name in counts if key in page_key(name)),
-        key=lambda name: _page_rank(name, key),
-    )
-    return [CollectionLogPage(name=n, sources=counts[n]) for n in hits[:limit]]
+    entries = name_entries(enumerate(counts))
+    hits = best_matches(entries, q, limit)
+    return [CollectionLogPage(name=e.name, sources=counts[e.name]) for e in hits]
 
 
 async def _flagged_sources(valkey: Valkey) -> list[LootSource]:
@@ -77,7 +59,7 @@ async def _flagged_sources(valkey: Valkey) -> list[LootSource]:
 
 
 def _on_page(name: str | None, page_name: str) -> bool:
-    return name is not None and page_key(name) == page_key(page_name)
+    return name is not None and search_key(name) == search_key(page_name)
 
 
 async def cached_collection_log_pages(
