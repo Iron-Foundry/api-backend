@@ -10,6 +10,7 @@ from .history import router as history_router
 from .osrs_ref import router as osrs_ref_router
 from .public import router as public_router
 from .public_board import router as public_board_router
+from .public_signups import router as public_signups_router
 from .public_team import router as public_team_router
 from .signup_list import router as signup_list_router
 from .signups import router as signups_router
@@ -23,6 +24,7 @@ router = APIRouter(prefix="/frenzy", tags=["frenzy"])
 # Public routes first
 router.include_router(public_router)
 router.include_router(public_board_router)
+router.include_router(public_signups_router)
 router.include_router(public_team_router)
 router.include_router(history_router)
 router.include_router(osrs_ref_router)
