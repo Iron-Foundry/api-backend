@@ -8,7 +8,12 @@ from valkey.asyncio import Valkey
 
 from app.dependencies import get_valkey
 from app.services.osrsclans.client import OsrsClansError
-from app.services.osrsclans.items import ItemSearchAsk, cached_items, item_image_url
+from app.services.osrsclans.items import (
+    ItemSearchAsk,
+    OsrsItem,
+    cached_items,
+    item_image_url,
+)
 
 from ._constants import _ACTIVITIES_KEY, _BOSSES_KEY
 from ._osrs_cache import _refresh_osrs_activities, _refresh_osrs_bosses
@@ -16,6 +21,22 @@ from ._osrs_cache import _refresh_osrs_activities, _refresh_osrs_bosses
 router = APIRouter()
 
 _ITEM_RESULT_LIMIT = 30
+
+
+def _match_rank(name: str, q: str) -> int:
+    folded, term = name.casefold(), q.casefold()
+    if folded == term:
+        return 0
+    return 1 if folded.startswith(term) else 2
+
+
+def ranked_item_names(items: list[OsrsItem], q: str) -> list[OsrsItem]:
+    """Return one item per name, lowest id first, the exact match and prefixes ahead."""
+    first: dict[str, OsrsItem] = {}
+    for item in sorted(items, key=lambda i: i.id):
+        if item.name and item.name.casefold() not in first:
+            first[item.name.casefold()] = item
+    return sorted(first.values(), key=lambda i: (_match_rank(i.name or "", q), i.name))
 
 
 @router.get("/osrs/items")
@@ -37,8 +58,7 @@ async def search_osrs_items(
             "icon_url": item_image_url(item.id),
             "members": item.members,
         }
-        for item in page.items
-        if item.name
+        for item in ranked_item_names(page.items, q.strip())
     ]
 
 
