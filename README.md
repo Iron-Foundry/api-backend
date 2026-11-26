@@ -40,8 +40,6 @@ uv run uvicorn app.main:app --reload
 | `FRONTEND_URL` | No | `https://ironfoundry.cc` | Allowed CORS origins, comma-separated |
 | `STAFF_ROLE_ID` / `SENIOR_STAFF_ROLE_ID` / `OWNER_ROLE_ID` / `MENTOR_ROLE_ID` | Yes | - | Permission tier role IDs |
 | `UPLOAD_DIR` | No | `/app/uploads` | Asset storage directory |
-| `OSRS_CACHE_SERVICE_URL` | No | `http://osrs-cache-service:8100` | Internal osrs-cache-service base URL |
-| `MAP_TILES_BASE_URL` | No | - | Public base URL of the `cache-tiles` nginx sidecar |
 | `METRICS_API_KEY` | No | - | Shared service key accepted on metrics ingest |
 | `LAVALINK_URI` / `LAVALINK_PASSWORD` | No | - | Lavalink node, for the music bridge |
 | `WOM_GROUP_ID` | No | - | Wise Old Man group ID - enables RSN name change tracking when set |

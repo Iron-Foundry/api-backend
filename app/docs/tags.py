@@ -135,20 +135,13 @@ TAGS_METADATA: list[dict[str, Any]] = [
         ),
     },
     {
-        "name": "osrs-cache",
-        "description": (
-            "Read-only proxy to the internal cache service, which decodes the "
-            "live OSRS game cache. Items and their variants, NPCs, objects, "
-            "sprites, rendered item icons, and slippy-map data. No auth; "
-            "responses are immutable per cache build."
-        ),
-    },
-    {
         "name": "reference",
         "description": (
-            "Static game reference data refreshed on a schedule: loot tables "
-            "parsed from the OSRS Wiki (forward by source, reverse by item) and "
-            "EHP/EHB efficiency rates from WiseOldMan. No auth."
+            "Game reference data. Items, NPCs, sprites, loot rates and drop "
+            "sources come from OSRSClans through a one-hour Valkey cache; item, "
+            "NPC and sprite images load from OSRSClans itself. Staff-set kill "
+            "rates fill the sources OSRSClans gives none, and EHP/EHB efficiency "
+            "rates come from WiseOldMan. Reads need no auth."
         ),
     },
     {
@@ -216,6 +209,6 @@ TAG_GROUPS: list[dict[str, Any]] = [
     },
     {
         "name": "Game Data and Integrations",
-        "tags": ["osrs-cache", "reference", "discord", "runelite-configs"],
+        "tags": ["reference", "discord", "runelite-configs"],
     },
 ]

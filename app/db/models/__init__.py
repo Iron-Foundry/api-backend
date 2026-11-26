@@ -25,13 +25,9 @@ from .content import (
 from .discord import RolePanel
 from .events import CofferEvent, Event, Leaderboard, MembershipEvent, Metric
 from .feedback import Feedback, FeedbackReaction, FeedbackReply
-from .frenzy import (
-    FrenzyEvent,
-    FrenzySubmission,
-    FrenzyTeam,
-    FrenzyTemplate,
-    FrenzyTemplateVersion,
-)
+from .frenzy import FrenzyEvent, FrenzyTemplate, FrenzyTemplateVersion
+from .frenzy_roster import FrenzyDraft, FrenzySignup, FrenzyTeam
+from .frenzy_submissions import FrenzySubmission
 from .gains import BulkGainsBatch, PlayerBulkGains
 from .goals import MemberGoals
 from .music import (
@@ -47,7 +43,7 @@ from .parties import (
     PartyNotificationPreferences,
 )
 from .ranking import CompetitionSnapshot, PlayerRanking, PlayerSnapshot
-from .reference_data import EfficiencyRate, LootDrop, LootSource
+from .reference_data import EfficiencyRate, SourceKillRate
 from .runelite_configs import RuneLiteConfig
 from .service_metrics import MetricRecord, MetricRecordCompact, ServiceStatus
 from .surveys import SurveyActive, SurveyResponse, SurveyTemplate, WebSurveySubmission
@@ -86,14 +82,14 @@ __all__ = [
     "Feedback",
     "FeedbackReaction",
     "FeedbackReply",
+    "FrenzyDraft",
     "FrenzyEvent",
+    "FrenzySignup",
     "FrenzySubmission",
     "FrenzyTeam",
     "FrenzyTemplate",
     "FrenzyTemplateVersion",
     "Leaderboard",
-    "LootDrop",
-    "LootSource",
     "MemberGoals",
     "MembershipEvent",
     "Metric",
@@ -114,6 +110,7 @@ __all__ = [
     "RuneLiteConfig",
     "ScheduledCompetitionRun",
     "ServiceStatus",
+    "SourceKillRate",
     "SurveyActive",
     "SurveyResponse",
     "SurveyTemplate",

@@ -2,10 +2,6 @@ from __future__ import annotations
 
 import os
 
-_OSRS_CACHE_SERVICE_URL = os.getenv(
-    "OSRS_CACHE_SERVICE_URL", "http://osrs-cache-service:8100"
-).rstrip("/")
-
 _WOM_API_KEY = os.getenv("WOM_API_KEY")
 _WOM_DISCORD_CONTACT = os.getenv("WOM_DISCORD_CONTACT")
 _WOM_GROUP_ID = os.getenv("WOM_GROUP_ID", "9403")
@@ -17,7 +13,6 @@ _LB_FRESH_TTL = 5 * 60
 _LB_STALE_TTL = 2 * 60 * 60
 _LB_LOCK_TTL = 120
 
-_ITEMS_KEY = "osrs:items:mapping"
 _BOSSES_KEY = "osrs:bosses:list"
 _ACTIVITIES_KEY = "osrs:activities:list"
 _OSRS_REF_TTL = 24 * 60 * 60
@@ -27,9 +22,6 @@ _VALID_SUBMISSION_TYPES = {"item", "activity", "milestone"}
 _VALID_STATUSES = {"pending", "approved", "rejected"}
 
 _WIKI_IMAGE_BASE = "https://oldschool.runescape.wiki/images"
-
-_API_BACKEND_URL = os.getenv("API_BACKEND_URL", "").rstrip("/")
-_ITEM_ICON_BASE = f"{_API_BACKEND_URL}/osrs-cache/item-icons"
 
 
 def _wiki_icon(slug: str) -> str:

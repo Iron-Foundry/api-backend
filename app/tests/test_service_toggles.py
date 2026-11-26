@@ -51,12 +51,12 @@ async def test_enabling_a_service_is_published_too(staff_client: AsyncClient) ->
     app.state.valkey.publish.reset_mock()
 
     resp = await staff_client.put(
-        "/config/services/toggles/loot_tables", json={"enabled": True}
+        "/config/services/toggles/efficiency_rates", json={"enabled": True}
     )
 
     assert resp.status_code == 200
     assert _published(app.state.valkey) == {
-        "service_key": "loot_tables",
+        "service_key": "efficiency_rates",
         "enabled": True,
     }
 

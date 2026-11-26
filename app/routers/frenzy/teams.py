@@ -18,7 +18,7 @@ from .schemas import TeamBody, TeamPatch
 
 router = APIRouter()
 
-_PERM = Depends(require_page_permission("frenzy", "edit"))
+_PERM = Depends(require_page_permission("frenzy.admin", "edit"))
 
 
 @router.post("/events/{event_id}/teams", status_code=201)

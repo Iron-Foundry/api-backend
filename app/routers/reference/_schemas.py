@@ -3,43 +3,28 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class SourceOut(BaseModel):
-    slug: str
-    display_name: str
-    category: str
-    wiki_page: str
-    reward_kind: str | None
+class KillRateBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kills_per_hour: float = Field(gt=0, le=100_000)
+
+
+class KillRateOut(BaseModel):
+    source: str
+    kills_per_hour: float
+    set_by: int
+    set_by_name: str | None
     updated_at: datetime
 
 
-class DropOut(BaseModel):
-    item_id: int | None
-    item_name: str
-    quantity_low: int
-    quantity_high: int
-    noted: bool
-    rarity_num: int | None
-    rarity_denom: int | None
-    rarity_text: str | None
-    rolls: int
-    drop_group: str
-    ge_price: int | None = None
-
-
-class SourceListOut(SourceOut):
-    drop_count: int
-
-
-class SourceDetailOut(SourceOut):
-    drops: list[DropOut]
-
-
-class ItemSourceOut(BaseModel):
-    source: SourceOut
-    drop: DropOut
+class KillRatePage(BaseModel):
+    items: list[KillRateOut]
+    total: int
+    limit: int
+    offset: int
 
 
 class RateOut(BaseModel):

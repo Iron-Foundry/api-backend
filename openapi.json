@@ -1381,13 +1381,26 @@
         "title": "DiscordTeamResult",
         "type": "object"
       },
-      "DropOut": {
+      "DraftMember": {
+        "description": "One signup as the draft shows it; rank and points are null without a ranking.\n\n`timezone` is the IANA zone the member signed up from, null when unknown.",
         "properties": {
-          "drop_group": {
-            "title": "Drop Group",
-            "type": "string"
+          "pick_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "captain",
+                  "drafted",
+                  "auto"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pick Kind"
           },
-          "ge_price": {
+          "pick_number": {
             "anyOf": [
               {
                 "type": "integer"
@@ -1396,9 +1409,9 @@
                 "type": "null"
               }
             ],
-            "title": "Ge Price"
+            "title": "Pick Number"
           },
-          "item_id": {
+          "points": {
             "anyOf": [
               {
                 "type": "integer"
@@ -1407,47 +1420,9 @@
                 "type": "null"
               }
             ],
-            "title": "Item Id"
+            "title": "Points"
           },
-          "item_name": {
-            "title": "Item Name",
-            "type": "string"
-          },
-          "noted": {
-            "title": "Noted",
-            "type": "boolean"
-          },
-          "quantity_high": {
-            "title": "Quantity High",
-            "type": "integer"
-          },
-          "quantity_low": {
-            "title": "Quantity Low",
-            "type": "integer"
-          },
-          "rarity_denom": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Rarity Denom"
-          },
-          "rarity_num": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Rarity Num"
-          },
-          "rarity_text": {
+          "rank": {
             "anyOf": [
               {
                 "type": "string"
@@ -1456,26 +1431,238 @@
                 "type": "null"
               }
             ],
-            "title": "Rarity Text"
+            "title": "Rank"
           },
-          "rolls": {
-            "title": "Rolls",
+          "rsn": {
+            "title": "Rsn",
+            "type": "string"
+          },
+          "signup_id": {
+            "title": "Signup Id",
+            "type": "integer"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone"
+          },
+          "wants_captain": {
+            "title": "Wants Captain",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "signup_id",
+          "rsn",
+          "timezone",
+          "rank",
+          "points",
+          "wants_captain",
+          "pick_number",
+          "pick_kind"
+        ],
+        "title": "DraftMember",
+        "type": "object"
+      },
+      "DraftMoveBody": {
+        "additionalProperties": false,
+        "description": "Moves a drafted member to another team of the event.",
+        "properties": {
+          "signup_id": {
+            "minimum": 1.0,
+            "title": "Signup Id",
+            "type": "integer"
+          },
+          "team_id": {
+            "minimum": 1.0,
+            "title": "Team Id",
             "type": "integer"
           }
         },
         "required": [
-          "item_id",
-          "item_name",
-          "quantity_low",
-          "quantity_high",
-          "noted",
-          "rarity_num",
-          "rarity_denom",
-          "rarity_text",
-          "rolls",
-          "drop_group"
+          "signup_id",
+          "team_id"
         ],
-        "title": "DropOut",
+        "title": "DraftMoveBody",
+        "type": "object"
+      },
+      "DraftPickBody": {
+        "additionalProperties": false,
+        "description": "One pick; `pick_number` must be the draft's next pick.",
+        "properties": {
+          "pick_number": {
+            "minimum": 1.0,
+            "title": "Pick Number",
+            "type": "integer"
+          },
+          "signup_id": {
+            "minimum": 1.0,
+            "title": "Signup Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "signup_id",
+          "pick_number"
+        ],
+        "title": "DraftPickBody",
+        "type": "object"
+      },
+      "DraftSetupBody": {
+        "additionalProperties": false,
+        "description": "The mode, the top picks per captain and the captains, as signup ids.",
+        "properties": {
+          "captain_signup_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 50,
+            "minItems": 2,
+            "title": "Captain Signup Ids",
+            "type": "array"
+          },
+          "mode": {
+            "enum": [
+              "full",
+              "top_picks"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "top_picks": {
+            "default": 5,
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Top Picks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "mode",
+          "captain_signup_ids"
+        ],
+        "title": "DraftSetupBody",
+        "type": "object"
+      },
+      "DraftTeam": {
+        "properties": {
+          "captain": {
+            "$ref": "#/components/schemas/DraftMember"
+          },
+          "captain_discord_user_id": {
+            "title": "Captain Discord User Id",
+            "type": "string"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/DraftMember"
+            },
+            "title": "Members",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "team_id": {
+            "title": "Team Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "team_id",
+          "name",
+          "captain",
+          "captain_discord_user_id",
+          "members"
+        ],
+        "title": "DraftTeam",
+        "type": "object"
+      },
+      "DraftView": {
+        "description": "The whole draft: teams in drawn order, the pool strongest first.",
+        "properties": {
+          "captains": {
+            "items": {
+              "$ref": "#/components/schemas/DraftMember"
+            },
+            "title": "Captains",
+            "type": "array"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "integer"
+          },
+          "mode": {
+            "enum": [
+              "full",
+              "top_picks"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "next_pick": {
+            "title": "Next Pick",
+            "type": "integer"
+          },
+          "picking_team_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Picking Team Id"
+          },
+          "pool": {
+            "items": {
+              "$ref": "#/components/schemas/DraftMember"
+            },
+            "title": "Pool",
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "setup",
+              "drawn",
+              "picking",
+              "complete"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "teams": {
+            "items": {
+              "$ref": "#/components/schemas/DraftTeam"
+            },
+            "title": "Teams",
+            "type": "array"
+          },
+          "top_picks": {
+            "title": "Top Picks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "event_id",
+          "mode",
+          "top_picks",
+          "state",
+          "next_pick",
+          "picking_team_id",
+          "captains",
+          "teams",
+          "pool"
+        ],
+        "title": "DraftView",
         "type": "object"
       },
       "EditCompetitionInput": {
@@ -1708,6 +1895,166 @@
         "title": "FreeTextSection",
         "type": "object"
       },
+      "FrenzySignupBody": {
+        "additionalProperties": false,
+        "description": "A signup request; no `account_id` means the member's primary account.\n\n`timezone` is the member's IANA time zone, as their browser reports it.",
+        "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone"
+          },
+          "wants_captain": {
+            "default": false,
+            "title": "Wants Captain",
+            "type": "boolean"
+          }
+        },
+        "title": "FrenzySignupBody",
+        "type": "object"
+      },
+      "FrenzySignupList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FrenzySignupOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "FrenzySignupList",
+        "type": "object"
+      },
+      "FrenzySignupOut": {
+        "description": "One signup in the staff list.",
+        "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
+          "discord_user_id": {
+            "title": "Discord User Id",
+            "type": "string"
+          },
+          "discord_username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discord Username"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "rsn": {
+            "title": "Rsn",
+            "type": "string"
+          },
+          "signed_up_at": {
+            "format": "date-time",
+            "title": "Signed Up At",
+            "type": "string"
+          },
+          "wants_captain": {
+            "title": "Wants Captain",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "wants_captain",
+          "discord_user_id",
+          "discord_username",
+          "account_id",
+          "rsn",
+          "signed_up_at"
+        ],
+        "title": "FrenzySignupOut",
+        "type": "object"
+      },
+      "FrenzySignupPatch": {
+        "additionalProperties": false,
+        "description": "Moves a signup to another linked account, or changes the opt-in or time zone.",
+        "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone"
+          },
+          "wants_captain": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wants Captain"
+          }
+        },
+        "title": "FrenzySignupPatch",
+        "type": "object"
+      },
       "GenerateTeamsBody": {
         "properties": {
           "balance_raids_kc": {
@@ -1881,20 +2228,112 @@
         "title": "InfoPanelConfig",
         "type": "object"
       },
-      "ItemSourceOut": {
+      "ItemOut": {
         "properties": {
-          "drop": {
-            "$ref": "#/components/schemas/DropOut"
+          "examine": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Examine"
           },
-          "source": {
-            "$ref": "#/components/schemas/SourceOut"
+          "icon_url": {
+            "title": "Icon Url",
+            "type": "string"
+          },
+          "item_id": {
+            "title": "Item Id",
+            "type": "integer"
+          },
+          "members": {
+            "title": "Members",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "noted_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Noted Id"
+          },
+          "placeholder_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Placeholder Id"
+          },
+          "stackable": {
+            "title": "Stackable",
+            "type": "boolean"
+          },
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id"
+          },
+          "tradeable": {
+            "title": "Tradeable",
+            "type": "boolean"
+          },
+          "value": {
+            "title": "Value",
+            "type": "integer"
+          },
+          "variant_count": {
+            "title": "Variant Count",
+            "type": "integer"
+          },
+          "weight": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight"
           }
         },
         "required": [
-          "source",
-          "drop"
+          "item_id",
+          "name",
+          "examine",
+          "stackable",
+          "value",
+          "members",
+          "tradeable",
+          "noted_id",
+          "placeholder_id",
+          "team_id",
+          "weight",
+          "icon_url",
+          "variant_count"
         ],
-        "title": "ItemSourceOut",
+        "title": "ItemOut",
         "type": "object"
       },
       "JoinPartyRequest": {
@@ -1926,6 +2365,94 @@
           }
         },
         "title": "JoinRolesFeatureConfig",
+        "type": "object"
+      },
+      "KillRateBody": {
+        "additionalProperties": false,
+        "properties": {
+          "kills_per_hour": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 100000.0,
+            "title": "Kills Per Hour",
+            "type": "number"
+          }
+        },
+        "required": [
+          "kills_per_hour"
+        ],
+        "title": "KillRateBody",
+        "type": "object"
+      },
+      "KillRateOut": {
+        "properties": {
+          "kills_per_hour": {
+            "title": "Kills Per Hour",
+            "type": "number"
+          },
+          "set_by": {
+            "title": "Set By",
+            "type": "integer"
+          },
+          "set_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set By Name"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "kills_per_hour",
+          "set_by",
+          "set_by_name",
+          "updated_at"
+        ],
+        "title": "KillRateOut",
+        "type": "object"
+      },
+      "KillRatePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/KillRateOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "KillRatePage",
         "type": "object"
       },
       "LatestAchievementSchema": {
@@ -2187,6 +2714,18 @@
             ],
             "title": "High Alchemy"
           },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true,
+            "title": "Image Url"
+          },
           "item_id": {
             "anyOf": [
               {
@@ -2211,7 +2750,8 @@
                   "clue_scroll",
                   "fixed",
                   "item_drop",
-                  "superior"
+                  "superior",
+                  "foundry"
                 ],
                 "type": "string"
               },
@@ -2333,7 +2873,8 @@
           "skill",
           "ge_price",
           "high_alchemy",
-          "read_at"
+          "read_at",
+          "image_url"
         ],
         "title": "LootRate",
         "type": "object"
@@ -2446,7 +2987,8 @@
                   "clue_scroll",
                   "fixed",
                   "item_drop",
-                  "superior"
+                  "superior",
+                  "foundry"
                 ],
                 "type": "string"
               },
@@ -2609,6 +3151,55 @@
           "module_name"
         ],
         "title": "MetricReportBody",
+        "type": "object"
+      },
+      "MyFrenzySignup": {
+        "description": "The caller's own signup, as the public event view shows it.",
+        "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
+          "rsn": {
+            "title": "Rsn",
+            "type": "string"
+          },
+          "signed_up_at": {
+            "format": "date-time",
+            "title": "Signed Up At",
+            "type": "string"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone"
+          },
+          "wants_captain": {
+            "title": "Wants Captain",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "account_id",
+          "rsn",
+          "wants_captain",
+          "timezone",
+          "signed_up_at"
+        ],
+        "title": "MyFrenzySignup",
         "type": "object"
       },
       "NameChangesSection": {
@@ -2848,6 +3439,13 @@
               }
             ],
             "title": "Category"
+          },
+          "frames": {
+            "items": {
+              "$ref": "#/components/schemas/SpriteFrame"
+            },
+            "title": "Frames",
+            "type": "array"
           },
           "id": {
             "title": "Id",
@@ -4527,122 +5125,56 @@
         "title": "SnakesLaddersModifier",
         "type": "object"
       },
-      "SourceDetailOut": {
+      "SpriteCategoryOut": {
         "properties": {
           "category": {
             "title": "Category",
             "type": "string"
           },
-          "display_name": {
-            "title": "Display Name",
-            "type": "string"
-          },
-          "drops": {
-            "items": {
-              "$ref": "#/components/schemas/DropOut"
-            },
-            "title": "Drops",
-            "type": "array"
-          },
-          "reward_kind": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reward Kind"
-          },
-          "slug": {
-            "title": "Slug",
-            "type": "string"
-          },
-          "updated_at": {
-            "format": "date-time",
-            "title": "Updated At",
-            "type": "string"
-          },
-          "wiki_page": {
-            "title": "Wiki Page",
-            "type": "string"
+          "count": {
+            "title": "Count",
+            "type": "integer"
           }
         },
         "required": [
-          "slug",
-          "display_name",
           "category",
-          "wiki_page",
-          "reward_kind",
-          "updated_at",
-          "drops"
+          "count"
         ],
-        "title": "SourceDetailOut",
+        "title": "SpriteCategoryOut",
         "type": "object"
       },
-      "SourceListOut": {
+      "SpriteFrame": {
+        "description": "One frame of a sprite. Most sprites have one.",
         "properties": {
-          "category": {
-            "title": "Category",
-            "type": "string"
+          "empty": {
+            "default": false,
+            "title": "Empty",
+            "type": "boolean"
           },
-          "display_name": {
-            "title": "Display Name",
-            "type": "string"
-          },
-          "drop_count": {
-            "title": "Drop Count",
+          "frame": {
+            "title": "Frame",
             "type": "integer"
           },
-          "reward_kind": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reward Kind"
+          "height": {
+            "title": "Height",
+            "type": "integer"
           },
-          "slug": {
-            "title": "Slug",
-            "type": "string"
-          },
-          "updated_at": {
-            "format": "date-time",
-            "title": "Updated At",
-            "type": "string"
-          },
-          "wiki_page": {
-            "title": "Wiki Page",
-            "type": "string"
+          "width": {
+            "title": "Width",
+            "type": "integer"
           }
         },
         "required": [
-          "slug",
-          "display_name",
-          "category",
-          "wiki_page",
-          "reward_kind",
-          "updated_at",
-          "drop_count"
+          "frame",
+          "width",
+          "height"
         ],
-        "title": "SourceListOut",
+        "title": "SpriteFrame",
         "type": "object"
       },
-      "SourceOut": {
+      "SpriteFrameOut": {
         "properties": {
           "category": {
-            "title": "Category",
-            "type": "string"
-          },
-          "display_name": {
-            "title": "Display Name",
-            "type": "string"
-          },
-          "reward_kind": {
             "anyOf": [
               {
                 "type": "string"
@@ -4651,31 +5183,70 @@
                 "type": "null"
               }
             ],
-            "title": "Reward Kind"
+            "title": "Category"
           },
-          "slug": {
-            "title": "Slug",
+          "frame_index": {
+            "title": "Frame Index",
+            "type": "integer"
+          },
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
             "type": "string"
           },
-          "updated_at": {
-            "format": "date-time",
-            "title": "Updated At",
+          "sprite_id": {
+            "title": "Sprite Id",
+            "type": "integer"
+          },
+          "svg_url": {
+            "title": "Svg Url",
             "type": "string"
           },
-          "wiki_page": {
-            "title": "Wiki Page",
+          "webp_url": {
+            "title": "Webp Url",
             "type": "string"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
           }
         },
         "required": [
-          "slug",
-          "display_name",
-          "category",
-          "wiki_page",
-          "reward_kind",
-          "updated_at"
+          "sprite_id",
+          "frame_index",
+          "width",
+          "height",
+          "webp_url",
+          "svg_url",
+          "name",
+          "category"
         ],
-        "title": "SourceOut",
+        "title": "SpriteFrameOut",
+        "type": "object"
+      },
+      "SpriteFramePage": {
+        "description": "The frames of one window of sprites. `sprites` is the window's sprite count.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SpriteFrameOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "sprites": {
+            "title": "Sprites",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "sprites"
+        ],
+        "title": "SpriteFramePage",
         "type": "object"
       },
       "StaffCascadeBody": {
@@ -6067,6 +6638,17 @@
             ],
             "title": "Name"
           },
+          "signups_open": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signups Open"
+          },
           "starts_at": {
             "anyOf": [
               {
@@ -6721,7 +7303,7 @@
     }
   },
   "info": {
-    "description": "The backend for **The Iron Foundry**, an Old School RuneScape clan. It serves the\ncommunity site at [ironfoundry.cc](https://ironfoundry.cc), the clan's Discord\nbots, and the in-game RuneLite plugin from one PostgreSQL + Valkey stack.\n\n## Authentication\n\nThree credentials exist, each for a different caller.\n\n**`DiscordJWT`** - the browser session. `GET /auth/login` redirects to Discord\nOAuth2; `GET /auth/callback` verifies guild membership, upserts the user, and\nredirects back to the frontend with an HS256 JWT in the query string. Send it as\n`Authorization: Bearer <token>` on every member or staff endpoint. `GET /auth/me`\nreturns the decoded profile with Discord roles, refreshed when stale.\n\n**`MemberApiKey`** - the RuneLite plugin. Each member holds a personal key from\n`GET /members/me/api-key` (rotate with `POST /members/me/api-key/rotate`), sent as\na `verification-code` header. `POST /auth/token` trades the same key for a JWT\nwhen a plugin needs member-scoped web endpoints. Revoked keys are rejected.\n\n**`MetricsApiKey`** - service-to-service. A shared secret the Discord services\npresent, also as `verification-code`, to report telemetry and dispatch clan chat.\n\nMissing or invalid credentials return `401`. A valid token whose roles do not\nsatisfy an endpoint's permission returns `403`.\n\n## Conventions\n\nTimestamps are UTC ISO-8601. Request and response bodies are JSON unless an\nendpoint serves a binary asset. Collections large enough to page take `limit` and\n`offset` query parameters; the rest return the full set. Validation failures\nreturn `422` with FastAPI's error array, naming the offending field in `loc`.\n\n## Realtime\n\n`WS /ccdispatch` is the clan-chat bridge: the RuneLite plugin connects with its\n`verification-code` header and receives messages relayed from Discord over Valkey\npubsub, while `POST /ccingest` carries in-game chat the other way. Party chat\npolls over plain HTTP instead.\n\n## Related services\n\n`/osrs-cache/*` proxies an internal service that decodes the live OSRS game cache\ninto items, NPCs, objects, sprites, rendered item icons, and map tiles.\n`/reference/*` serves loot tables scraped from the OSRS Wiki and EHP/EHB\nefficiency rates from WiseOldMan. Both refresh on a schedule; neither needs\nauthentication.",
+    "description": "The backend for **The Iron Foundry**, an Old School RuneScape clan. It serves the\ncommunity site at [ironfoundry.cc](https://ironfoundry.cc), the clan's Discord\nbots, and the in-game RuneLite plugin from one PostgreSQL + Valkey stack.\n\n## Authentication\n\nThree credentials exist, each for a different caller.\n\n**`DiscordJWT`** - the browser session. `GET /auth/login` redirects to Discord\nOAuth2; `GET /auth/callback` verifies guild membership, upserts the user, and\nredirects back to the frontend with an HS256 JWT in the query string. Send it as\n`Authorization: Bearer <token>` on every member or staff endpoint. `GET /auth/me`\nreturns the decoded profile with Discord roles, refreshed when stale.\n\n**`MemberApiKey`** - the RuneLite plugin. Each member holds a personal key from\n`GET /members/me/api-key` (rotate with `POST /members/me/api-key/rotate`), sent as\na `verification-code` header. `POST /auth/token` trades the same key for a JWT\nwhen a plugin needs member-scoped web endpoints. Revoked keys are rejected.\n\n**`MetricsApiKey`** - service-to-service. A shared secret the Discord services\npresent, also as `verification-code`, to report telemetry and dispatch clan chat.\n\nMissing or invalid credentials return `401`. A valid token whose roles do not\nsatisfy an endpoint's permission returns `403`.\n\n## Conventions\n\nTimestamps are UTC ISO-8601. Request and response bodies are JSON unless an\nendpoint serves a binary asset. Collections large enough to page take `limit` and\n`offset` query parameters; the rest return the full set. Validation failures\nreturn `422` with FastAPI's error array, naming the offending field in `loc`.\n\n## Realtime\n\n`WS /ccdispatch` is the clan-chat bridge: the RuneLite plugin connects with its\n`verification-code` header and receives messages relayed from Discord over Valkey\npubsub, while `POST /ccingest` carries in-game chat the other way. Party chat\npolls over plain HTTP instead.\n\n## Related services\n\n`/reference/*` serves OSRS game data from [OSRSClans](https://osrsclans.cc): items,\nNPCs, sprites, loot rates and drop sources, each cached for an hour. Item, NPC and\nsprite images load from OSRSClans directly. It also serves staff-set kill rates and\nEHP/EHB efficiency rates from WiseOldMan. Reads need no authentication.",
     "title": "The Foundry API",
     "version": "1.17.1"
   },
@@ -13155,7 +13737,7 @@
     },
     "/frenzy/active": {
       "get": {
-        "description": "Return the active event with all teams ranked by total points.",
+        "description": "Return the active event with all teams ranked by total points.\n\nA signed-in caller also gets their own signup as `my_signup`.",
         "operationId": "get_active_event_frenzy_active_get",
         "responses": {
           "200": {
@@ -13675,6 +14257,572 @@
           }
         ],
         "summary": "Deactivate Event",
+        "tags": [
+          "frenzy"
+        ]
+      }
+    },
+    "/frenzy/events/{event_id}/draft": {
+      "delete": {
+        "description": "Remove the draft and the teams its draw made; every signup returns to the pool.",
+        "operationId": "reset_draft_frenzy_events__event_id__draft_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Reset Draft",
+        "tags": [
+          "frenzy"
+        ]
+      },
+      "get": {
+        "description": "The draft as everyone sees it: teams in drawn order and the pool.",
+        "operationId": "get_draft_frenzy_events__event_id__draft_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Draft",
+        "tags": [
+          "frenzy"
+        ]
+      },
+      "put": {
+        "description": "Choose the mode, the top picks per captain and the captains.",
+        "operationId": "set_up_draft_frenzy_events__event_id__draft_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftSetupBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Set Up Draft",
+        "tags": [
+          "frenzy"
+        ]
+      }
+    },
+    "/frenzy/events/{event_id}/draft/draw": {
+      "post": {
+        "description": "Draw a random round-1 order and make one team per captain.",
+        "operationId": "draw_order_frenzy_events__event_id__draft_draw_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Draw Order",
+        "tags": [
+          "frenzy"
+        ]
+      }
+    },
+    "/frenzy/events/{event_id}/draft/moves": {
+      "post": {
+        "description": "Move a member to another team after the draft and before the event starts.",
+        "operationId": "move_member_frenzy_events__event_id__draft_moves_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftMoveBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Move Member",
+        "tags": [
+          "frenzy"
+        ]
+      }
+    },
+    "/frenzy/events/{event_id}/draft/picks": {
+      "post": {
+        "description": "Put a pool signup on the team whose turn it is.",
+        "operationId": "make_pick_frenzy_events__event_id__draft_picks_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftPickBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Make Pick",
+        "tags": [
+          "frenzy"
+        ]
+      }
+    },
+    "/frenzy/events/{event_id}/draft/start": {
+      "post": {
+        "description": "Open pick 1.",
+        "operationId": "start_draft_frenzy_events__event_id__draft_start_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Start Draft",
+        "tags": [
+          "frenzy"
+        ]
+      }
+    },
+    "/frenzy/events/{event_id}/signup": {
+      "delete": {
+        "description": "Withdraw the member's signup from the event.",
+        "operationId": "cancel_signup_frenzy_events__event_id__signup_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Cancel Signup",
+        "tags": [
+          "frenzy"
+        ]
+      },
+      "patch": {
+        "description": "Move the signup to another linked account, or change the opt-in or time zone.",
+        "operationId": "change_signup_frenzy_events__event_id__signup_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FrenzySignupPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Change Signup",
+        "tags": [
+          "frenzy"
+        ]
+      },
+      "post": {
+        "description": "Sign the member up for the event under one of their linked RSNs.",
+        "operationId": "sign_up_frenzy_events__event_id__signup_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FrenzySignupBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyFrenzySignup"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Sign Up",
+        "tags": [
+          "frenzy"
+        ]
+      }
+    },
+    "/frenzy/events/{event_id}/signups": {
+      "get": {
+        "description": "The event's signups, oldest first, with the member's Discord name.",
+        "operationId": "list_signups_frenzy_events__event_id__signups_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FrenzySignupList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "List Signups",
         "tags": [
           "frenzy"
         ]
@@ -14429,7 +15577,7 @@
     },
     "/frenzy/osrs/items": {
       "get": {
-        "description": "Search OSRS item names for the frenzy task editor. Cached in Valkey.",
+        "description": "Search OSRS items by name on OSRSClans for the frenzy task editor.",
         "operationId": "search_osrs_items_frenzy_osrs_items_get",
         "parameters": [
           {
@@ -14438,6 +15586,7 @@
             "required": false,
             "schema": {
               "default": "",
+              "maxLength": 64,
               "minLength": 0,
               "title": "Q",
               "type": "string"
@@ -17555,1738 +18704,6 @@
         ]
       }
     },
-    "/osrs-cache/gamevals": {
-      "get": {
-        "description": "Search the internal Jagex symbol names by namespace (`npcs`, `items`, ...).",
-        "operationId": "list_gamevals_osrs_cache_gamevals_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "namespace",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Namespace"
-            }
-          },
-          {
-            "in": "query",
-            "name": "search",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Search"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "maximum": 500,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {},
-                  "title": "Response List Gamevals Osrs Cache Gamevals Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "No record matches the identifier in the path."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "The internal service behind this proxy did not respond."
-          }
-        },
-        "summary": "List Gamevals",
-        "tags": [
-          "osrs-cache"
-        ]
-      }
-    },
-    "/osrs-cache/gamevals/{namespace}/{entry_id}": {
-      "get": {
-        "description": "Return one entity's symbol name, plus its sub-entries where it has them.",
-        "operationId": "get_gameval_osrs_cache_gamevals__namespace___entry_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "namespace",
-            "required": true,
-            "schema": {
-              "title": "Namespace",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "entry_id",
-            "required": true,
-            "schema": {
-              "minimum": 0,
-              "title": "Entry Id",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {},
-                  "title": "Response Get Gameval Osrs Cache Gamevals  Namespace   Entry Id  Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "No record matches the identifier in the path."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "The internal service behind this proxy did not respond."
-          }
-        },
-        "summary": "Get Gameval",
-        "tags": [
-          "osrs-cache"
-        ]
-      }
-    },
-    "/osrs-cache/item-icons/{item_id}": {
-      "get": {
-        "description": "Serve the baked 512px item icon as lossless WebP, immutably cached.",
-        "operationId": "get_item_icon_osrs_cache_item_icons__item_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "item_id",
-            "required": true,
-            "schema": {
-              "minimum": 0,
-              "title": "Item Id",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "No record matches the identifier in the path."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "The internal service behind this proxy did not respond."
-          }
-        },
-        "summary": "Get Item Icon",
-        "tags": [
-          "osrs-cache"
-        ]
-      }
-    },
-    "/osrs-cache/item-icons/{item_id}/render": {
-      "get": {
-        "description": "Render the item icon at a custom size on demand.\n\nSlower than the baked icon and cached for days rather than forever; prefer\n`/item-icons/{item_id}` unless you need a specific size.",
-        "operationId": "render_item_icon_osrs_cache_item_icons__item_id__render_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "item_id",
-            "required": true,
-            "schema": {
-              "minimum": 0,
-              "title": "Item Id",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "size",
-            "required": false,
-            "schema": {
-              "default": 512,
-              "maximum": 4096,
-              "minimum": 32,
-              "title": "Size",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "No record matches the identifier in the path."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "The internal service behind this proxy did not respond."
-          }
-        },
-        "summary": "Render Item Icon",
-        "tags": [
-          "osrs-cache"
-        ]
-      }
-    },
-    "/osrs-cache/items": {
-      "get": {
-        "description": "Search item definitions by name, or page through all of them.",
-        "operationId": "list_items_osrs_cache_items_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "search",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Search"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "maximum": 500,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {},
-                  "title": "Response List Items Osrs Cache Items Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "No record matches the identifier in the path."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "The internal service behind this proxy did not respond."
-          }
-        },
-        "summary": "List Items",
-        "tags": [
-          "osrs-cache"
-        ]
-      }
-    },
-    "/osrs-cache/items/names": {
-      "get": {
-        "description": "Return the full item id to name map, for bulk client-side lookups.",
-        "operationId": "list_item_names_osrs_cache_items_names_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response List Item Names Osrs Cache Items Names Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "No record matches the identifier in the path."
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "The internal service behind this proxy did not respond."
-          }
-        },
-        "summary": "List Item Names",
-        "tags": [
-          "osrs-cache"
-        ]
-      }
-    },
-    "/osrs-cache/items/{item_id}": {
-      "get": {
-        "description": "Return one item definition, including its 2D render recipe.",
-        "operationId": "get_item_osrs_cache_items__item_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "item_id",
-            "required": true,
-            "schema": {
-              "minimum": 0,
-              "title": "Item Id",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Item Osrs Cache Items  Item Id  Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "No record matches the identifier in the path."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "The internal service behind this proxy did not respond."
-          }
-        },
-        "summary": "Get Item",
-        "tags": [
-          "osrs-cache"
-        ]
-      }
-    },
-    "/osrs-cache/items/{item_id}/variants": {
-      "get": {
-        "description": "List the noted, placeholder, and charged forms sharing this item's name.",
-        "operationId": "get_item_variants_osrs_cache_items__item_id__variants_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "item_id",
-            "required": true,
-            "schema": {
-              "minimum": 0,
-              "title": "Item Id",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {},
-                  "title": "Response Get Item Variants Osrs Cache Items  Item Id  Variants Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "No record matches the identifier in the path."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "The internal service behind this proxy did not respond."
-          }
-        },
-        "summary": "Get Item Variants",
-        "tags": [
-          "osrs-cache"
-        ]
-      }
-    },
-    "/osrs-cache/map/icons": {
-      "get": {
-        "description": "List the map icons placed on a plane, joined to their source object.",
-        "operationId": "get_map_icons_osrs_cache_map_icons_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "plane",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "maximum": 4,
-                  "minimum": 0,
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Plane"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Map Icons Osrs Cache Map Icons Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "No record matches the identifier in the path."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "The internal service behind this proxy did not respond."
-          }
-        },
-        "summary": "Get Map Icons",
-        "tags": [
-          "osrs-cache"
-        ]
-      }
-    },
-    "/osrs-cache/map/labels": {
-      "get": {
-        "description": "List named areas on a plane. Areas carry no polygon, so these are unplaced.",
-        "operationId": "get_map_labels_osrs_cache_map_labels_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "plane",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "maximum": 3,
-                  "minimum": 0,
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Plane"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Map Labels Osrs Cache Map Labels Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "No record matches the identifier in the path."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "The internal service behind this proxy did not respond."
-          }
-        },
-        "summary": "Get Map Labels",
-        "tags": [
-          "osrs-cache"
-        ]
-      }
-    },
-    "/osrs-cache/map/locations": {
-      "get": {
-        "description": "Find placed scenery, either by object id or within a tile bounding box.",
-        "operationId": "get_map_locations_osrs_cache_map_locations_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "object_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "minimum": 0,
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Object Id"
-            }
-          },
-          {
-            "in": "query",
-            "name": "plane",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "maximum": 3,
-                  "minimum": 0,
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Plane"
-            }
-          },
-          {
-            "in": "query",
-            "name": "min_x",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "minimum": 0,
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Min X"
-            }
-          },
-          {
-            "in": "query",
-            "name": "min_y",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "minimum": 0,
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Min Y"
-            }
-          },
-          {
-            "in": "query",
-            "name": "max_x",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "minimum": 0,
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Max X"
-            }
-          },
-          {
-            "in": "query",
-            "name": "max_y",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "minimum": 0,
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Max Y"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 1000,
-              "maximum": 10000,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Map Locations Osrs Cache Map Locations Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "No record matches the identifier in the path."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "The internal service behind this proxy did not respond."
-          }
-        },
-        "summary": "Get Map Locations",
-        "tags": [
-          "osrs-cache"
-        ]
-      }
-    },
-    "/osrs-cache/map/meta": {
-      "get": {
-        "description": "Return the slippy-map manifest: zoom range, bounds, and coverage bitmap.\n\nThe relative `tileUrl` is rewritten onto the public tile host, so clients\ncan use it directly.",
-        "operationId": "get_map_meta_osrs_cache_map_meta_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Map Meta Osrs Cache Map Meta Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "No record matches the identifier in the path."
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "The internal service behind this proxy did not respond."
-          }
-        },
-        "summary": "Get Map Meta",
-        "tags": [
-          "osrs-cache"
-        ]
-      }
-    },
-    "/osrs-cache/map/regions/{region_id}": {
-      "get": {
-        "description": "Return one map region's decoded terrain, keyed by region id.",
-        "operationId": "get_map_region_osrs_cache_map_regions__region_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "region_id",
-            "required": true,
-            "schema": {
-              "minimum": 0,
-              "title": "Region Id",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Map Region Osrs Cache Map Regions  Region Id  Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "No record matches the identifier in the path."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "The internal service behind this proxy did not respond."
-          }
-        },
-        "summary": "Get Map Region",
-        "tags": [
-          "osrs-cache"
-        ]
-      }
-    },
-    "/osrs-cache/map/sections": {
-      "get": {
-        "description": "List the named map sections used to jump the viewport to a landmark.",
-        "operationId": "get_map_sections_osrs_cache_map_sections_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Map Sections Osrs Cache Map Sections Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "No record matches the identifier in the path."
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "The internal service behind this proxy did not respond."
-          }
-        },
-        "summary": "Get Map Sections",
-        "tags": [
-          "osrs-cache"
-        ]
-      }
-    },
-    "/osrs-cache/meta": {
-      "get": {
-        "description": "Report the ingested cache build and how many definitions it holds.",
-        "operationId": "get_meta_osrs_cache_meta_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Meta Osrs Cache Meta Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "No record matches the identifier in the path."
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "The internal service behind this proxy did not respond."
-          }
-        },
-        "summary": "Get Meta",
-        "tags": [
-          "osrs-cache"
-        ]
-      }
-    },
-    "/osrs-cache/npcs": {
-      "get": {
-        "description": "Search NPC definitions by name, or page through all of them.",
-        "operationId": "list_npcs_osrs_cache_npcs_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "search",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Search"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "maximum": 500,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {},
-                  "title": "Response List Npcs Osrs Cache Npcs Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "No record matches the identifier in the path."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "The internal service behind this proxy did not respond."
-          }
-        },
-        "summary": "List Npcs",
-        "tags": [
-          "osrs-cache"
-        ]
-      }
-    },
-    "/osrs-cache/npcs/names": {
-      "get": {
-        "description": "Return the full NPC id to name map, for bulk client-side lookups.\n\nUnnamed NPCs - the shells a varbit transform points away from - are omitted.",
-        "operationId": "list_npc_names_osrs_cache_npcs_names_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response List Npc Names Osrs Cache Npcs Names Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "No record matches the identifier in the path."
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "The internal service behind this proxy did not respond."
-          }
-        },
-        "summary": "List Npc Names",
-        "tags": [
-          "osrs-cache"
-        ]
-      }
-    },
-    "/osrs-cache/npcs/{npc_id}": {
-      "get": {
-        "description": "Return one NPC definition: models, actions, recolours, and its form table.",
-        "operationId": "get_npc_osrs_cache_npcs__npc_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "npc_id",
-            "required": true,
-            "schema": {
-              "minimum": 0,
-              "title": "Npc Id",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Npc Osrs Cache Npcs  Npc Id  Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "No record matches the identifier in the path."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "The internal service behind this proxy did not respond."
-          }
-        },
-        "summary": "Get Npc",
-        "tags": [
-          "osrs-cache"
-        ]
-      }
-    },
-    "/osrs-cache/objects": {
-      "get": {
-        "description": "Search scenery object definitions by name, or page through all of them.",
-        "operationId": "list_objects_osrs_cache_objects_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "search",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Search"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "maximum": 500,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {},
-                  "title": "Response List Objects Osrs Cache Objects Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "No record matches the identifier in the path."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "The internal service behind this proxy did not respond."
-          }
-        },
-        "summary": "List Objects",
-        "tags": [
-          "osrs-cache"
-        ]
-      }
-    },
-    "/osrs-cache/sprites": {
-      "get": {
-        "description": "Search UI sprites by name or category, or page through all of them.",
-        "operationId": "list_sprites_osrs_cache_sprites_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "category",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Category"
-            }
-          },
-          {
-            "in": "query",
-            "name": "search",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Search"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 100,
-              "maximum": 500,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {},
-                  "title": "Response List Sprites Osrs Cache Sprites Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "No record matches the identifier in the path."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "The internal service behind this proxy did not respond."
-          }
-        },
-        "summary": "List Sprites",
-        "tags": [
-          "osrs-cache"
-        ]
-      }
-    },
-    "/osrs-cache/sprites/categories": {
-      "get": {
-        "description": "List the sprite category names, as grouped by RuneLite's SpriteID.",
-        "operationId": "list_sprite_categories_osrs_cache_sprites_categories_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {},
-                  "title": "Response List Sprite Categories Osrs Cache Sprites Categories Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "No record matches the identifier in the path."
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "The internal service behind this proxy did not respond."
-          }
-        },
-        "summary": "List Sprite Categories",
-        "tags": [
-          "osrs-cache"
-        ]
-      }
-    },
-    "/osrs-cache/sprites/{sprite_id}": {
-      "get": {
-        "description": "List the frames in a sprite group. Most groups hold exactly one.",
-        "operationId": "get_sprite_osrs_cache_sprites__sprite_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "sprite_id",
-            "required": true,
-            "schema": {
-              "minimum": 0,
-              "title": "Sprite Id",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {},
-                  "title": "Response Get Sprite Osrs Cache Sprites  Sprite Id  Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "No record matches the identifier in the path."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "The internal service behind this proxy did not respond."
-          }
-        },
-        "summary": "Get Sprite",
-        "tags": [
-          "osrs-cache"
-        ]
-      }
-    },
-    "/osrs-cache/sprites/{sprite_id}/{frame_index}": {
-      "get": {
-        "description": "Serve one sprite frame as PNG or WebP, optionally scaled up.",
-        "operationId": "get_sprite_image_osrs_cache_sprites__sprite_id___frame_index__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "sprite_id",
-            "required": true,
-            "schema": {
-              "minimum": 0,
-              "title": "Sprite Id",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "path",
-            "name": "frame_index",
-            "required": true,
-            "schema": {
-              "minimum": 0,
-              "title": "Frame Index",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "format",
-            "required": false,
-            "schema": {
-              "default": "png",
-              "pattern": "^(png|webp)$",
-              "title": "Format",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "scale",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "maximum": 32,
-                  "minimum": 1,
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Scale"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "No record matches the identifier in the path."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "The internal service behind this proxy did not respond."
-          }
-        },
-        "summary": "Get Sprite Image",
-        "tags": [
-          "osrs-cache"
-        ]
-      }
-    },
     "/parties/": {
       "get": {
         "description": "List all non-closed parties. Public.",
@@ -20453,9 +19870,250 @@
         ]
       }
     },
+    "/reference/kill-rates": {
+      "get": {
+        "description": "List the staff-set kill rates of OSRSClans drop sources, by source key.",
+        "operationId": "list_kill_rates_reference_kill_rates_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KillRatePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Kill Rates",
+        "tags": [
+          "reference"
+        ]
+      }
+    },
+    "/reference/kill-rates/{source}": {
+      "delete": {
+        "description": "Remove the staff-set kill rate of an OSRSClans drop source.",
+        "operationId": "remove_kill_rate_reference_kill_rates__source__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Source",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Remove Kill Rate",
+        "tags": [
+          "reference"
+        ]
+      },
+      "get": {
+        "description": "Return the staff-set kill rate of one OSRSClans drop source, URL-encoded.",
+        "operationId": "get_kill_rate_reference_kill_rates__source__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Source",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KillRateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Kill Rate",
+        "tags": [
+          "reference"
+        ]
+      },
+      "put": {
+        "description": "Set the kill rate of an OSRSClans drop source that has none of its own.\n\n`source` is the OSRSClans source key, URL-encoded. A source that OSRSClans\ngives a rate keeps that rate on the loot rate routes.",
+        "operationId": "set_kill_rate_reference_kill_rates__source__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Source",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KillRateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KillRateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "DiscordJWT": []
+          }
+        ],
+        "summary": "Set Kill Rate",
+        "tags": [
+          "reference"
+        ]
+      }
+    },
     "/reference/loot-rates": {
       "get": {
-        "description": "Return loot rates from OSRSClans: each item's chance from each drop source.\n\n`item`, `source`, `page`, `category` and `wom_metric` keep one of each. `q`\nkeeps the rows whose item or source name holds the text. `level` sets the\nlevel that a skilling pet or clue nest chance is computed at. `points` and\n`raid_level` set the raid that `chance_per_raid` is computed at.",
+        "description": "Return loot rates from OSRSClans: each item's chance from each drop source.\n\n`item`, `source`, `page`, `category` and `wom_metric` keep one of each. `q`\nkeeps the rows whose item or source name holds the text. `level` sets the\nlevel that a skilling pet or clue nest chance is computed at. `points` and\n`raid_level` set the raid that `chance_per_raid` is computed at. A row with\nno OSRSClans kill rate takes the staff-set rate of its source, marked\n`foundry`.",
         "operationId": "list_loot_rates_reference_loot_rates_get",
         "parameters": [
           {
@@ -20699,7 +20357,7 @@
     },
     "/reference/loot-rates/sources": {
       "get": {
-        "description": "Return the drop sources from OSRSClans, with each source's kill rate.\n\n`page`, `category` and `wom_metric` keep one of each. `q` keeps the sources\nwhose name, or the name of an item they drop, holds the text.",
+        "description": "Return the drop sources from OSRSClans, with each source's kill rate.\n\n`page`, `category` and `wom_metric` keep one of each. `q` keeps the sources\nwhose name, or the name of an item they drop, holds the text. A source with\nno OSRSClans kill rate takes its staff-set rate, marked `foundry`.",
         "operationId": "list_loot_sources_reference_loot_rates_sources_get",
         "parameters": [
           {
@@ -20852,16 +20510,227 @@
         ]
       }
     },
-    "/reference/loot/items/{item_id}": {
+    "/reference/osrs/items": {
       "get": {
-        "description": "Reverse lookup: list every source that drops this item, with rarities.",
-        "operationId": "sources_for_item_reference_loot_items__item_id__get",
+        "description": "Return a window of named items from OSRSClans, or those whose name holds `search`.",
+        "operationId": "list_items_reference_osrs_items_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ItemOut"
+                  },
+                  "title": "Response List Items Reference Osrs Items Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "The internal service behind this proxy did not respond."
+          }
+        },
+        "summary": "List Items",
+        "tags": [
+          "reference"
+        ]
+      }
+    },
+    "/reference/osrs/items/names": {
+      "get": {
+        "description": "Return every item's name by id. Fetch it once a session, not per row.",
+        "operationId": "item_names_reference_osrs_items_names_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Item Names Reference Osrs Items Names Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "The internal service behind this proxy did not respond."
+          }
+        },
+        "summary": "Item Names",
+        "tags": [
+          "reference"
+        ]
+      }
+    },
+    "/reference/osrs/items/{item_id}": {
+      "get": {
+        "description": "Return one item.",
+        "operationId": "get_item_reference_osrs_items__item_id__get",
         "parameters": [
           {
             "in": "path",
             "name": "item_id",
             "required": true,
             "schema": {
+              "maximum": 16777215,
+              "minimum": 0,
+              "title": "Item Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "The internal service behind this proxy did not respond."
+          }
+        },
+        "summary": "Get Item",
+        "tags": [
+          "reference"
+        ]
+      }
+    },
+    "/reference/osrs/items/{item_id}/variants": {
+      "get": {
+        "description": "Return an item with its noted, placeholder and stack forms.",
+        "operationId": "item_variants_reference_osrs_items__item_id__variants_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "maximum": 16777215,
               "minimum": 0,
               "title": "Item Id",
               "type": "integer"
@@ -20874,9 +20743,9 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/ItemSourceOut"
+                    "$ref": "#/components/schemas/ItemOut"
                   },
-                  "title": "Response Sources For Item Reference Loot Items  Item Id  Get",
+                  "title": "Response Item Variants Reference Osrs Items  Item Id  Variants Get",
                   "type": "array"
                 }
               }
@@ -20902,52 +20771,8 @@
               }
             },
             "description": "Validation Error"
-          }
-        },
-        "summary": "Sources For Item",
-        "tags": [
-          "reference"
-        ]
-      }
-    },
-    "/reference/loot/sources": {
-      "get": {
-        "description": "List the loot sources scraped from the OSRS Wiki, filtered by category.",
-        "operationId": "list_sources_reference_loot_sources_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "category",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Category"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/SourceListOut"
-                  },
-                  "title": "Response List Sources Reference Loot Sources Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
           },
-          "404": {
+          "502": {
             "content": {
               "application/json": {
                 "schema": {
@@ -20955,73 +20780,10 @@
                 }
               }
             },
-            "description": "No record matches the identifier in the path."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
+            "description": "The internal service behind this proxy did not respond."
           }
         },
-        "summary": "List Sources",
-        "tags": [
-          "reference"
-        ]
-      }
-    },
-    "/reference/loot/sources/{slug}": {
-      "get": {
-        "description": "Return one loot source with its full drop table.",
-        "operationId": "get_source_reference_loot_sources__slug__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "slug",
-            "required": true,
-            "schema": {
-              "title": "Slug",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SourceDetailOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "No record matches the identifier in the path."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Source",
+        "summary": "Item Variants",
         "tags": [
           "reference"
         ]
@@ -21115,6 +20877,188 @@
         ]
       }
     },
+    "/reference/osrs/sprite-frames": {
+      "get": {
+        "description": "Return a window of sprites as one row per frame, filtered by name or category.\n\n`limit` and `offset` count sprites, not frames. Advance `offset` by `sprites`.",
+        "operationId": "list_sprite_frames_reference_osrs_sprite_frames_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpriteFramePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "The internal service behind this proxy did not respond."
+          }
+        },
+        "summary": "List Sprite Frames",
+        "tags": [
+          "reference"
+        ]
+      }
+    },
+    "/reference/osrs/sprite-frames/{sprite_id}": {
+      "get": {
+        "description": "Return each frame of one sprite.",
+        "operationId": "get_sprite_frames_reference_osrs_sprite_frames__sprite_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sprite_id",
+            "required": true,
+            "schema": {
+              "maximum": 16777215,
+              "minimum": 0,
+              "title": "Sprite Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SpriteFrameOut"
+                  },
+                  "title": "Response Get Sprite Frames Reference Osrs Sprite Frames  Sprite Id  Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "The internal service behind this proxy did not respond."
+          }
+        },
+        "summary": "Get Sprite Frames",
+        "tags": [
+          "reference"
+        ]
+      }
+    },
     "/reference/osrs/sprites": {
       "get": {
         "description": "Return the interface sprites from OSRSClans whose name holds `q`.",
@@ -21198,6 +21142,52 @@
           }
         },
         "summary": "Search Sprites",
+        "tags": [
+          "reference"
+        ]
+      }
+    },
+    "/reference/osrs/sprites/categories": {
+      "get": {
+        "description": "Return every named sprite category with its sprite count.",
+        "operationId": "sprite_categories_reference_osrs_sprites_categories_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SpriteCategoryOut"
+                  },
+                  "title": "Response Sprite Categories Reference Osrs Sprites Categories Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "No record matches the identifier in the path."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            },
+            "description": "The internal service behind this proxy did not respond."
+          }
+        },
+        "summary": "Sprite Categories",
         "tags": [
           "reference"
         ]
@@ -26068,7 +26058,7 @@
     },
     "/tilerace/osrs/npcs": {
       "get": {
-        "description": "Search OSRS NPC names for the tile editor. Needs at least two characters.\n\nNames and ids come from our own cache; the wiki supplies only the artwork,\nwhich the cache cannot render. An NPC with no wiki image still comes back,\nwith `icon_url` empty.",
+        "description": "Search OSRS NPC names on OSRSClans for the tile editor, with each one's still.\n\nNeeds at least two characters.",
         "operationId": "search_osrs_npcs_tilerace_osrs_npcs_get",
         "parameters": [
           {
@@ -26077,6 +26067,7 @@
             "required": false,
             "schema": {
               "default": "",
+              "maxLength": 64,
               "minLength": 0,
               "title": "Q",
               "type": "string"
@@ -26534,11 +26525,7 @@
       "name": "tilerace"
     },
     {
-      "description": "Read-only proxy to the internal cache service, which decodes the live OSRS game cache. Items and their variants, NPCs, objects, sprites, rendered item icons, and slippy-map data. No auth; responses are immutable per cache build.",
-      "name": "osrs-cache"
-    },
-    {
-      "description": "Static game reference data refreshed on a schedule: loot tables parsed from the OSRS Wiki (forward by source, reverse by item) and EHP/EHB efficiency rates from WiseOldMan. No auth.",
+      "description": "Game reference data. Items, NPCs, sprites, loot rates and drop sources come from OSRSClans through a one-hour Valkey cache; item, NPC and sprite images load from OSRSClans itself. Staff-set kill rates fill the sources OSRSClans gives none, and EHP/EHB efficiency rates come from WiseOldMan. Reads need no auth.",
       "name": "reference"
     },
     {
@@ -26600,7 +26587,6 @@
     {
       "name": "Game Data and Integrations",
       "tags": [
-        "osrs-cache",
         "reference",
         "discord",
         "runelite-configs"

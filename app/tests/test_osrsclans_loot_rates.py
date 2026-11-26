@@ -91,6 +91,7 @@ async def test_route_answers_snake_case_and_caches(
         "droptracker",
     )
     assert row["lines"][0]["quantity_high"] == 1.0
+    assert row["image_url"] == "https://osrsclans.cc/api/v1/osrs/items/5317.webp"
     assert seen[0].url.path == "/api/v1/loot-rates"
     key, cached = mock_valkey.set.await_args.args
     assert key == cache_key(LootRateAsk(q="Spirit seed", limit=1))

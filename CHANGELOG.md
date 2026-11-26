@@ -15,7 +15,21 @@ work is about to be pushed - not per component.
 
 ### Added
 
+- Frenzy captain draft. `PUT /frenzy/events/{event_id}/draft` sets the mode (`full` or `top_picks`), the top picks per captain and the captains. `POST .../draft/draw` draws a random round-1 order and makes one team per captain. `POST .../draft/start` opens pick 1. These need `frenzy.admin`/`edit`. `POST .../draft/picks` takes a pick from the captain whose turn it is or from staff, in snake order. In Top Picks mode the last top pick hands out the rest of the pool by continuing the snake, highest ranking points first. `POST .../draft/moves` moves a member between teams after the draft and before the event starts. `DELETE .../draft` removes the draft and its teams. `GET .../draft` is public. The `/frenzy/draft/live` socket sends the event id on each change. Migration `0069` adds `frenzy_drafts` and the signup's `wants_captain`, team and pick columns.
+- A frenzy signup carries the member's IANA `timezone`. `POST` and `PATCH /frenzy/events/{event_id}/signup` set it and refuse an unknown zone with 422, `MyFrenzySignup` returns it, and each member in the draft view carries it, null when unknown. Migration `0070` adds the column.
+- A frenzy signup carries `wants_captain`. `POST` and `PATCH /frenzy/events/{event_id}/signup` set it. The staff signup list carries each signup's `id` and `wants_captain`. A signup cannot change or withdraw once the order is drawn, or while staff hold it as a captain.
+- Frenzy signups: `POST`, `PATCH` and `DELETE /frenzy/events/{event_id}/signup` let a member sign up for an event under one of their linked RSNs, switch account and withdraw. A signup needs the event's new `signups_open` setting, which `PATCH /frenzy/events/{event_id}` sets. `GET /frenzy/events/{event_id}/signups` lists the signups for staff with `frenzy.admin`/`edit`. `GET /frenzy/active` carries `signups_open` and, for a signed-in caller, `my_signup`. Migration `0068` adds the `frenzy_signups` table and the `signups_open` column.
 - `GET /reference/osrs/npcs?q=` and `GET /reference/osrs/sprites?q=` return OSRSClans NPCs and interface sprites by name, each with its image URL
+- `GET /reference/kill-rates`, `GET`, `PUT` and `DELETE /reference/kill-rates/{source}` keep a staff-set kill rate for an OSRSClans drop source that has none. Each rate carries `set_by_name`. Setting and removing a rate needs `frenzy.admin`/`edit`.
+- A `/reference/loot-rates` row carries `image_url`, the OSRSClans image of its item, or null for a row with no item.
+- `/reference/loot-rates` and `/reference/loot-rates/sources` fill a null `kills_per_hour` from the staff-set rate of the source and mark it `kill_rate_source: "foundry"`. A source with an OSRSClans rate keeps that rate.
+- `GET /reference/osrs/items`, `/reference/osrs/items/names`, `/reference/osrs/items/{item_id}`, `/reference/osrs/items/{item_id}/variants`, `/reference/osrs/sprite-frames`, `/reference/osrs/sprite-frames/{sprite_id}` and `/reference/osrs/sprites/categories` serve OSRSClans items and sprites to the asset manager. Each image URL is an OSRSClans image.
+
+### Changed
+
+- Every frenzy staff route checks the `frenzy.admin` page permission in place of `frenzy`, matching tile race's `tilerace.admin`. Migration `0067` adds every role holding `frenzy`/`edit` to `frenzy.admin`/`edit`, so no role loses frenzy management.
+- `GET /frenzy/osrs/items` and `GET /tilerace/osrs/npcs` search OSRSClans. An NPC result carries its OSRSClans still in place of a Wiki image, and both answer 502 when OSRSClans does not.
+- Migration `0066` rewrites stored `/osrs-cache/item-icons/*` and `/osrs-cache/sprites/*` links in templates, teams, tiles, badges and guide text to OSRSClans images.
 
 ### Fixed
 
@@ -23,6 +37,11 @@ work is about to be pushed - not per component.
 - Level-up, XP and pet broadcasts with game variable tags store their own event type
 - `POST /ccingest` resolves the `<lt>`, `<gt>` and `<at>` escapes before it parses, dedupes or stores the message
 - Loot, collection log and personal-best broadcasts with game variable tags update the loot total, the collection log and the personal-best leaderboard
+
+### Removed
+
+- The OSRS Wiki drop table scrape (`LootTablesService` and its `loot_tables` service toggle), `GET /reference/loot/sources`, `GET /reference/loot/sources/{slug}` and `GET /reference/loot/items/{item_id}`. Drop tables come from `/reference/loot-rates`. Migration `0065` drops the `loot_sources` and `loot_drops` tables.
+- Every `/osrs-cache/*` route, including the world map data routes. OSRS data comes from `/reference/*` and images from OSRSClans. The `OSRS_CACHE_SERVICE_URL`, `MAP_TILES_BASE_URL` and `API_BACKEND_URL` settings are no longer read.
 
 ## [1.17.1] - 2026-09-04
 

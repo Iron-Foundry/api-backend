@@ -33,6 +33,7 @@ class EventBody(BaseModel):
 
 class EventPatch(BaseModel):
     name: str | None = None
+    signups_open: bool | None = None
     wom_comp_id: int | None = None
     leaderboard_metrics: list[str] | None = None
     trusted_sources: list[str] | None = None

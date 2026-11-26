@@ -42,9 +42,8 @@ polls over plain HTTP instead.
 
 ## Related services
 
-`/osrs-cache/*` proxies an internal service that decodes the live OSRS game cache
-into items, NPCs, objects, sprites, rendered item icons, and map tiles.
-`/reference/*` serves loot tables scraped from the OSRS Wiki and EHP/EHB
-efficiency rates from WiseOldMan. Both refresh on a schedule; neither needs
-authentication.
+`/reference/*` serves OSRS game data from [OSRSClans](https://osrsclans.cc): items,
+NPCs, sprites, loot rates and drop sources, each cached for an hour. Item, NPC and
+sprite images load from OSRSClans directly. It also serves staff-set kill rates and
+EHP/EHB efficiency rates from WiseOldMan. Reads need no authentication.
 """.strip()

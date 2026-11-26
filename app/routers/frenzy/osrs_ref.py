@@ -3,45 +3,43 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
-from loguru import logger
+from fastapi import APIRouter, Depends, HTTPException, Query
 from valkey.asyncio import Valkey
 
 from app.dependencies import get_valkey
+from app.services.osrsclans.client import OsrsClansError
+from app.services.osrsclans.items import ItemSearchAsk, cached_items, item_image_url
 
-from ._constants import _ACTIVITIES_KEY, _BOSSES_KEY, _ITEMS_KEY
-from ._osrs_cache import (
-    _refresh_osrs_activities,
-    _refresh_osrs_bosses,
-    _refresh_osrs_items,
-)
+from ._constants import _ACTIVITIES_KEY, _BOSSES_KEY
+from ._osrs_cache import _refresh_osrs_activities, _refresh_osrs_bosses
 
 router = APIRouter()
+
+_ITEM_RESULT_LIMIT = 30
 
 
 @router.get("/osrs/items")
 async def search_osrs_items(
-    q: str = Query("", min_length=0),
+    q: str = Query("", min_length=0, max_length=64),
     valkey: Valkey = Depends(get_valkey),
 ) -> list[dict[str, Any]]:
-    """Search OSRS item names for the frenzy task editor. Cached in Valkey."""
-    if not q or len(q) < 2:
+    """Search OSRS items by name on OSRSClans for the frenzy task editor."""
+    if len(q.strip()) < 2:
         return []
-    raw = await valkey.get(_ITEMS_KEY)
-    if not raw:
-        try:
-            await _refresh_osrs_items(valkey)
-            raw = await valkey.get(_ITEMS_KEY)
-        except Exception as exc:
-            logger.warning("osrs items refresh failed: {}", exc)
-            return []
-    if not raw:
-        return []
-    norm_q = q.lower().replace("'", "").strip()
-    all_items: list[dict[str, Any]] = json.loads(raw)
+    try:
+        page = await cached_items(valkey, ItemSearchAsk(q.strip(), _ITEM_RESULT_LIMIT))
+    except OsrsClansError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     return [
-        item for item in all_items if norm_q in item["name"].lower().replace("'", "")
-    ][:30]
+        {
+            "id": item.id,
+            "name": item.name,
+            "icon_url": item_image_url(item.id),
+            "members": item.members,
+        }
+        for item in page.items
+        if item.name
+    ]
 
 
 @router.get("/osrs/bosses")

@@ -11,7 +11,6 @@ from sqlalchemy import (
     Index,
     Integer,
     Text,
-    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -95,83 +94,13 @@ class FrenzyEvent(Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="false"
     )
+    signups_open: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
     created_by: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False
-    )
-
-
-class FrenzyTeam(Base):
-    __tablename__ = "frenzy_teams"
-    __table_args__ = (UniqueConstraint("event_id", "slug", name="uq_frenzy_team_slug"),)
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    event_id: Mapped[int] = mapped_column(
-        BigInteger,
-        ForeignKey("frenzy_events.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    name: Mapped[str] = mapped_column(Text, nullable=False)
-    slug: Mapped[str] = mapped_column(Text, nullable=False)
-    icon_url: Mapped[str | None] = mapped_column(Text)
-    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
-    participants: Mapped[list[str]] = mapped_column(
-        JSONB, nullable=False, server_default="[]"
-    )
-    item_progress: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, server_default="{}"
-    )
-    activity_progress: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, server_default="{}"
-    )
-    milestone_progress: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, server_default="{}"
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False
-    )
-
-
-class FrenzySubmission(Base):
-    __tablename__ = "frenzy_submissions"
-    __table_args__ = (
-        Index("ix_frenzy_submissions_team_status", "team_id", "status"),
-        Index(
-            "ix_frenzy_submissions_event_status", "event_id", "status", "submitted_at"
-        ),
-    )
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    event_id: Mapped[int] = mapped_column(
-        BigInteger,
-        ForeignKey("frenzy_events.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    team_id: Mapped[int] = mapped_column(
-        BigInteger,
-        ForeignKey("frenzy_teams.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    discord_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    player_rsn: Mapped[str] = mapped_column(Text, nullable=False)
-    source: Mapped[str] = mapped_column(Text, nullable=False)
-    submission_type: Mapped[str] = mapped_column(Text, nullable=False)
-    payload: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, server_default="{}"
-    )
-    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="pending")
-    auto_approved: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, server_default="false"
-    )
-    reviewed_by: Mapped[int | None] = mapped_column(BigInteger)
-    reviewed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
-    review_notes: Mapped[str | None] = mapped_column(Text)
-    submitted_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False
-    )
-    created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False
     )

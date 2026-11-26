@@ -5,8 +5,9 @@ from typing import Any
 
 from sqlalchemy import (
     TIMESTAMP,
+    BigInteger,
+    CheckConstraint,
     Float,
-    ForeignKey,
     Integer,
     Text,
     UniqueConstraint,
@@ -17,40 +18,20 @@ from sqlalchemy.orm import Mapped, mapped_column
 from .base import Base
 
 
-class LootSource(Base):
-    """A boss, activity, clue, or minigame that has a reference drop table."""
+class SourceKillRate(Base):
+    """A staff-set kill rate for an OSRSClans drop source that has none.
 
-    __tablename__ = "loot_sources"
+    `source` is the OSRSClans source key, such as `Herbiboar`.
+    """
 
-    slug: Mapped[str] = mapped_column(Text, primary_key=True)
-    display_name: Mapped[str] = mapped_column(Text, nullable=False)
-    category: Mapped[str] = mapped_column(Text, nullable=False, index=True)
-    wiki_page: Mapped[str] = mapped_column(Text, nullable=False)
-    reward_kind: Mapped[str | None] = mapped_column(Text)
-    updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False
+    __tablename__ = "source_kill_rates"
+    __table_args__ = (
+        CheckConstraint("kills_per_hour > 0", name="ck_source_kill_rate_positive"),
     )
 
-
-class LootDrop(Base):
-    """One item entry within a source's drop table."""
-
-    __tablename__ = "loot_drops"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    source_slug: Mapped[str] = mapped_column(
-        Text, ForeignKey("loot_sources.slug", ondelete="CASCADE"), index=True
-    )
-    item_id: Mapped[int | None] = mapped_column(Integer, index=True)
-    item_name: Mapped[str] = mapped_column(Text, nullable=False)
-    quantity_low: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    quantity_high: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    noted: Mapped[bool] = mapped_column(nullable=False, default=False)
-    rarity_num: Mapped[int | None] = mapped_column(Integer)
-    rarity_denom: Mapped[int | None] = mapped_column(Integer)
-    rarity_text: Mapped[str | None] = mapped_column(Text)
-    rolls: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    drop_group: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    source: Mapped[str] = mapped_column(Text, primary_key=True)
+    kills_per_hour: Mapped[float] = mapped_column(Float, nullable=False)
+    set_by: Mapped[int] = mapped_column(BigInteger, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False
     )

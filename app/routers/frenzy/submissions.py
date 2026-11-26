@@ -17,7 +17,7 @@ from .schemas import SubmissionBody, SubmissionPatch
 
 router = APIRouter()
 
-_PERM = Depends(require_page_permission("frenzy", "edit"))
+_PERM = Depends(require_page_permission("frenzy.admin", "edit"))
 
 
 def _submission_to_dict(

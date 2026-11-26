@@ -7,28 +7,13 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import PlayerRanking, TileRaceEvent, TileRaceSignup, UserAccount
+from app.db.models import PlayerRanking, TileRaceEvent, TileRaceSignup
 from app.dependencies import get_current_user, get_session
+from app.services.signup_account import signup_account
 
 from .schemas import SignupBody, SignupPatch
 
 router = APIRouter()
-
-
-async def _resolve_account(
-    session: AsyncSession, user_id: int, account_id: int | None
-) -> UserAccount:
-    stmt = select(UserAccount).where(UserAccount.discord_user_id == user_id)
-    if account_id is not None:
-        stmt = stmt.where(UserAccount.id == account_id)
-    else:
-        stmt = stmt.order_by(
-            UserAccount.is_primary.desc(), UserAccount.created_at.asc()
-        )
-    account = (await session.execute(stmt.limit(1))).scalars().first()
-    if account is None:
-        raise HTTPException(422, "No linked account to sign up with.")
-    return account
 
 
 async def _ranking_score(session: AsyncSession, rsn: str) -> int:
@@ -78,7 +63,7 @@ async def sign_up(
     user_id = int(current_user["sub"])
     if await _get_signup(session, event_id, user_id) is not None:
         raise HTTPException(409, "Already signed up.")
-    account = await _resolve_account(session, user_id, body.account_id)
+    account = await signup_account(session, user_id, body.account_id)
     session.add(
         TileRaceSignup(
             event_id=event_id,
@@ -107,7 +92,7 @@ async def change_signup(
     if signup is None:
         raise HTTPException(404, "Signup not found.")
     if body.account_id is not None:
-        account = await _resolve_account(session, user_id, body.account_id)
+        account = await signup_account(session, user_id, body.account_id)
         signup.account_id = account.id
         signup.rsn = account.rsn
         signup.ranking_score = await _ranking_score(session, account.rsn)

@@ -111,6 +111,14 @@ async def check_page_permission(
     return bool(role_names & set(allowed))
 
 
+async def user_has_page_permission(
+    user_id: int, page_id: str, action: str, session: AsyncSession
+) -> bool:
+    """Whether the member's effective roles grant action on page_id."""
+    roles = await get_effective_roles(user_id, session)
+    return await check_page_permission(page_id, action, roles, session)
+
+
 def require_page_permission(page_id: str, action: str):
     """FastAPI dependency factory - raises 403 if the caller lacks permission."""
 
@@ -119,8 +127,7 @@ def require_page_permission(page_id: str, action: str):
         session: AsyncSession = Depends(get_session),
     ) -> None:
         uid = int(current_user["sub"])
-        roles = await get_effective_roles(uid, session)
-        if not await check_page_permission(page_id, action, roles, session):
+        if not await user_has_page_permission(uid, page_id, action, session):
             raise HTTPException(403, f"Requires permission: {page_id}/{action}")
 
     return _dep

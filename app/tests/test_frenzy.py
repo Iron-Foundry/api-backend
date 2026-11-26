@@ -1,41 +1,61 @@
 from __future__ import annotations
 
-import json
-from unittest.mock import AsyncMock, MagicMock, patch
-
+import httpx
+import pytest
 from httpx import AsyncClient
 
-from app.routers.frenzy import _osrs_cache
+from app.services.osrsclans import client as osrsclans_client
+
+_WHIP_PAGE = {
+    "items": [
+        {"id": 4151, "name": "Abyssal whip", "members": True},
+        {"id": 4152, "name": None, "members": True},
+    ],
+    "total": 2,
+    "limit": 30,
+    "offset": 0,
+}
 
 
-async def test_refresh_osrs_items_uses_cache_service() -> None:
-    catalog = [{"item_id": 4151, "name": "Abyssal whip", "members": True}]
-    resp = MagicMock()
-    resp.raise_for_status = MagicMock()
-    resp.json = MagicMock(return_value=catalog)
-    client = MagicMock()
-    client.__aenter__ = AsyncMock(return_value=client)
-    client.__aexit__ = AsyncMock(return_value=False)
-    client.get = AsyncMock(return_value=resp)
-    fake_httpx = MagicMock()
-    fake_httpx.AsyncClient = MagicMock(return_value=client)
+async def test_item_search_reads_osrsclans_named_items(
+    auth_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[httpx.Request] = []
 
-    valkey = MagicMock()
-    valkey.setex = AsyncMock()
-    with patch.object(_osrs_cache, "httpx", fake_httpx):
-        await _osrs_cache._refresh_osrs_items(valkey)
+    def answer(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json=_WHIP_PAGE)
 
-    assert client.get.call_args.args[0].endswith("/items/catalog")
-    stored = json.loads(valkey.setex.call_args.args[2])
-    assert stored[0]["id"] == 4151
-    assert stored[0]["name"] == "Abyssal whip"
-    assert stored[0]["icon_url"].endswith("/osrs-cache/item-icons/4151")
-    assert "runescape.wiki" not in stored[0]["icon_url"]
+    monkeypatch.setattr(osrsclans_client, "_transport", httpx.MockTransport(answer))
+
+    resp = await auth_client.get("/frenzy/osrs/items?q=whip")
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == [
+        {
+            "id": 4151,
+            "name": "Abyssal whip",
+            "icon_url": "https://osrsclans.cc/api/v1/osrs/items/4151.webp",
+            "members": True,
+        }
+    ]
+    assert seen[0].url.path == "/api/v1/osrs/items/search"
 
 
 async def test_active_event(auth_client: AsyncClient) -> None:
     resp = await auth_client.get("/frenzy/active")
     assert resp.status_code in (200, 404)
+
+
+@pytest.mark.parametrize("method", ["post", "patch", "delete"])
+async def test_signup_requires_login(anon_client: AsyncClient, method: str) -> None:
+    resp = await getattr(anon_client, method)("/frenzy/events/1/signup")
+    assert resp.status_code == 401
+
+
+async def test_signup_list_needs_frenzy_admin(auth_client: AsyncClient) -> None:
+    resp = await auth_client.get("/frenzy/events/1/signups")
+    assert resp.status_code == 403
 
 
 async def test_frenzy_leaderboards(auth_client: AsyncClient) -> None:

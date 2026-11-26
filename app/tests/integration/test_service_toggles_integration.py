@@ -72,10 +72,10 @@ async def test_enabling_starts_the_service_on_another_worker(
     staff_client: AsyncClient, other_worker: dict[str, Any]
 ) -> None:
     started = _service(running=False)
-    other_worker["loot_tables"] = started
+    other_worker["efficiency_rates"] = started
 
     resp = await staff_client.put(
-        "/config/services/toggles/loot_tables", json={"enabled": True}
+        "/config/services/toggles/efficiency_rates", json={"enabled": True}
     )
     assert resp.status_code == 200
 

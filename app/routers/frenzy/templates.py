@@ -16,7 +16,7 @@ from .schemas import CalculatePointsBody, TemplateBody
 
 router = APIRouter()
 
-_PERM = Depends(require_page_permission("frenzy", "edit"))
+_PERM = Depends(require_page_permission("frenzy.admin", "edit"))
 
 
 @router.get("/templates")

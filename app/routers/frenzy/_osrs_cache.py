@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from typing import Any
 
-import httpx
 from loguru import logger
 from valkey.asyncio import Valkey
 
@@ -14,40 +13,18 @@ from ._constants import (
     _ACTIVITY_METRICS,
     _BOSS_METRICS,
     _BOSSES_KEY,
-    _ITEM_ICON_BASE,
-    _ITEMS_KEY,
     _LB_FRESH_KEY,
     _LB_FRESH_TTL,
     _LB_LOCK_KEY,
     _LB_LOCK_TTL,
     _LB_STALE_KEY,
     _LB_STALE_TTL,
-    _OSRS_CACHE_SERVICE_URL,
     _OSRS_REF_TTL,
     _WOM_API_KEY,
     _WOM_DISCORD_CONTACT,
     _WOM_GROUP_ID,
     _wiki_icon,
 )
-
-
-async def _refresh_osrs_items(valkey: Valkey) -> None:
-    async with httpx.AsyncClient(timeout=20.0) as client:
-        resp = await client.get(f"{_OSRS_CACHE_SERVICE_URL}/items/catalog")
-        resp.raise_for_status()
-        raw = resp.json()
-    items = [
-        {
-            "id": entry["item_id"],
-            "name": entry["name"],
-            "icon_url": f"{_ITEM_ICON_BASE}/{entry['item_id']}",
-            "members": entry.get("members", False),
-        }
-        for entry in raw
-        if entry.get("name")
-    ]
-    await valkey.setex(_ITEMS_KEY, _OSRS_REF_TTL, json.dumps(items))
-    logger.info("osrs items cache: loaded {} items", len(items))
 
 
 async def _refresh_osrs_bosses(valkey: Valkey) -> None:
@@ -69,14 +46,12 @@ async def _refresh_osrs_activities(valkey: Valkey) -> None:
 
 
 async def warm_osrs_caches(valkey: Valkey) -> None:
-    """Called from app lifespan to pre-populate OSRS reference data.
+    """Called from app lifespan to pre-populate the frenzy boss and activity lists.
 
     Best-effort: the request path refreshes each cache on miss, so a warm
-    failure (e.g. the osrs-cache service unreachable at boot) must log and
-    continue rather than abort application startup.
+    failure must log and continue rather than abort application startup.
     """
     for key, refresh in (
-        (_ITEMS_KEY, _refresh_osrs_items),
         (_BOSSES_KEY, _refresh_osrs_bosses),
         (_ACTIVITIES_KEY, _refresh_osrs_activities),
     ):

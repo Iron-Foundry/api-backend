@@ -3,11 +3,13 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 from valkey.asyncio import Valkey
 
-from app.dependencies import get_valkey
+from app.dependencies import get_session, get_valkey
 from app.docs import responses
 from app.services.osrsclans.client import OsrsClansError
+from app.services.osrsclans.foundry_rates import fill_rate_page, fill_source_page
 from app.services.osrsclans.loot_rate_models import (
     LootCategory,
     LootRatePage,
@@ -23,6 +25,7 @@ from app.services.osrsclans.loot_rates import (
 router = APIRouter(prefix="/loot-rates", responses=responses.PROXIED)
 
 ValkeyDep = Annotated[Valkey, Depends(get_valkey)]
+SessionDep = Annotated[AsyncSession, Depends(get_session)]
 PageQuery = Annotated[str | None, Query(min_length=1, max_length=200)]
 CategoryQuery = Annotated[LootCategory | None, Query()]
 WomMetricQuery = Annotated[str | None, Query(min_length=1, max_length=64)]
@@ -34,6 +37,7 @@ OffsetQuery = Annotated[int, Query(ge=0)]
 @router.get("")
 async def list_loot_rates(
     valkey: ValkeyDep,
+    session: SessionDep,
     item: Annotated[int | None, Query(ge=0)] = None,
     source: Annotated[str | None, Query(min_length=1, max_length=200)] = None,
     page: PageQuery = None,
@@ -51,7 +55,9 @@ async def list_loot_rates(
     `item`, `source`, `page`, `category` and `wom_metric` keep one of each. `q`
     keeps the rows whose item or source name holds the text. `level` sets the
     level that a skilling pet or clue nest chance is computed at. `points` and
-    `raid_level` set the raid that `chance_per_raid` is computed at.
+    `raid_level` set the raid that `chance_per_raid` is computed at. A row with
+    no OSRSClans kill rate takes the staff-set rate of its source, marked
+    `foundry`.
     """
     ask = LootRateAsk(
         item,
@@ -67,14 +73,16 @@ async def list_loot_rates(
         offset,
     )
     try:
-        return await cached_loot_rates(valkey, ask)
+        rates = await cached_loot_rates(valkey, ask)
     except OsrsClansError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return await fill_rate_page(session, rates)
 
 
 @router.get("/sources")
 async def list_loot_sources(
     valkey: ValkeyDep,
+    session: SessionDep,
     page: PageQuery = None,
     category: CategoryQuery = None,
     wom_metric: WomMetricQuery = None,
@@ -85,10 +93,12 @@ async def list_loot_sources(
     """Return the drop sources from OSRSClans, with each source's kill rate.
 
     `page`, `category` and `wom_metric` keep one of each. `q` keeps the sources
-    whose name, or the name of an item they drop, holds the text.
+    whose name, or the name of an item they drop, holds the text. A source with
+    no OSRSClans kill rate takes its staff-set rate, marked `foundry`.
     """
     ask = LootSourceAsk(page, category, wom_metric, q, limit, offset)
     try:
-        return await cached_loot_sources(valkey, ask)
+        sources = await cached_loot_sources(valkey, ask)
     except OsrsClansError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return await fill_source_page(session, sources)

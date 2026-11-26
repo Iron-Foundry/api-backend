@@ -33,7 +33,6 @@ from app.routers import (
     meta,
     metrics,
     music,
-    osrs_cache,
     parties,
     ranking,
     reference,
@@ -61,8 +60,8 @@ from app.services.endpoint_metrics import (
     EndpointMetricsCollector,
     EndpointMetricsService,
 )
+from app.services.frenzy_draft_live import DraftLiveService
 from app.services.http.wom_queue import init_wom_queue
-from app.services.loot_tables import LootTablesService
 from app.services.metric_compaction import MetricCompactionService
 from app.services.music_live import MusicStateService
 from app.services.music_stats import MusicStatsService
@@ -175,12 +174,6 @@ async def lifespan(app: FastAPI):
         efficiency_rates_service = None
         comp_schedule_service = None
 
-    loot_tables_service = (
-        LootTablesService(app.state.session_factory)
-        if app.state.session_factory
-        else None
-    )
-
     app.state.ranking_service = ranking_service
     app.state.bulk_gains_service = (
         BulkGainsService(app.state.session_factory)
@@ -200,7 +193,7 @@ async def lifespan(app: FastAPI):
         "competition_snapshot": snapshot_service,
         "competition_schedule": comp_schedule_service,
         "efficiency_rates": efficiency_rates_service,
-        "loot_tables": loot_tables_service,
+        "frenzy_draft_live": DraftLiveService(VALKEY_URI),
     }
 
     # Start only enabled services
@@ -318,7 +311,6 @@ app.include_router(content.router)
 app.include_router(frenzy.router)
 app.include_router(tilerace.router)
 app.include_router(ticket_config.router)
-app.include_router(osrs_cache.router)
 
 
 @app.get("/docs", include_in_schema=False)

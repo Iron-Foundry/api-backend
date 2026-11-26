@@ -36,7 +36,7 @@ _ALL_SERVICE_KEYS: list[str] = [
     "music_stats",
     "party_expiry",
     "efficiency_rates",
-    "loot_tables",
+    "frenzy_draft_live",
 ]
 
 
