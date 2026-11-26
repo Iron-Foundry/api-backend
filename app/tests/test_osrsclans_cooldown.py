@@ -27,7 +27,8 @@ _ROUTE = "/reference/osrs/npcs?q=vorkath"
     [
         (503, {"Retry-After": "45"}, 45),
         (429, {}, 30),
-        (500, {"Retry-After": "9999"}, 300),
+        (504, {"Retry-After": "9999"}, 300),
+        (500, {}, None),
         (404, {}, None),
         (400, {}, None),
     ],

@@ -1,6 +1,6 @@
 """The pause after OSRSClans fails: until it ends, Foundry sends OSRSClans nothing.
 
-A timeout, a 429 or a 5xx starts it, for the seconds of `Retry-After` when
+A timeout, a 429, a 502, a 503 or a 504 starts it, for the seconds of `Retry-After` when
 OSRSClans sends one. The pause lives in Valkey, so every worker honours it.
 Routes answer 503 at once while it runs, so a slow OSRSClans never holds
 Foundry's requests open.
@@ -18,6 +18,7 @@ from valkey.asyncio import Valkey
 COOLDOWN_KEY = "osrsclans:cooldown"
 DEFAULT_COOLDOWN_SECONDS = 30
 _MAX_COOLDOWN_SECONDS = 300
+_OVERLOAD_STATUSES = frozenset({429, 502, 503, 504})
 
 
 class OsrsClansCoolingDownError(Exception):
@@ -29,8 +30,13 @@ class OsrsClansCoolingDownError(Exception):
 
 
 def cooldown_for(resp: httpx.Response) -> int | None:
-    """Return the pause a failed answer calls for, or None for an answer that needs none."""
-    if resp.status_code != 429 and resp.status_code < 500:
+    """Return the pause a failed answer calls for, or None for an answer that needs none.
+
+    Only 429 and the gateway answers (502, 503, 504) pause: they say OSRSClans is
+    overloaded or down. A 500 can come from one odd request, and a pause on it
+    would let any caller stop all OSRSClans calls.
+    """
+    if resp.status_code not in _OVERLOAD_STATUSES:
         return None
     header = resp.headers.get("Retry-After", "")
     seconds = int(header) if header.isdigit() else DEFAULT_COOLDOWN_SECONDS
